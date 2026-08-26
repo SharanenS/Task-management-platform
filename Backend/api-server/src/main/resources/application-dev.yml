@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5434}/${DB_NAME:taskplatform}
+    username: ${DB_USER:taskplatform_user}
+    password: ${DB_PASSWORD:change_me_locally}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # No entities yet (Phase 1). "validate" is the safe default once entities
+      # exist: schema changes must come from Flyway migrations, never from
+      # Hibernate auto-generating DDL.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}

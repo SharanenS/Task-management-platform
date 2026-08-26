@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: taskplatform-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-taskplatform}
+      POSTGRES_USER: ${DB_USER:-taskplatform_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me_locally}
+    # Host port 5433 so this never collides with another local Postgres
+    # instance on the default 5432. Inside the Docker network it's still
+    # reachable at postgres:5432.
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - taskplatform_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-taskplatform_user} -d ${DB_NAME:-taskplatform}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: taskplatform-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  taskplatform_postgres_data:
+    name: taskplatform_postgres_data

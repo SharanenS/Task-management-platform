@@ -1,0 +1,42 @@
+# --- Maven / Java ---
+target/
+*.class
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# --- IDE ---
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Environment / secrets ---
+.env
+.env.local
+*.env.local
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Frontend (added in a later phase) ---
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# --- Docker ---
+docker-compose.override.yml
