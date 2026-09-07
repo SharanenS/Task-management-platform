@@ -1,42 +1,71 @@
-# --- Maven / Java ---
-target/
-*.class
-*.jar
-*.war
-!.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
 
-# --- IDE ---
+# Node
+node_modules/
+.next/
+out/
+
+# IDE
 .idea/
-*.iml
-*.ipr
-*.iws
 .vscode/
-.settings/
-.classpath
-.project
-.factorypath
+*.swp
+*.swo
 
-# --- OS ---
-.DS_Store
-Thumbs.db
-
-# --- Environment / secrets ---
+# Environment
 .env
 .env.local
-*.env.local
+.env.*.local
 
-# --- Logs ---
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Docker volumes
+data/
+
+# Test / Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Alembic
+*.pyc
+# Node / Next.js additions
+.turbo/
+
+# Logs
 *.log
 logs/
 
-# --- Frontend (added in a later phase) ---
-node_modules/
-dist/
-dist-ssr/
-.vite/
-*.local
+# Coverage / Local test artifacts
+playwright-report/
+test-results/
+.mypy_cache/
+.ruff_cache/
+coverage.xml
 
-# --- Docker ---
-docker-compose.override.yml
+# Docker/local development artifacts
+*.pid
+
+# Local databases / temporary files
+*.sqlite
+*.sqlite3
+
+# Local environment/configuration files
+application-local.properties
+application-local.yml
+application-dev.properties
+application-dev.yml
+application-prod.properties
+application-prod.yml

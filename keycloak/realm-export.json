@@ -1,0 +1,39 @@
+{
+  "id": "enterprise",
+  "realm": "enterprise",
+  "displayName": "Enterprise Task Platform",
+  "enabled": true,
+  "registrationAllowed": false,
+  "clients": [
+    {
+      "clientId": "task-platform",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "dev-only-client-secret",
+      "redirectUris": [
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000"
+      ],
+      "publicClient": false,
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "firstName": "System",
+      "lastName": "Admin",
+      "email": "admin@enterprise.local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "dev-only-admin-password",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}
