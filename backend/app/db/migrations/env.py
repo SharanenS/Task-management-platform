@@ -11,12 +11,6 @@ from app.core.config import settings
 from app.db.base import Base
 
 # Import all models so Alembic can detect them
-from app.models.user import User  # noqa: F401
-from app.models.role import Role, Permission  # noqa: F401
-from app.models.project import Project  # noqa: F401
-from app.models.report import Report  # noqa: F401
-from app.models.notification import Notification  # noqa: F401
-from app.models.audit_log import AuditLog  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

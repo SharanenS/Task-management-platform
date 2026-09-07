@@ -7,7 +7,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import v1_router
-from app.cache.redis import close_redis
 from app.core.config import settings
 from app.core.exceptions import AppException
 from app.core.logging import setup_logging
@@ -21,7 +20,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application startup and shutdown lifecycle."""
     setup_logging(settings.LOG_LEVEL)
     yield
-    await close_redis()
 
 
 app = FastAPI(
@@ -32,7 +30,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Middleware (order matters — outermost first)
+# Middleware (order matters - outermost first)
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(

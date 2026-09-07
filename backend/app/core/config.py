@@ -14,29 +14,7 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
 
-    # Redis
-    REDIS_URL: str
-
-    # RabbitMQ
-    RABBITMQ_URL: str
-
-    # Keycloak
-    KEYCLOAK_SERVER_URL: str
-    KEYCLOAK_REALM: str
-    KEYCLOAK_CLIENT_ID: str
-    KEYCLOAK_CLIENT_SECRET: str
-
-    # AWS S3
-    AWS_S3_BUCKET: str = "task-platform-reports"
-    AWS_REGION: str = "ap-south-1"
-    AWS_ACCESS_KEY_ID: str = ""
-    AWS_SECRET_ACCESS_KEY: str = ""
-
-    # Internal JWT (for dev/local without Keycloak)
-    SECRET_KEY: str
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-
-    model_config = {"env_file": ".env", "case_sensitive": True}
+    model_config = {"env_file": [".env", "../.env"], "case_sensitive": True, "extra": "ignore"}
 
 
 settings = Settings()
