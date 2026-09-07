@@ -14,6 +14,22 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
 
+    # Keycloak Authentication
+    KEYCLOAK_SERVER_URL: str
+    KEYCLOAK_REALM: str
+    KEYCLOAK_CLIENT_ID: str
+
+    @property
+    def keycloak_issuer(self) -> str:
+        """Construct the expected issuer URL for JWT validation."""
+        server = self.KEYCLOAK_SERVER_URL.rstrip('/')
+        return f"{server}/realms/{self.KEYCLOAK_REALM}"
+
+    @property
+    def keycloak_jwks_url(self) -> str:
+        """Construct the JWKS discovery URL."""
+        return f"{self.keycloak_issuer}/protocol/openid-connect/certs"
+
     model_config = {"env_file": [".env", "../.env"], "case_sensitive": True, "extra": "ignore"}
 
 

@@ -1,99 +1,62 @@
-"""Security utilities: JWT validation, password hashing, Keycloak integration."""
+"""Authentication and JWT validation security mechanisms."""
 
-from datetime import datetime, timedelta, timezone
-
-import httpx
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+import jwt
+from jwt import PyJWKClient
+from pydantic import BaseModel, Field
 
 from app.core.config import settings
-from app.core.exceptions import UnauthorizedError
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# Cached Keycloak JWKS
-_jwks_cache: dict | None = None
-
-
-def hash_password(password: str) -> str:
-    """Hash a plaintext password using bcrypt."""
-    return pwd_context.hash(password)
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a plaintext password against a bcrypt hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+# Configure a proper in-process cache for Keycloak's public keys.
+# We set cache_jwk_set=True with lifespan=300 to cache the entire keyset
+# for 5 minutes. We set cache_keys=False because it relies on an LRU cache
+# without time-based expiration, which contradicts the lifespan TTL.
+jwks_client = PyJWKClient(
+    settings.keycloak_jwks_url,
+    cache_keys=False,
+    cache_jwk_set=True,
+    lifespan=300
+)
 
 
-async def get_keycloak_jwks() -> dict:
-    """Fetch the JWKS from Keycloak for token verification."""
-    global _jwks_cache
-    if _jwks_cache is not None:
-        return _jwks_cache
+class AuthenticatedUser(BaseModel):
+    """Typed representation of an authenticated identity."""
 
-    jwks_url = (
-        f"{settings.KEYCLOAK_SERVER_URL}/realms/{settings.KEYCLOAK_REALM}"
-        f"/protocol/openid-connect/certs"
-    )
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(jwks_url, timeout=10.0)
-            response.raise_for_status()
-            _jwks_cache = response.json()
-            return _jwks_cache
-        except httpx.HTTPError as e:
-            logger.warning("keycloak_jwks_fetch_failed", error=str(e))
-            raise UnauthorizedError("Authentication service unavailable")
+    sub: str
+    preferred_username: str | None = None
+    email: str | None = None
+    name: str | None = None
+    azp: str = Field(description="Authorized Party (Client ID)")
 
 
-async def decode_keycloak_token(token: str) -> dict:
-    """Decode and validate a Keycloak-issued JWT."""
+def verify_jwt_token(token: str) -> AuthenticatedUser:
+    """
+    Validate the incoming Bearer token against Keycloak's public keys.
+    Raises jwt exceptions (jwt.InvalidTokenError, jwt.ExpiredSignatureError, etc.) on failure.
+    """
     try:
-        jwks = await get_keycloak_jwks()
-        unverified_header = jwt.get_unverified_header(token)
-
-        rsa_key = {}
-        for key in jwks.get("keys", []):
-            if key["kid"] == unverified_header.get("kid"):
-                rsa_key = key
-                break
-
-        if not rsa_key:
-            raise UnauthorizedError("Invalid token signing key")
-
+        # 1. Fetch the signing key from the JWKS endpoint (uses in-process cache)
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+        
+        # 2. Decode and validate signature, expiration, issuer, and audience
         payload = jwt.decode(
             token,
-            rsa_key,
+            key=signing_key.key,
             algorithms=["RS256"],
-            audience=settings.KEYCLOAK_CLIENT_ID,
-            issuer=f"{settings.KEYCLOAK_SERVER_URL}/realms/{settings.KEYCLOAK_REALM}",
+            issuer=settings.keycloak_issuer,
+            audience=settings.KEYCLOAK_CLIENT_ID
         )
-        return payload
-    except JWTError as e:
-        logger.warning("jwt_decode_failed", error=str(e))
-        raise UnauthorizedError("Invalid or expired token")
-
-
-def create_internal_token(user_id: str, email: str, permissions: list[str]) -> str:
-    """Create an internal JWT for dev/local use (bypasses Keycloak)."""
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {
-        "sub": user_id,
-        "email": email,
-        "permissions": permissions,
-        "exp": expire,
-        "iat": datetime.now(timezone.utc),
-    }
-    return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
-
-
-def decode_internal_token(token: str) -> dict:
-    """Decode an internal JWT (dev/local mode)."""
-    try:
-        return jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-    except JWTError as e:
-        logger.warning("internal_jwt_decode_failed", error=str(e))
-        raise UnauthorizedError("Invalid or expired token")
+        
+        # 3. Validate Authorized Party (azp) matches our configured Client ID
+        azp = payload.get("azp")
+        if azp != settings.KEYCLOAK_CLIENT_ID:
+            logger.warning("auth_azp_mismatch", expected=settings.KEYCLOAK_CLIENT_ID, received=azp)
+            raise jwt.InvalidTokenError("Invalid authorized party (azp).")
+            
+        return AuthenticatedUser(**payload)
+        
+    except jwt.PyJWKClientError as e:
+        logger.error("jwks_fetch_error", error=str(e))
+        raise jwt.InvalidTokenError("Unable to fetch JWKS signing keys.")
