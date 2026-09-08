@@ -32,6 +32,13 @@ class ProjectStatus(StrEnum):
     ARCHIVED = "ARCHIVED"
 
 
+class JobStatus(StrEnum):
+    QUEUED = "QUEUED"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
 class ReportStatus(StrEnum):
     PENDING = "PENDING"
     PROCESSING = "PROCESSING"
