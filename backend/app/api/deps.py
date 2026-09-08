@@ -10,7 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import get_logger
 from app.core.security import AuthenticatedUser, Role, verify_jwt_token
 from app.db.session import async_session_factory
+from app.repositories.job import JobRepository
 from app.repositories.project import ProjectRepository
+from app.services.job import JobService
 from app.services.project import ProjectService
 
 logger = get_logger(__name__)
@@ -90,6 +92,7 @@ require_manager = RoleChecker(Role.MANAGER)
 require_member = RoleChecker(Role.MEMBER)
 require_management = RoleChecker(Role.ADMIN, Role.MANAGER)
 require_project_view = RoleChecker(Role.ADMIN, Role.MANAGER, Role.MEMBER)
+require_job_view = RoleChecker(Role.ADMIN, Role.MANAGER, Role.MEMBER)
 
 
 # Service and Repository dependencies
@@ -103,3 +106,16 @@ def get_project_service(
 ) -> ProjectService:
     """Dependency provider for ProjectService."""
     return ProjectService(repository)
+
+
+def get_job_repository(session: AsyncSession = Depends(get_db)) -> JobRepository:
+    """Dependency provider for JobRepository."""
+    return JobRepository(session)
+
+
+def get_job_service(
+    repository: JobRepository = Depends(get_job_repository),
+    project_repository: ProjectRepository = Depends(get_project_repository),
+) -> JobService:
+    """Dependency provider for JobService."""
+    return JobService(repository=repository, project_repository=project_repository)
