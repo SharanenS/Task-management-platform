@@ -46,7 +46,26 @@
           "value": "dev-only-admin-password",
           "temporary": false
         }
+      ],
+      "realmRoles": [
+        "ADMIN"
       ]
     }
-  ]
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "ADMIN",
+        "description": "Full administrative access"
+      },
+      {
+        "name": "MANAGER",
+        "description": "Team and workflow management access"
+      },
+      {
+        "name": "MEMBER",
+        "description": "Standard team member access"
+      }
+    ]
+  }
 }
