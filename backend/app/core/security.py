@@ -1,4 +1,6 @@
-"""Authentication and JWT validation security mechanisms."""
+"""Authentication, JWT validation, and role extraction."""
+
+from enum import StrEnum
 
 import jwt
 from jwt import PyJWKClient
@@ -21,6 +23,34 @@ jwks_client = PyJWKClient(
 )
 
 
+class Role(StrEnum):
+    """Application roles managed via Keycloak realm roles."""
+
+    ADMIN = "ADMIN"
+    MANAGER = "MANAGER"
+    MEMBER = "MEMBER"
+
+
+def extract_roles(payload: dict) -> list[Role]:
+    """
+    Extract recognized application roles from a validated JWT payload.
+
+    Keycloak places realm roles at payload["realm_access"]["roles"].
+    Unrecognized roles (e.g. offline_access, uma_authorization) are ignored.
+    Missing or malformed structures are handled gracefully.
+    """
+    try:
+        realm_access = payload.get("realm_access")
+        if not isinstance(realm_access, dict):
+            return []
+        raw_roles = realm_access.get("roles")
+        if not isinstance(raw_roles, list):
+            return []
+        return [Role(r) for r in raw_roles if isinstance(r, str) and r in Role.__members__]
+    except (ValueError, KeyError):
+        return []
+
+
 class AuthenticatedUser(BaseModel):
     """Typed representation of an authenticated identity."""
 
@@ -29,6 +59,7 @@ class AuthenticatedUser(BaseModel):
     email: str | None = None
     name: str | None = None
     azp: str = Field(description="Authorized Party (Client ID)")
+    roles: list[Role] = Field(default_factory=list, description="Application roles from realm_access")
 
 
 def verify_jwt_token(token: str) -> AuthenticatedUser:
@@ -39,7 +70,7 @@ def verify_jwt_token(token: str) -> AuthenticatedUser:
     try:
         # 1. Fetch the signing key from the JWKS endpoint (uses in-process cache)
         signing_key = jwks_client.get_signing_key_from_jwt(token)
-        
+
         # 2. Decode and validate signature, expiration, issuer, and audience
         payload = jwt.decode(
             token,
@@ -48,15 +79,18 @@ def verify_jwt_token(token: str) -> AuthenticatedUser:
             issuer=settings.keycloak_issuer,
             audience=settings.KEYCLOAK_CLIENT_ID
         )
-        
+
         # 3. Validate Authorized Party (azp) matches our configured Client ID
         azp = payload.get("azp")
         if azp != settings.KEYCLOAK_CLIENT_ID:
             logger.warning("auth_azp_mismatch", expected=settings.KEYCLOAK_CLIENT_ID, received=azp)
             raise jwt.InvalidTokenError("Invalid authorized party (azp).")
-            
-        return AuthenticatedUser(**payload)
-        
+
+        # 4. Extract application roles from the validated payload
+        roles = extract_roles(payload)
+
+        return AuthenticatedUser(**payload, roles=roles)
+
     except jwt.PyJWKClientError as e:
         logger.error("jwks_fetch_error", error=str(e))
         raise jwt.InvalidTokenError("Unable to fetch JWKS signing keys.")
