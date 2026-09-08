@@ -28,7 +28,6 @@ class Permission(StrEnum):
 class ProjectStatus(StrEnum):
     PLANNING = "PLANNING"
     ACTIVE = "ACTIVE"
-    ON_HOLD = "ON_HOLD"
     COMPLETED = "COMPLETED"
     ARCHIVED = "ARCHIVED"
 
