@@ -1,4 +1,4 @@
-"""FastAPI dependencies for authentication and authorization."""
+"""FastAPI dependencies for authentication, authorization, and database access."""
 
 from collections.abc import AsyncGenerator
 
@@ -10,9 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import get_logger
 from app.core.security import AuthenticatedUser, Role, verify_jwt_token
 from app.db.session import async_session_factory
+from app.repositories.project import ProjectRepository
+from app.services.project import ProjectService
 
 logger = get_logger(__name__)
 oauth2_scheme = HTTPBearer()
+
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency for getting async database sessions."""
@@ -56,16 +59,7 @@ async def get_current_identity(
 
 
 class RoleChecker:
-    """
-    Reusable FastAPI dependency for role-based authorization.
-
-    Usage in routers:
-        require_admin = RoleChecker(Role.ADMIN)
-        require_management = RoleChecker(Role.ADMIN, Role.MANAGER)
-
-        @router.get("/admin", dependencies=[Depends(require_admin)])
-        async def admin_endpoint(): ...
-    """
+    """Reusable FastAPI dependency for role-based authorization."""
 
     def __init__(self, *allowed_roles: Role) -> None:
         if not allowed_roles:
@@ -90,8 +84,22 @@ class RoleChecker:
         return identity
 
 
-# Pre-built authorization dependencies for common patterns
+# Pre-built authorization dependencies
 require_admin = RoleChecker(Role.ADMIN)
 require_manager = RoleChecker(Role.MANAGER)
 require_member = RoleChecker(Role.MEMBER)
 require_management = RoleChecker(Role.ADMIN, Role.MANAGER)
+require_project_view = RoleChecker(Role.ADMIN, Role.MANAGER, Role.MEMBER)
+
+
+# Service and Repository dependencies
+def get_project_repository(session: AsyncSession = Depends(get_db)) -> ProjectRepository:
+    """Dependency provider for ProjectRepository."""
+    return ProjectRepository(session)
+
+
+def get_project_service(
+    repository: ProjectRepository = Depends(get_project_repository),
+) -> ProjectService:
+    """Dependency provider for ProjectService."""
+    return ProjectService(repository)
