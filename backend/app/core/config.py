@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
 
+    # Message Broker (RabbitMQ / Celery)
+    RABBITMQ_URL: str
+
     # Keycloak Authentication
     KEYCLOAK_SERVER_URL: str
     KEYCLOAK_REALM: str

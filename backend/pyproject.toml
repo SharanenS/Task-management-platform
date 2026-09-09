@@ -15,6 +15,7 @@ dependencies = [
 "structlog>=24.1.0",
     "python-multipart>=0.0.9",
     "PyJWT[crypto]>=2.8.0",
+    "celery>=5.4.0",
 ]
 
 [project.optional-dependencies]
