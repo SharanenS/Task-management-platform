@@ -1,6 +1,7 @@
 """FastAPI dependencies for authentication, authorization, and database access."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
+from typing import Any
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -119,3 +120,10 @@ def get_job_service(
 ) -> JobService:
     """Dependency provider for JobService."""
     return JobService(repository=repository, project_repository=project_repository)
+
+
+def get_job_dispatcher() -> Callable[[str], Any]:
+    """Dependency providing a callable to dispatch Celery tasks."""
+    from app.tasks.jobs import process_job_task
+
+    return process_job_task.delay

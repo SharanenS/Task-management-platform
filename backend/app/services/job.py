@@ -97,3 +97,12 @@ class JobService:
             error_message=job.error_message,
         )
         return updated
+    async def claim_job(self, job_id: uuid.UUID) -> Job | None:
+        """
+        Attempt to atomically claim a job for processing (QUEUED -> PROCESSING).
+        Returns the Job if successfully claimed, or None if not in QUEUED state.
+        """
+        claimed = await self.repository.claim_job(job_id)
+        if claimed:
+            logger.info("job_claimed_for_processing", job_id=str(job_id))
+        return claimed

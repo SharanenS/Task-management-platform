@@ -251,3 +251,88 @@ def test_job_create_tab_only_type_rejected():
 def test_job_create_valid_type_trimmed():
     schema = JobCreate(project_id=uuid.uuid4(), job_type="  REPORT_GEN  ")
     assert schema.job_type == "REPORT_GEN"
+
+
+# ── Atomic Claiming Tests ───────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_claim_queued_job_succeeds(service, mock_job_repo, sample_job):
+    """1. A QUEUED Job can be claimed successfully."""
+    claimed_job = Job(
+        id=sample_job.id,
+        project_id=sample_job.project_id,
+        job_type=sample_job.job_type,
+        status=JobStatus.PROCESSING,
+        payload=sample_job.payload,
+        error_message=None,
+        created_at=sample_job.created_at,
+        updated_at=datetime.now(timezone.utc),
+    )
+    mock_job_repo.claim_job.return_value = claimed_job
+
+    result = await service.claim_job(sample_job.id)
+
+    assert result is not None
+    assert result.status == JobStatus.PROCESSING
+    mock_job_repo.claim_job.assert_called_once_with(sample_job.id)
+
+
+@pytest.mark.asyncio
+async def test_claim_processing_job_fails(service, mock_job_repo, sample_job):
+    """2. A Job already in PROCESSING cannot be claimed again."""
+    # Repository conditional UPDATE WHERE status = 'QUEUED' matches 0 rows and returns None
+    mock_job_repo.claim_job.return_value = None
+
+    result = await service.claim_job(sample_job.id)
+
+    assert result is None
+    mock_job_repo.claim_job.assert_called_once_with(sample_job.id)
+
+
+@pytest.mark.asyncio
+async def test_claim_completed_job_fails(service, mock_job_repo, sample_job):
+    """3. A COMPLETED Job cannot be claimed."""
+    mock_job_repo.claim_job.return_value = None
+
+    result = await service.claim_job(sample_job.id)
+
+    assert result is None
+    mock_job_repo.claim_job.assert_called_once_with(sample_job.id)
+
+
+@pytest.mark.asyncio
+async def test_claim_failed_job_fails(service, mock_job_repo, sample_job):
+    """4. A FAILED Job cannot be claimed."""
+    mock_job_repo.claim_job.return_value = None
+
+    result = await service.claim_job(sample_job.id)
+
+    assert result is None
+    mock_job_repo.claim_job.assert_called_once_with(sample_job.id)
+
+
+@pytest.mark.asyncio
+async def test_two_workers_claim_same_queued_job_only_one_succeeds(service, mock_job_repo, sample_job):
+    """5. Two execution attempts cannot both successfully claim the same QUEUED Job."""
+    claimed_job = Job(
+        id=sample_job.id,
+        project_id=sample_job.project_id,
+        job_type=sample_job.job_type,
+        status=JobStatus.PROCESSING,
+        payload=sample_job.payload,
+        error_message=None,
+        created_at=sample_job.created_at,
+        updated_at=datetime.now(timezone.utc),
+    )
+    # First attempt matches QUEUED and updates to PROCESSING; second attempt matches 0 rows
+    mock_job_repo.claim_job.side_effect = [claimed_job, None]
+
+    # Worker A attempts claim
+    worker_a_result = await service.claim_job(sample_job.id)
+    # Worker B attempts claim on the same job
+    worker_b_result = await service.claim_job(sample_job.id)
+
+    assert worker_a_result is not None
+    assert worker_a_result.status == JobStatus.PROCESSING
+    assert worker_b_result is None
+    assert mock_job_repo.claim_job.call_count == 2

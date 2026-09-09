@@ -1,19 +1,25 @@
 """Job endpoints."""
 
+from collections.abc import Callable
 import uuid
 
 from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (
+    get_db,
+    get_job_dispatcher,
     get_job_service,
     require_job_view,
     require_management,
 )
+from app.core.logging import get_logger
 from app.core.security import AuthenticatedUser
 from app.schemas.job import JobCreate, JobResponse, JobStatusUpdate
 from app.services.job import JobService
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+logger = get_logger(__name__)
 
 
 @router.post("", response_model=JobResponse, status_code=status.HTTP_201_CREATED)
@@ -21,9 +27,17 @@ async def create_job(
     payload: JobCreate,
     identity: AuthenticatedUser = Depends(require_management),
     service: JobService = Depends(get_job_service),
+    session: AsyncSession = Depends(get_db),
+    dispatcher: Callable[[str], None] = Depends(get_job_dispatcher),
 ) -> JobResponse:
-    """Create a new background job. Requires ADMIN or MANAGER role."""
+    """Create a new background job and dispatch to Celery. Requires ADMIN or MANAGER role."""
     job = await service.create_job(data=payload)
+    # Ensure transaction is committed in PostgreSQL BEFORE dispatching to message broker
+    await session.commit()
+    try:
+        dispatcher(str(job.id))
+    except Exception as e:
+        logger.error("failed_to_dispatch_celery_task", job_id=str(job.id), error=str(e))
     return JobResponse.model_validate(job)
 
 

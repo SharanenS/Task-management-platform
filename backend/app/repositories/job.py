@@ -3,9 +3,10 @@
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.constants import JobStatus
 from app.models.job import Job
 
 
@@ -40,3 +41,17 @@ class JobRepository:
         await self.session.flush()
         await self.session.refresh(job)
         return job
+
+    async def claim_job(self, job_id: uuid.UUID) -> Job | None:
+        """
+        Atomically transition a job from QUEUED to PROCESSING.
+        Returns the updated Job if the claim succeeded, or None if the job was not in QUEUED state.
+        """
+        stmt = (
+            update(Job)
+            .where(Job.id == job_id, Job.status == JobStatus.QUEUED)
+            .values(status=JobStatus.PROCESSING, updated_at=func.now())
+            .returning(Job)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
