@@ -64,3 +64,11 @@ class AuditAction(StrEnum):
     PROJECT_DELETED = "PROJECT_DELETED"
     REPORT_GENERATED = "REPORT_GENERATED"
     REPORT_FAILED = "REPORT_FAILED"
+
+class OutboxStatus(StrEnum):
+    PENDING = "PENDING"
+    PUBLISHED = "PUBLISHED"
+
+
+class OutboxEventType(StrEnum):
+    JOB_CREATED = "JOB_CREATED"

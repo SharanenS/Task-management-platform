@@ -10,7 +10,9 @@ from app.core.constants import JobStatus, ProjectStatus
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.models.job import Job
 from app.models.project import Project
+from app.core.constants import OutboxEventType, OutboxStatus
 from app.repositories.job import JobRepository
+from app.repositories.outbox import OutboxRepository
 from app.repositories.project import ProjectRepository
 from app.schemas.job import JobCreate, JobStatusUpdate
 from app.services.job import JobService
@@ -27,8 +29,17 @@ def mock_project_repo():
 
 
 @pytest.fixture
-def service(mock_job_repo, mock_project_repo):
-    return JobService(repository=mock_job_repo, project_repository=mock_project_repo)
+def mock_outbox_repo():
+    return AsyncMock(spec=OutboxRepository)
+
+
+@pytest.fixture
+def service(mock_job_repo, mock_project_repo, mock_outbox_repo):
+    return JobService(
+        repository=mock_job_repo,
+        project_repository=mock_project_repo,
+        outbox_repository=mock_outbox_repo,
+    )
 
 
 @pytest.fixture
@@ -61,7 +72,7 @@ def sample_job(sample_project):
 # ── Creation Tests ──────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_create_job_success(service, mock_job_repo, mock_project_repo, sample_project):
+async def test_create_job_success(service, mock_job_repo, mock_project_repo, mock_outbox_repo, sample_project):
     mock_project_repo.get_by_id.return_value = sample_project
 
     data = JobCreate(
@@ -91,6 +102,15 @@ async def test_create_job_success(service, mock_job_repo, mock_project_repo, sam
     assert result.error_message is None
     mock_project_repo.get_by_id.assert_called_once_with(sample_project.id)
     mock_job_repo.create.assert_called_once()
+
+    # Verify transactional outbox event creation
+    mock_outbox_repo.create.assert_called_once()
+    outbox_event = mock_outbox_repo.create.call_args[0][0]
+    assert outbox_event.event_type == OutboxEventType.JOB_CREATED
+    assert outbox_event.aggregate_type == "JOB"
+    assert outbox_event.aggregate_id == created_job.id
+    assert outbox_event.payload == {"job_id": str(created_job.id)}
+    assert outbox_event.status == OutboxStatus.PENDING
 
 
 @pytest.mark.asyncio

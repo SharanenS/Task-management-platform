@@ -340,65 +340,22 @@ async def test_create_job_client_cannot_control_lifecycle_fields(mock_decode, mo
     finally:
         app.dependency_overrides.clear()
 
-# ── Celery Dispatch Integration ─────────────────────────────────────────────
+# ── Transactional Outbox Integration ────────────────────────────────────────
 
 @pytest.mark.asyncio
 @patch("app.core.security.jwks_client.get_signing_key_from_jwt")
 @patch("app.core.security.jwt.decode")
-async def test_create_job_triggers_dispatcher(mock_decode, mock_get_key, client, mock_service, sample_job):
-    """Creating a job calls the Celery task dispatcher with the job ID."""
+async def test_create_job_commits_single_transaction(mock_decode, mock_get_key, client, mock_service, sample_job):
+    """Creating a job delegates to service (creating Job+Outbox) and commits single transaction."""
     mock_get_key.return_value = AsyncMock(key="mock-key")
     mock_decode.return_value = _token_for_roles(["ADMIN"], sub="admin-1")
 
     mock_service.create_job.return_value = sample_job
-    mock_dispatcher = MagicMock()
-
-    from app.api.deps import get_job_dispatcher
-    app.dependency_overrides[get_job_service] = lambda: mock_service
-    app.dependency_overrides[get_job_dispatcher] = lambda: mock_dispatcher
-
-    try:
-        response = await client.post(
-            "/api/v1/jobs",
-            json={"project_id": str(sample_job.project_id), "job_type": "REPORT_GENERATION"},
-            headers={"Authorization": "Bearer admin.token"},
-        )
-        assert response.status_code == 201
-        mock_dispatcher.assert_called_once_with(str(sample_job.id))
-    finally:
-        app.dependency_overrides.clear()
-
-
-@pytest.mark.asyncio
-@patch("app.core.security.jwks_client.get_signing_key_from_jwt")
-@patch("app.core.security.jwt.decode")
-async def test_create_job_commit_strictly_precedes_dispatch(
-    mock_decode, mock_get_key, client, mock_service, sample_job
-):
-    """
-    Regression test: verify PostgreSQL COMMIT happens strictly BEFORE Celery dispatch.
-    Invariant: Job INSERT -> DB commit -> Celery dispatch -> RabbitMQ.
-    """
-    mock_get_key.return_value = AsyncMock(key="mock-key")
-    mock_decode.return_value = _token_for_roles(["ADMIN"], sub="admin-1")
-
-    mock_service.create_job.return_value = sample_job
-
-    execution_order = []
-
-    async def mock_commit():
-        execution_order.append("db_commit")
-
     mock_session = AsyncMock()
-    mock_session.commit.side_effect = mock_commit
 
-    def mock_dispatcher(job_id: str):
-        execution_order.append("celery_dispatch")
-
-    from app.api.deps import get_db, get_job_dispatcher
+    from app.api.deps import get_db, get_job_service
     app.dependency_overrides[get_job_service] = lambda: mock_service
     app.dependency_overrides[get_db] = lambda: mock_session
-    app.dependency_overrides[get_job_dispatcher] = lambda: mock_dispatcher
 
     try:
         response = await client.post(
@@ -407,9 +364,8 @@ async def test_create_job_commit_strictly_precedes_dispatch(
             headers={"Authorization": "Bearer admin.token"},
         )
         assert response.status_code == 201
-        assert execution_order == ["db_commit", "celery_dispatch"], (
-            f"Expected commit before dispatch, got {execution_order}"
-        )
+        mock_service.create_job.assert_called_once()
+        mock_session.commit.assert_called_once()
     finally:
         app.dependency_overrides.clear()
 
@@ -417,26 +373,46 @@ async def test_create_job_commit_strictly_precedes_dispatch(
 @pytest.mark.asyncio
 @patch("app.core.security.jwks_client.get_signing_key_from_jwt")
 @patch("app.core.security.jwt.decode")
-async def test_create_job_commit_failure_aborts_dispatch(
-    mock_decode, mock_get_key, client, mock_service, sample_job
-):
-    """
-    Regression test: if database commit fails, dispatch MUST NOT be invoked.
-    """
+async def test_create_job_does_not_invoke_direct_celery_dispatch(mock_decode, mock_get_key, client, mock_service, sample_job):
+    """In Phase 7, direct Celery dispatch is removed from the HTTP API path."""
     mock_get_key.return_value = AsyncMock(key="mock-key")
     mock_decode.return_value = _token_for_roles(["ADMIN"], sub="admin-1")
 
     mock_service.create_job.return_value = sample_job
+    mock_session = AsyncMock()
 
+    from app.api.deps import get_db, get_job_service
+    app.dependency_overrides[get_job_service] = lambda: mock_service
+    app.dependency_overrides[get_db] = lambda: mock_session
+
+    with patch("app.tasks.jobs.process_job_task.delay") as mock_celery_delay:
+        try:
+            response = await client.post(
+                "/api/v1/jobs",
+                json={"project_id": str(sample_job.project_id), "job_type": "REPORT_GENERATION"},
+                headers={"Authorization": "Bearer admin.token"},
+            )
+            assert response.status_code == 201
+            mock_celery_delay.assert_not_called()
+        finally:
+            app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+@patch("app.core.security.jwks_client.get_signing_key_from_jwt")
+@patch("app.core.security.jwt.decode")
+async def test_create_job_commit_failure_raises(mock_decode, mock_get_key, client, mock_service, sample_job):
+    """If database commit fails, the transaction error propagates and response is aborted."""
+    mock_get_key.return_value = AsyncMock(key="mock-key")
+    mock_decode.return_value = _token_for_roles(["ADMIN"], sub="admin-1")
+
+    mock_service.create_job.return_value = sample_job
     mock_session = AsyncMock()
     mock_session.commit.side_effect = RuntimeError("Database commit failed")
 
-    mock_dispatcher = MagicMock()
-
-    from app.api.deps import get_db, get_job_dispatcher
+    from app.api.deps import get_db, get_job_service
     app.dependency_overrides[get_job_service] = lambda: mock_service
     app.dependency_overrides[get_db] = lambda: mock_session
-    app.dependency_overrides[get_job_dispatcher] = lambda: mock_dispatcher
 
     try:
         with pytest.raises(RuntimeError, match="Database commit failed"):
@@ -445,16 +421,5 @@ async def test_create_job_commit_failure_aborts_dispatch(
                 json={"project_id": str(sample_job.project_id), "job_type": "REPORT_GENERATION"},
                 headers={"Authorization": "Bearer admin.token"},
             )
-        mock_dispatcher.assert_not_called()
     finally:
         app.dependency_overrides.clear()
-
-
-def test_get_job_dispatcher_returns_callable():
-    """Verify that get_job_dispatcher returns the Celery delay callable."""
-    from app.api.deps import get_job_dispatcher
-    from app.tasks.jobs import process_job_task
-
-    dispatcher = get_job_dispatcher()
-    assert callable(dispatcher)
-    assert dispatcher == process_job_task.delay
