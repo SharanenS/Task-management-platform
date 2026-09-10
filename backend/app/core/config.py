@@ -1,5 +1,6 @@
 """Application configuration via environment variables."""
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -21,6 +22,11 @@ class Settings(BaseSettings):
     KEYCLOAK_SERVER_URL: str
     KEYCLOAK_REALM: str
     KEYCLOAK_CLIENT_ID: str
+
+    # Outbox Publisher
+    OUTBOX_PUBLISHER_BATCH_SIZE: int = Field(default=50, gt=0)
+    OUTBOX_PUBLISHER_POLL_INTERVAL_SECONDS: float = Field(default=1.0, gt=0.0)
+    OUTBOX_PUBLISHER_LEASE_SECONDS: int = Field(default=30, gt=0)
 
     @property
     def keycloak_issuer(self) -> str:

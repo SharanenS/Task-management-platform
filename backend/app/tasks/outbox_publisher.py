@@ -1,13 +1,18 @@
-"""Transactional Outbox Publisher.
+"""Transactional Outbox Publisher with Short-Lived Leases.
 
-Periodically polls PostgreSQL for PENDING outbox events using FOR UPDATE SKIP LOCKED,
-dispatches them to RabbitMQ via Celery, and marks them PUBLISHED.
-Guarantees at-least-once publication without blocking concurrent publisher instances.
+Periodically claims eligible outbox events in a short database transaction using
+FOR UPDATE SKIP LOCKED and a lease duration.
+Publishes events to RabbitMQ via Celery outside the database claim transaction,
+then marks events PUBLISHED or records failure in separate short transactions with lease ownership verification.
+Guarantees at-least-once publication, multi-instance scalability, and automatic
+recovery of claimed events if a publisher process crashes.
 """
 
 import asyncio
 import signal
 import sys
+import uuid
+from collections.abc import Sequence
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -48,96 +53,227 @@ def _dispatch_event(event: OutboxEvent) -> None:
         raise ValueError(f"Unsupported outbox event_type: {event.event_type}")
 
 
-async def publish_single_event(session: AsyncSession, event: OutboxEvent) -> bool:
+async def claim_batch(
+    batch_size: int | None = None,
+    lease_seconds: int | None = None,
+    publisher_id: str | None = None,
+    session: AsyncSession | None = None,
+) -> Sequence[OutboxEvent]:
     """
-    Publish a single outbox event to RabbitMQ and commit its state in PostgreSQL.
-    Returns True if published successfully, False otherwise.
+    Atomically claim a batch of eligible events by transitioning them to CLAIMED with a lease.
+    The database transaction is committed immediately, releasing row locks before network I/O.
     """
-    outbox_repo = OutboxRepository(session)
+    b_size = batch_size if batch_size is not None else settings.OUTBOX_PUBLISHER_BATCH_SIZE
+    l_secs = lease_seconds if lease_seconds is not None else settings.OUTBOX_PUBLISHER_LEASE_SECONDS
+    pub_id = publisher_id or f"publisher-{uuid.uuid4().hex[:8]}"
+
+    if session is not None:
+        repo = OutboxRepository(session)
+        events = await repo.claim_events(limit=b_size, lease_seconds=l_secs, claim_owner=pub_id)
+        await session.commit()
+        return events
+
+    async with publisher_session_factory() as s:
+        repo = OutboxRepository(s)
+        events = await repo.claim_events(limit=b_size, lease_seconds=l_secs, claim_owner=pub_id)
+        await s.commit()
+        return events
+
+
+async def publish_single_event(
+    event: OutboxEvent,
+    claim_owner: str,
+    session: AsyncSession | None = None,
+) -> bool:
+    """
+    Dispatch an event to RabbitMQ (outside database transaction) and settle its status in PostgreSQL.
+    Verifies that the settling publisher still holds an active, unexpired claim before updating state.
+    Returns True on successful dispatch and settlement, False otherwise.
+    """
     event_id = event.id
-    aggregate_id = str(event.aggregate_id)
     event_type = str(event.event_type)
+    aggregate_id = str(event.aggregate_id)
     attempt_count = event.attempt_count
 
+    # 1. Dispatch to RabbitMQ outside any active DB claim transaction
     try:
         _dispatch_event(event)
-        await outbox_repo.mark_published(event_id)
-        await session.commit()
-        logger.info(
-            "outbox_event_published",
-            outbox_id=str(event_id),
-            event_type=event_type,
-            aggregate_id=aggregate_id,
-        )
-        return True
     except Exception as e:
         err_msg = str(e) or type(e).__name__
         logger.error(
             "outbox_event_publish_failed",
             outbox_id=str(event_id),
+            claim_owner=claim_owner,
             attempt=attempt_count + 1,
             error=err_msg,
         )
-        try:
-            await session.rollback()
-            await outbox_repo.record_failure(event_id, err_msg)
-            await session.commit()
-        except Exception as record_err:
-            logger.error(
-                "failed_to_record_outbox_failure",
-                outbox_id=str(event_id),
-                error=str(record_err),
+        if session is not None:
+            try:
+                await session.rollback()
+            except Exception:
+                pass
+            repo = OutboxRepository(session)
+            failed_event = await repo.record_failure(
+                event_id=event_id,
+                error_message=err_msg,
+                claim_owner=claim_owner,
             )
-            await session.rollback()
+            await session.commit()
+            if failed_event is None:
+                logger.warning(
+                    "outbox_record_failure_lost_ownership",
+                    outbox_id=str(event_id),
+                    claim_owner=claim_owner,
+                )
+        else:
+            async with publisher_session_factory() as fail_session:
+                try:
+                    repo = OutboxRepository(fail_session)
+                    failed_event = await repo.record_failure(
+                        event_id=event_id,
+                        error_message=err_msg,
+                        claim_owner=claim_owner,
+                    )
+                    await fail_session.commit()
+                    if failed_event is None:
+                        logger.warning(
+                            "outbox_record_failure_lost_ownership",
+                            outbox_id=str(event_id),
+                            claim_owner=claim_owner,
+                        )
+                except Exception as record_err:
+                    logger.error(
+                        "failed_to_record_outbox_failure",
+                        outbox_id=str(event_id),
+                        claim_owner=claim_owner,
+                        error=str(record_err),
+                    )
+                    await fail_session.rollback()
         return False
 
+    # 2. Settle successful publication in PostgreSQL
+    if session is not None:
+        repo = OutboxRepository(session)
+        settled_event = await repo.mark_published(event_id=event_id, claim_owner=claim_owner)
+        await session.commit()
+        if settled_event is None:
+            logger.warning(
+                "outbox_mark_published_lost_ownership",
+                outbox_id=str(event_id),
+                claim_owner=claim_owner,
+            )
+            return False
+        logger.info(
+            "outbox_event_published",
+            outbox_id=str(event_id),
+            claim_owner=claim_owner,
+            event_type=event_type,
+            aggregate_id=aggregate_id,
+        )
+        return True
+    else:
+        async with publisher_session_factory() as succ_session:
+            try:
+                repo = OutboxRepository(succ_session)
+                settled_event = await repo.mark_published(event_id=event_id, claim_owner=claim_owner)
+                await succ_session.commit()
+                if settled_event is None:
+                    logger.warning(
+                        "outbox_mark_published_lost_ownership",
+                        outbox_id=str(event_id),
+                        claim_owner=claim_owner,
+                    )
+                    return False
+                logger.info(
+                    "outbox_event_published",
+                    outbox_id=str(event_id),
+                    claim_owner=claim_owner,
+                    event_type=event_type,
+                    aggregate_id=aggregate_id,
+                )
+                return True
+            except Exception as commit_err:
+                logger.error(
+                    "failed_to_mark_outbox_published",
+                    outbox_id=str(event_id),
+                    claim_owner=claim_owner,
+                    error=str(commit_err),
+                )
+                await succ_session.rollback()
+                return False
 
-async def publish_pending_events(batch_size: int = 50) -> int:
+
+async def publish_pending_events(
+    batch_size: int | None = None,
+    lease_seconds: int | None = None,
+    publisher_id: str | None = None,
+) -> int:
     """
-    Poll and publish a batch of pending outbox events using FOR UPDATE SKIP LOCKED.
-    Safe for multiple concurrent publisher processes.
+    Claim and publish a batch of eligible events.
     Returns the count of successfully published events.
     """
-    published_count = 0
-    async with publisher_session_factory() as session:
-        outbox_repo = OutboxRepository(session)
-        events = await outbox_repo.get_pending_events(limit=batch_size)
-        if not events:
-            return 0
+    b_size = batch_size if batch_size is not None else settings.OUTBOX_PUBLISHER_BATCH_SIZE
+    l_secs = lease_seconds if lease_seconds is not None else settings.OUTBOX_PUBLISHER_LEASE_SECONDS
+    pub_id = publisher_id or f"publisher-{uuid.uuid4().hex[:8]}"
 
-        logger.info("outbox_pending_events_claimed", count=len(events))
-        for event in events:
-            success = await publish_single_event(session, event)
-            if success:
-                published_count += 1
+    events = await claim_batch(batch_size=b_size, lease_seconds=l_secs, publisher_id=pub_id)
+    if not events:
+        return 0
+
+    logger.info("outbox_events_claimed", count=len(events), publisher_id=pub_id)
+    published_count = 0
+    for event in events:
+        success = await publish_single_event(
+            event=event,
+            claim_owner=pub_id,
+        )
+        if success:
+            published_count += 1
 
     return published_count
 
 
 async def run_publisher_loop(
-    poll_interval: float = 1.0,
+    poll_interval: float | None = None,
+    batch_size: int | None = None,
+    lease_seconds: int | None = None,
     stop_event: asyncio.Event | None = None,
 ) -> None:
-    """Run continuous publisher polling loop."""
-    logger.info("outbox_publisher_service_started", poll_interval=poll_interval)
+    """Run continuous publisher polling loop with configurable intervals and graceful shutdown."""
+    interval = poll_interval if poll_interval is not None else settings.OUTBOX_PUBLISHER_POLL_INTERVAL_SECONDS
+    b_size = batch_size if batch_size is not None else settings.OUTBOX_PUBLISHER_BATCH_SIZE
+    l_secs = lease_seconds if lease_seconds is not None else settings.OUTBOX_PUBLISHER_LEASE_SECONDS
     stop = stop_event or asyncio.Event()
+    pub_id = f"publisher-{uuid.uuid4().hex[:8]}"
+
+    logger.info(
+        "outbox_publisher_service_started",
+        publisher_id=pub_id,
+        poll_interval=interval,
+        batch_size=b_size,
+        lease_seconds=l_secs,
+    )
 
     while not stop.is_set():
         try:
-            published = await publish_pending_events()
+            published = await publish_pending_events(
+                batch_size=b_size,
+                lease_seconds=l_secs,
+                publisher_id=pub_id,
+            )
             if published == 0:
                 try:
-                    await asyncio.wait_for(stop.wait(), timeout=poll_interval)
+                    await asyncio.wait_for(stop.wait(), timeout=interval)
                 except asyncio.TimeoutError:
                     pass
         except Exception as e:
             logger.error("outbox_publisher_loop_error", error=str(e))
             try:
-                await asyncio.wait_for(stop.wait(), timeout=poll_interval)
+                await asyncio.wait_for(stop.wait(), timeout=interval)
             except asyncio.TimeoutError:
                 pass
 
-    logger.info("outbox_publisher_service_stopped")
+    logger.info("outbox_publisher_service_stopped", publisher_id=pub_id)
 
 
 def main() -> None:
@@ -155,7 +291,7 @@ def main() -> None:
             pass
 
     try:
-        asyncio.run(run_publisher_loop(poll_interval=1.0, stop_event=stop_event))
+        asyncio.run(run_publisher_loop(stop_event=stop_event))
     except (KeyboardInterrupt, SystemExit):
         pass
 

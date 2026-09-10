@@ -67,6 +67,7 @@ class AuditAction(StrEnum):
 
 class OutboxStatus(StrEnum):
     PENDING = "PENDING"
+    CLAIMED = "CLAIMED"
     PUBLISHED = "PUBLISHED"
 
 

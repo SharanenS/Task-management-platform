@@ -38,8 +38,16 @@ class OutboxEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Phase 8: Short-lived lease/claim fields
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lease_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    claim_owner: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     __table_args__ = (
         Index("ix_outbox_events_status_available_at", "status", "available_at"),
+        Index("ix_outbox_events_status_lease_until", "status", "lease_until"),
     )
 
     def __repr__(self) -> str:
