@@ -1,7 +1,6 @@
 """FastAPI dependencies for authentication, authorization, and database access."""
 
-from collections.abc import AsyncGenerator, Callable
-from typing import Any
+from collections.abc import AsyncGenerator
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -12,6 +11,7 @@ from app.core.logging import get_logger
 from app.core.security import AuthenticatedUser, Role, verify_jwt_token
 from app.db.session import async_session_factory
 from app.repositories.job import JobRepository
+from app.repositories.outbox import OutboxRepository
 from app.repositories.project import ProjectRepository
 from app.services.job import JobService
 from app.services.project import ProjectService
@@ -114,16 +114,19 @@ def get_job_repository(session: AsyncSession = Depends(get_db)) -> JobRepository
     return JobRepository(session)
 
 
+def get_outbox_repository(session: AsyncSession = Depends(get_db)) -> OutboxRepository:
+    """Dependency provider for OutboxRepository."""
+    return OutboxRepository(session)
+
+
 def get_job_service(
     repository: JobRepository = Depends(get_job_repository),
     project_repository: ProjectRepository = Depends(get_project_repository),
+    outbox_repository: OutboxRepository = Depends(get_outbox_repository),
 ) -> JobService:
     """Dependency provider for JobService."""
-    return JobService(repository=repository, project_repository=project_repository)
-
-
-def get_job_dispatcher() -> Callable[[str], Any]:
-    """Dependency providing a callable to dispatch Celery tasks."""
-    from app.tasks.jobs import process_job_task
-
-    return process_job_task.delay
+    return JobService(
+        repository=repository,
+        project_repository=project_repository,
+        outbox_repository=outbox_repository,
+    )

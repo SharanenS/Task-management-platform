@@ -115,6 +115,23 @@ services:
       rabbitmq:
         condition: service_healthy
 
+
+  outbox-publisher:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: taskplatform-outbox-publisher
+    restart: unless-stopped
+    command: python -m app.tasks.outbox_publisher
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
   frontend:
     build:
       context: ./frontend

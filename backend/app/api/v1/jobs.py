@@ -1,6 +1,5 @@
 """Job endpoints."""
 
-from collections.abc import Callable
 import uuid
 
 from fastapi import APIRouter, Depends, Query, status
@@ -8,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (
     get_db,
-    get_job_dispatcher,
     get_job_service,
     require_job_view,
     require_management,
@@ -28,16 +26,15 @@ async def create_job(
     identity: AuthenticatedUser = Depends(require_management),
     service: JobService = Depends(get_job_service),
     session: AsyncSession = Depends(get_db),
-    dispatcher: Callable[[str], None] = Depends(get_job_dispatcher),
 ) -> JobResponse:
-    """Create a new background job and dispatch to Celery. Requires ADMIN or MANAGER role."""
+    """
+    Create a new background job with an atomic outbox event.
+    The Job and OutboxEvent are durably persisted in a single PostgreSQL commit.
+    Requires ADMIN or MANAGER role.
+    """
     job = await service.create_job(data=payload)
-    # Ensure transaction is committed in PostgreSQL BEFORE dispatching to message broker
+    # Commit the single transaction holding both Job and OutboxEvent
     await session.commit()
-    try:
-        dispatcher(str(job.id))
-    except Exception as e:
-        logger.error("failed_to_dispatch_celery_task", job_id=str(job.id), error=str(e))
     return JobResponse.model_validate(job)
 
 

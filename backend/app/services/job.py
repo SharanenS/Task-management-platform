@@ -3,11 +3,13 @@
 import uuid
 from collections.abc import Sequence
 
-from app.core.constants import JobStatus
+from app.core.constants import JobStatus, OutboxEventType, OutboxStatus
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.logging import get_logger
 from app.models.job import Job
+from app.models.outbox import OutboxEvent
 from app.repositories.job import JobRepository
+from app.repositories.outbox import OutboxRepository
 from app.repositories.project import ProjectRepository
 from app.schemas.job import JobCreate, JobStatusUpdate
 
@@ -23,14 +25,23 @@ VALID_TRANSITIONS: dict[JobStatus, set[JobStatus]] = {
 
 
 class JobService:
-    """Service orchestrating business operations and lifecycle transitions for Jobs."""
+    """Service orchestrating business operations, transactional outbox events, and lifecycle transitions for Jobs."""
 
-    def __init__(self, repository: JobRepository, project_repository: ProjectRepository) -> None:
+    def __init__(
+        self,
+        repository: JobRepository,
+        project_repository: ProjectRepository,
+        outbox_repository: OutboxRepository | None = None,
+    ) -> None:
         self.repository = repository
         self.project_repository = project_repository
+        self.outbox_repository = outbox_repository
 
     async def create_job(self, data: JobCreate) -> Job:
-        """Create a new job for an existing project with initial status QUEUED."""
+        """
+        Create a new job for an existing project with initial status QUEUED.
+        Atomically enqueues a corresponding OutboxEvent within the same session.
+        """
         project = await self.project_repository.get_by_id(data.project_id)
         if not project:
             logger.info("project_not_found_for_job", project_id=str(data.project_id))
@@ -44,7 +55,30 @@ class JobService:
             error_message=None,
         )
         created = await self.repository.create(job)
-        logger.info("job_created", job_id=str(created.id), project_id=str(data.project_id), job_type=created.job_type)
+        logger.info(
+            "job_created",
+            job_id=str(created.id),
+            project_id=str(data.project_id),
+            job_type=created.job_type,
+        )
+
+        # Transactional Outbox: insert durable outbox event in the same transaction
+        if self.outbox_repository is not None:
+            outbox_event = OutboxEvent(
+                event_type=OutboxEventType.JOB_CREATED,
+                aggregate_type="JOB",
+                aggregate_id=created.id,
+                payload={"job_id": str(created.id)},
+                status=OutboxStatus.PENDING,
+            )
+            await self.outbox_repository.create(outbox_event)
+            logger.info(
+                "outbox_event_created",
+                outbox_id=str(outbox_event.id),
+                job_id=str(created.id),
+                event_type=outbox_event.event_type,
+            )
+
         return created
 
     async def get_job(self, job_id: uuid.UUID) -> Job:
@@ -97,6 +131,7 @@ class JobService:
             error_message=job.error_message,
         )
         return updated
+
     async def claim_job(self, job_id: uuid.UUID) -> Job | None:
         """
         Attempt to atomically claim a job for processing (QUEUED -> PROCESSING).
