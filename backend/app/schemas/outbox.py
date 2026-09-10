@@ -22,6 +22,9 @@ class OutboxEventResponse(BaseModel):
     available_at: datetime
     last_error: str | None = None
     published_at: datetime | None = None
+    claimed_at: datetime | None = None
+    lease_until: datetime | None = None
+    claim_owner: str | None = None
     created_at: datetime
     updated_at: datetime
 
