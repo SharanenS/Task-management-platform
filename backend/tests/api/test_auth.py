@@ -153,10 +153,11 @@ async def test_auth_me_invalid_azp(mock_decode, mock_get_key, client, base_paylo
 
 # ── Phase 2 JWKS Caching Test (preserved) ───────────────────────────────────
 
-@patch("jwt.jwks_client.urllib.request.urlopen")
-def test_jwks_caching(mock_urlopen):
+@patch("jwt.jwks_client.urllib.request.build_opener")
+def test_jwks_caching(mock_build_opener):
     """Verify PyJWKClient cache behavior."""
     from jwt import PyJWKClient
+    from unittest.mock import MagicMock
     import io
     import json
 
@@ -164,10 +165,11 @@ def test_jwks_caching(mock_urlopen):
         "http://dummy/certs",
         cache_keys=False,
         cache_jwk_set=True,
-        lifespan=300
+        lifespan=300,
+        cooldown_duration=0,
     )
 
-    mock_response = io.BytesIO(json.dumps({
+    raw_json = json.dumps({
         "keys": [{
             "kid": "key1",
             "kty": "RSA",
@@ -184,11 +186,11 @@ def test_jwks_caching(mock_urlopen):
             "n": "u18G_Lh2mGg-vFqj7hE1_7u5m3w6qP_X1Kx2",
             "e": "AQAB"
         }]
-    }).encode("utf-8"))
+    }).encode("utf-8")
 
     class MockResponse:
-        def __init__(self, f):
-            self.f = f
+        def __init__(self, data):
+            self.f = io.BytesIO(data)
         def read(self):
             return self.f.read()
         def getheader(self, name, default=None):
@@ -198,24 +200,21 @@ def test_jwks_caching(mock_urlopen):
         def __exit__(self, *args):
             pass
 
-    mock_urlopen.return_value = MockResponse(mock_response)
+    mock_opener = MagicMock()
+    mock_opener.open.side_effect = lambda *args, **kwargs: MockResponse(raw_json)
+    mock_build_opener.return_value = mock_opener
 
     dummy_token_1 = "eyJhbGciOiAiUlMyNTYiLCAia2lkIjogImtleTEifQ.e30.dummyyyy"
 
     test_client.get_signing_key_from_jwt(dummy_token_1)
-
-    mock_response.seek(0)
-
     test_client.get_signing_key_from_jwt(dummy_token_1)
 
-    assert mock_urlopen.call_count == 1
-
-    mock_response.seek(0)
+    assert mock_opener.open.call_count == 1
 
     dummy_token_2 = "eyJhbGciOiAiUlMyNTYiLCAia2lkIjogImtleTIifQ.e30.dummyyyy"
     test_client.get_signing_key_from_jwt(dummy_token_2)
 
-    assert mock_urlopen.call_count == 1
+    assert mock_opener.open.call_count == 1
 
     dummy_token_3 = "eyJhbGciOiAiUlMyNTYiLCAia2lkIjogImtleTMifQ.e30.dummyyyy"
     try:
@@ -223,7 +222,7 @@ def test_jwks_caching(mock_urlopen):
     except Exception:
         pass
 
-    assert mock_urlopen.call_count == 2
+    assert mock_opener.open.call_count == 2
 
 
 # ── Phase 3 Role Extraction Unit Tests ──────────────────────────────────────

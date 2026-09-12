@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     OUTBOX_PUBLISHER_POLL_INTERVAL_SECONDS: float = Field(default=1.0, gt=0.0)
     OUTBOX_PUBLISHER_LEASE_SECONDS: int = Field(default=30, gt=0)
 
+    # Phase 10: Job Execution & Recovery
+    JOB_EXECUTION_LEASE_SECONDS: int = Field(default=300, gt=0)
+    JOB_RECOVERY_BATCH_SIZE: int = Field(default=50, gt=0)
+    JOB_RECOVERY_POLL_INTERVAL_SECONDS: float = Field(default=5.0, gt=0.0)
+
     @property
     def keycloak_issuer(self) -> str:
         """Construct the expected issuer URL for JWT validation."""

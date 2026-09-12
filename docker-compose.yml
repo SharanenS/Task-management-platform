@@ -61,7 +61,7 @@ services:
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm.json
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080; echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; cat <&3 | grep -q '200 OK'"]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; cat <&3 | grep -q '200 OK'"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -78,7 +78,7 @@ services:
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
-      - RABBITMQ_URL=${RABBITMQ_URL}
+      - RABBITMQ_URL=${CONTAINER_RABBITMQ_URL:-amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//}
       - KEYCLOAK_SERVER_URL=${KEYCLOAK_SERVER_URL}
       - KEYCLOAK_REALM=${KEYCLOAK_REALM}
       - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID}
@@ -105,7 +105,7 @@ services:
     command: celery -A app.core.celery_app.celery_app worker --loglevel=INFO
     environment:
       - DATABASE_URL=${DATABASE_URL}
-      - RABBITMQ_URL=${RABBITMQ_URL}
+      - RABBITMQ_URL=${CONTAINER_RABBITMQ_URL:-amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//}
       - KEYCLOAK_SERVER_URL=${KEYCLOAK_SERVER_URL}
       - KEYCLOAK_REALM=${KEYCLOAK_REALM}
       - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID}
@@ -125,10 +125,29 @@ services:
     command: python -m app.tasks.outbox_publisher
     environment:
       - DATABASE_URL=${DATABASE_URL}
-      - RABBITMQ_URL=${RABBITMQ_URL}
+      - RABBITMQ_URL=${CONTAINER_RABBITMQ_URL:-amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//}
       - OUTBOX_PUBLISHER_BATCH_SIZE=${OUTBOX_PUBLISHER_BATCH_SIZE:-50}
       - OUTBOX_PUBLISHER_POLL_INTERVAL_SECONDS=${OUTBOX_PUBLISHER_POLL_INTERVAL_SECONDS:-1.0}
       - OUTBOX_PUBLISHER_LEASE_SECONDS=${OUTBOX_PUBLISHER_LEASE_SECONDS:-30}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  job-recovery:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: taskplatform-job-recovery
+    restart: unless-stopped
+    command: python -m app.tasks.job_recovery
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - RABBITMQ_URL=${CONTAINER_RABBITMQ_URL:-amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//}
+      - JOB_EXECUTION_LEASE_SECONDS=${JOB_EXECUTION_LEASE_SECONDS:-300}
+      - JOB_RECOVERY_BATCH_SIZE=${JOB_RECOVERY_BATCH_SIZE:-50}
+      - JOB_RECOVERY_POLL_INTERVAL_SECONDS=${JOB_RECOVERY_POLL_INTERVAL_SECONDS:-5.0}
     depends_on:
       postgres:
         condition: service_healthy
