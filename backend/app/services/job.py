@@ -89,14 +89,40 @@ class JobService:
             raise NotFoundError(f"Job with ID '{job_id}' not found")
         return job
 
-    async def list_jobs(self, project_id: uuid.UUID) -> Sequence[Job]:
-        """List all jobs for an existing project."""
-        project = await self.project_repository.get_by_id(project_id)
-        if not project:
-            logger.info("project_not_found_for_job_list", project_id=str(project_id))
-            raise NotFoundError(f"Project with ID '{project_id}' not found")
+    async def list_jobs(
+        self,
+        project_id: uuid.UUID | None = None,
+        status: JobStatus | None = None,
+        job_type: str | None = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> Sequence[Job]:
+        """List jobs with optional filtering by project, status, and job type with pagination."""
+        if project_id is not None:
+            project = await self.project_repository.get_by_id(project_id)
+            if not project:
+                logger.info("project_not_found_for_job_list", project_id=str(project_id))
+                raise NotFoundError(f"Project with ID '{project_id}' not found")
+            if status is None and job_type is None and skip == 0 and limit == 50:
+                return await self.repository.list_by_project(project_id)
 
-        return await self.repository.list_by_project(project_id)
+        return await self.repository.list_jobs(
+            project_id=project_id,
+            status=status,
+            job_type=job_type,
+            skip=skip,
+            limit=limit,
+        )
+
+    async def get_job_stats(self, project_id: uuid.UUID | None = None) -> dict[str, int]:
+        """Compute aggregated job statistics by status."""
+        if project_id is not None:
+            project = await self.project_repository.get_by_id(project_id)
+            if not project:
+                logger.info("project_not_found_for_job_stats", project_id=str(project_id))
+                raise NotFoundError(f"Project with ID '{project_id}' not found")
+
+        return await self.repository.get_job_stats(project_id=project_id)
 
     async def update_status(self, job_id: uuid.UUID, data: JobStatusUpdate) -> Job:
         """Validate and execute a lifecycle state transition."""

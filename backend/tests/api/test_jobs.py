@@ -423,3 +423,117 @@ async def test_create_job_commit_failure_raises(mock_decode, mock_get_key, clien
             )
     finally:
         app.dependency_overrides.clear()
+
+
+# ── Phase 9 Job Statistics & Filtered Listing API Tests ───────────────────────
+
+@pytest.mark.asyncio
+@patch("app.core.security.jwks_client.get_signing_key_from_jwt")
+@patch("app.core.security.jwt.decode")
+async def test_get_job_stats_endpoint(mock_decode, mock_get_key, client, mock_service):
+    mock_get_key.return_value = AsyncMock(key="mock-key")
+    mock_decode.return_value = _token_for_roles(["MEMBER"], sub="member-1")
+
+    mock_service.get_job_stats.return_value = {
+        "total_count": 15,
+        "queued_count": 3,
+        "processing_count": 2,
+        "completed_count": 8,
+        "failed_count": 2,
+    }
+    app.dependency_overrides[get_job_service] = lambda: mock_service
+
+    try:
+        response = await client.get(
+            "/api/v1/jobs/stats",
+            headers={"Authorization": "Bearer member.token"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_count"] == 15
+        assert data["queued_count"] == 3
+        assert data["processing_count"] == 2
+        assert data["completed_count"] == 8
+        assert data["failed_count"] == 2
+        mock_service.get_job_stats.assert_called_once_with(project_id=None)
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+@patch("app.core.security.jwks_client.get_signing_key_from_jwt")
+@patch("app.core.security.jwt.decode")
+async def test_get_job_stats_by_project_endpoint(mock_decode, mock_get_key, client, mock_service):
+    project_id = uuid.uuid4()
+    mock_get_key.return_value = AsyncMock(key="mock-key")
+    mock_decode.return_value = _token_for_roles(["MEMBER"], sub="member-1")
+
+    mock_service.get_job_stats.return_value = {
+        "total_count": 5,
+        "queued_count": 1,
+        "processing_count": 1,
+        "completed_count": 2,
+        "failed_count": 1,
+    }
+    app.dependency_overrides[get_job_service] = lambda: mock_service
+
+    try:
+        response = await client.get(
+            f"/api/v1/jobs/stats?project_id={project_id}",
+            headers={"Authorization": "Bearer member.token"},
+        )
+        assert response.status_code == 200
+        assert response.json()["total_count"] == 5
+        mock_service.get_job_stats.assert_called_once_with(project_id=project_id)
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+@patch("app.core.security.jwks_client.get_signing_key_from_jwt")
+@patch("app.core.security.jwt.decode")
+async def test_list_jobs_no_project_id_returns_all(mock_decode, mock_get_key, client, mock_service, sample_job):
+    mock_get_key.return_value = AsyncMock(key="mock-key")
+    mock_decode.return_value = _token_for_roles(["MEMBER"], sub="member-1")
+
+    mock_service.list_jobs.return_value = [sample_job]
+    app.dependency_overrides[get_job_service] = lambda: mock_service
+
+    try:
+        response = await client.get(
+            "/api/v1/jobs",
+            headers={"Authorization": "Bearer member.token"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["id"] == str(sample_job.id)
+        mock_service.list_jobs.assert_called_once_with(
+            project_id=None, status=None, job_type=None, skip=0, limit=50
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+@patch("app.core.security.jwks_client.get_signing_key_from_jwt")
+@patch("app.core.security.jwt.decode")
+async def test_list_jobs_with_filters_endpoint(mock_decode, mock_get_key, client, mock_service, sample_job):
+    project_id = uuid.uuid4()
+    mock_get_key.return_value = AsyncMock(key="mock-key")
+    mock_decode.return_value = _token_for_roles(["MEMBER"], sub="member-1")
+
+    mock_service.list_jobs.return_value = [sample_job]
+    app.dependency_overrides[get_job_service] = lambda: mock_service
+
+    try:
+        response = await client.get(
+            f"/api/v1/jobs?project_id={project_id}&status=QUEUED&job_type=REPORT_GENERATION&skip=10&limit=25",
+            headers={"Authorization": "Bearer member.token"},
+        )
+        assert response.status_code == 200
+        mock_service.list_jobs.assert_called_once_with(
+            project_id=project_id, status=JobStatus.QUEUED, job_type="REPORT_GENERATION", skip=10, limit=25
+        )
+    finally:
+        app.dependency_overrides.clear()

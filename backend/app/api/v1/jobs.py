@@ -11,9 +11,10 @@ from app.api.deps import (
     require_job_view,
     require_management,
 )
+from app.core.constants import JobStatus
 from app.core.logging import get_logger
 from app.core.security import AuthenticatedUser
-from app.schemas.job import JobCreate, JobResponse, JobStatusUpdate
+from app.schemas.job import JobCreate, JobResponse, JobStatsResponse, JobStatusUpdate
 from app.services.job import JobService
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -38,14 +39,35 @@ async def create_job(
     return JobResponse.model_validate(job)
 
 
+@router.get("/stats", response_model=JobStatsResponse, status_code=status.HTTP_200_OK)
+async def get_job_stats(
+    project_id: uuid.UUID | None = Query(default=None, description="Filter stats by project UUID"),
+    identity: AuthenticatedUser = Depends(require_job_view),
+    service: JobService = Depends(get_job_service),
+) -> JobStatsResponse:
+    """Retrieve aggregate job counts by status. Requires ADMIN, MANAGER, or MEMBER role."""
+    stats = await service.get_job_stats(project_id=project_id)
+    return JobStatsResponse.model_validate(stats)
+
+
 @router.get("", response_model=list[JobResponse], status_code=status.HTTP_200_OK)
 async def list_jobs(
-    project_id: uuid.UUID = Query(..., description="Filter jobs by project UUID"),
+    project_id: uuid.UUID | None = Query(default=None, description="Filter jobs by project UUID"),
+    status: JobStatus | None = Query(default=None, description="Filter jobs by lifecycle status"),
+    job_type: str | None = Query(default=None, description="Filter jobs by job type"),
+    skip: int = Query(default=0, ge=0, description="Pagination offset"),
+    limit: int = Query(default=50, gt=0, le=100, description="Pagination limit"),
     identity: AuthenticatedUser = Depends(require_job_view),
     service: JobService = Depends(get_job_service),
 ) -> list[JobResponse]:
-    """List all jobs for a project. Requires ADMIN, MANAGER, or MEMBER role."""
-    jobs = await service.list_jobs(project_id=project_id)
+    """List background jobs with optional project, status, and job_type filtering and pagination. Requires ADMIN, MANAGER, or MEMBER role."""
+    jobs = await service.list_jobs(
+        project_id=project_id,
+        status=status,
+        job_type=job_type,
+        skip=skip,
+        limit=limit,
+    )
     return [JobResponse.model_validate(j) for j in jobs]
 
 

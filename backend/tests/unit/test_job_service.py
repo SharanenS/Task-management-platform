@@ -356,3 +356,65 @@ async def test_two_workers_claim_same_queued_job_only_one_succeeds(service, mock
     assert worker_a_result.status == JobStatus.PROCESSING
     assert worker_b_result is None
     assert mock_job_repo.claim_job.call_count == 2
+
+
+# ── Phase 9 Job Statistics & Filtered List Tests ─────────────────────────────
+
+@pytest.mark.asyncio
+async def test_get_job_stats_global(service, mock_job_repo):
+    expected_stats = {
+        "total_count": 10,
+        "queued_count": 2,
+        "processing_count": 3,
+        "completed_count": 4,
+        "failed_count": 1,
+    }
+    mock_job_repo.get_job_stats.return_value = expected_stats
+
+    stats = await service.get_job_stats(project_id=None)
+
+    assert stats == expected_stats
+    mock_job_repo.get_job_stats.assert_called_once_with(project_id=None)
+
+
+@pytest.mark.asyncio
+async def test_get_job_stats_by_project(service, mock_job_repo, mock_project_repo, sample_project):
+    mock_project_repo.get_by_id.return_value = sample_project
+    expected_stats = {
+        "total_count": 5,
+        "queued_count": 1,
+        "processing_count": 1,
+        "completed_count": 2,
+        "failed_count": 1,
+    }
+    mock_job_repo.get_job_stats.return_value = expected_stats
+
+    stats = await service.get_job_stats(project_id=sample_project.id)
+
+    assert stats == expected_stats
+    mock_project_repo.get_by_id.assert_called_once_with(sample_project.id)
+    mock_job_repo.get_job_stats.assert_called_once_with(project_id=sample_project.id)
+
+
+@pytest.mark.asyncio
+async def test_get_job_stats_nonexistent_project_raises_404(service, mock_project_repo):
+    mock_project_repo.get_by_id.return_value = None
+    random_project_id = uuid.uuid4()
+
+    with pytest.raises(NotFoundError) as exc_info:
+        await service.get_job_stats(project_id=random_project_id)
+
+    assert f"Project with ID '{random_project_id}' not found" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_list_jobs_global(service, mock_job_repo, sample_job):
+    mock_job_repo.list_jobs.return_value = [sample_job]
+
+    jobs = await service.list_jobs(project_id=None, status="QUEUED", job_type="REPORT_GENERATION", skip=5, limit=20)
+
+    assert len(jobs) == 1
+    assert jobs[0] == sample_job
+    mock_job_repo.list_jobs.assert_called_once_with(
+        project_id=None, status="QUEUED", job_type="REPORT_GENERATION", skip=5, limit=20
+    )
