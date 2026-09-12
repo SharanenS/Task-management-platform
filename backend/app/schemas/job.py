@@ -52,3 +52,15 @@ class JobResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class JobStatsResponse(BaseModel):
+    """Aggregated metrics and count statistics for jobs."""
+
+    total_count: int
+    queued_count: int
+    processing_count: int
+    completed_count: int
+    failed_count: int
+
+    model_config = ConfigDict(from_attributes=True)

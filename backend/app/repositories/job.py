@@ -35,6 +35,44 @@ class JobRepository:
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
+    async def list_jobs(
+        self,
+        project_id: uuid.UUID | None = None,
+        status: JobStatus | None = None,
+        job_type: str | None = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> Sequence[Job]:
+        """Fetch jobs with optional filtering by project, status, and job type with pagination."""
+        stmt = select(Job)
+        if project_id is not None:
+            stmt = stmt.where(Job.project_id == project_id)
+        if status is not None:
+            stmt = stmt.where(Job.status == status)
+        if job_type is not None:
+            stmt = stmt.where(Job.job_type == job_type)
+        stmt = stmt.order_by(Job.created_at.desc()).offset(skip).limit(limit)
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
+    async def get_job_stats(self, project_id: uuid.UUID | None = None) -> dict[str, int]:
+        """Compute aggregated job counts by status."""
+        stmt = select(Job.status, func.count(Job.id)).group_by(Job.status)
+        if project_id is not None:
+            stmt = stmt.where(Job.project_id == project_id)
+        result = await self.session.execute(stmt)
+        counts: dict[JobStatus, int] = {s: 0 for s in JobStatus}
+        for status_val, count in result.all():
+            counts[status_val] = count
+        total = sum(counts.values())
+        return {
+            "total_count": total,
+            "queued_count": counts.get(JobStatus.QUEUED, 0),
+            "processing_count": counts.get(JobStatus.PROCESSING, 0),
+            "completed_count": counts.get(JobStatus.COMPLETED, 0),
+            "failed_count": counts.get(JobStatus.FAILED, 0),
+        }
+
     async def update(self, job: Job) -> Job:
         """Flush changes to an existing job entity and refresh."""
         self.session.add(job)
