@@ -3,7 +3,7 @@
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import JobStatus
@@ -80,15 +80,138 @@ class JobRepository:
         await self.session.refresh(job)
         return job
 
-    async def claim_job(self, job_id: uuid.UUID) -> Job | None:
+    async def claim_job(
+        self,
+        job_id: uuid.UUID,
+        claim_owner: str | None = None,
+        lease_seconds: int | None = None,
+    ) -> Job | None:
         """
         Atomically transition a job from QUEUED to PROCESSING.
+        Stamps processing_started_at, execution_lease_until, and execution_claim_owner.
         Returns the updated Job if the claim succeeded, or None if the job was not in QUEUED state.
         """
+        owner = claim_owner or f"worker-{uuid.uuid4().hex[:8]}"
+        l_sec = int(lease_seconds) if lease_seconds is not None else 300
         stmt = (
             update(Job)
             .where(Job.id == job_id, Job.status == JobStatus.QUEUED)
-            .values(status=JobStatus.PROCESSING, updated_at=func.now())
+            .values(
+                status=JobStatus.PROCESSING,
+                processing_started_at=func.now(),
+                execution_lease_until=func.now() + text(f"INTERVAL '{l_sec} SECONDS'"),
+                execution_claim_owner=owner,
+                error_message=None,
+                updated_at=func.now(),
+            )
+            .returning(Job)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def reclaim_expired_jobs(
+        self,
+        limit: int = 50,
+        claim_owner: str | None = None,
+        lease_seconds: int = 300,
+    ) -> Sequence[Job]:
+        """
+        Atomically reclaim a batch of expired PROCESSING jobs using FOR UPDATE SKIP LOCKED.
+        Eligible jobs have status == PROCESSING, execution_lease_until IS NOT NULL, and execution_lease_until < now().
+        Replaces execution_claim_owner, extends execution_lease_until, and refreshes processing_started_at.
+        """
+        owner = claim_owner or f"recovery-{uuid.uuid4().hex[:8]}"
+        l_sec = int(lease_seconds)
+        stmt = (
+            select(Job)
+            .where(
+                Job.status == JobStatus.PROCESSING,
+                Job.execution_lease_until.is_not(None),
+                Job.execution_lease_until < func.now(),
+            )
+            .order_by(Job.execution_lease_until.asc())
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+        result = await self.session.execute(stmt)
+        jobs = result.scalars().all()
+        if not jobs:
+            return []
+
+        job_ids = [j.id for j in jobs]
+        update_stmt = (
+            update(Job)
+            .where(Job.id.in_(job_ids))
+            .values(
+                status=JobStatus.PROCESSING,
+                processing_started_at=func.now(),
+                execution_lease_until=func.now() + text(f"INTERVAL '{l_sec} SECONDS'"),
+                execution_claim_owner=owner,
+                updated_at=func.now(),
+            )
+            .returning(Job)
+        )
+        updated_result = await self.session.execute(update_stmt)
+        return updated_result.scalars().all()
+
+    async def complete_job(
+        self,
+        job_id: uuid.UUID,
+        claim_owner: str,
+    ) -> Job | None:
+        """
+        Mark a job as COMPLETED and clear execution ownership fields.
+        Only transitions if status == PROCESSING, execution_claim_owner matches, and lease is still active.
+        Returns the updated Job if successful, or None if ownership was lost or lease expired.
+        """
+        stmt = (
+            update(Job)
+            .where(
+                Job.id == job_id,
+                Job.status == JobStatus.PROCESSING,
+                Job.execution_claim_owner == claim_owner,
+                Job.execution_lease_until >= func.now(),
+            )
+            .values(
+                status=JobStatus.COMPLETED,
+                processing_started_at=None,
+                execution_lease_until=None,
+                execution_claim_owner=None,
+                error_message=None,
+                updated_at=func.now(),
+            )
+            .returning(Job)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def fail_job(
+        self,
+        job_id: uuid.UUID,
+        claim_owner: str,
+        error_message: str,
+    ) -> Job | None:
+        """
+        Mark a job as FAILED, persist error message, and clear execution ownership fields.
+        Only transitions if status == PROCESSING, execution_claim_owner matches, and lease is still active.
+        Returns the updated Job if successful, or None if ownership was lost or lease expired.
+        """
+        stmt = (
+            update(Job)
+            .where(
+                Job.id == job_id,
+                Job.status == JobStatus.PROCESSING,
+                Job.execution_claim_owner == claim_owner,
+                Job.execution_lease_until >= func.now(),
+            )
+            .values(
+                status=JobStatus.FAILED,
+                processing_started_at=None,
+                execution_lease_until=None,
+                execution_claim_owner=None,
+                error_message=error_message,
+                updated_at=func.now(),
+            )
             .returning(Job)
         )
         result = await self.session.execute(stmt)

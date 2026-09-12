@@ -158,12 +158,85 @@ class JobService:
         )
         return updated
 
-    async def claim_job(self, job_id: uuid.UUID) -> Job | None:
+    async def claim_job(
+        self,
+        job_id: uuid.UUID,
+        claim_owner: str | None = None,
+        lease_seconds: int | None = None,
+    ) -> Job | None:
         """
         Attempt to atomically claim a job for processing (QUEUED -> PROCESSING).
-        Returns the Job if successfully claimed, or None if not in QUEUED state.
+        Establishes durable claim ownership and lease expiration.
         """
-        claimed = await self.repository.claim_job(job_id)
+        if claim_owner is None and lease_seconds is None:
+            claimed = await self.repository.claim_job(job_id)
+        else:
+            claimed = await self.repository.claim_job(
+                job_id=job_id,
+                claim_owner=claim_owner,
+                lease_seconds=lease_seconds,
+            )
         if claimed:
-            logger.info("job_claimed_for_processing", job_id=str(job_id))
+            logger.info(
+                "job_claimed_for_processing",
+                job_id=str(job_id),
+                claim_owner=getattr(claimed, "execution_claim_owner", None),
+            )
         return claimed
+
+    async def reclaim_expired_jobs(
+        self,
+        limit: int = 50,
+        claim_owner: str | None = None,
+        lease_seconds: int = 300,
+    ) -> Sequence[Job]:
+        """Atomically reclaim expired PROCESSING jobs with a new lease and claim owner."""
+        return await self.repository.reclaim_expired_jobs(
+            limit=limit,
+            claim_owner=claim_owner,
+            lease_seconds=lease_seconds,
+        )
+
+    async def complete_job(
+        self,
+        job_id: uuid.UUID,
+        claim_owner: str,
+    ) -> Job | None:
+        """Fenced completion: transition to COMPLETED only if claim_owner holds active lease."""
+        completed = await self.repository.complete_job(job_id=job_id, claim_owner=claim_owner)
+        if completed:
+            logger.info("job_completed", job_id=str(job_id), claim_owner=claim_owner)
+        else:
+            logger.warning(
+                "job_complete_fencing_failed",
+                job_id=str(job_id),
+                claim_owner=claim_owner,
+            )
+        return completed
+
+    async def fail_job(
+        self,
+        job_id: uuid.UUID,
+        claim_owner: str,
+        error_message: str,
+    ) -> Job | None:
+        """Fenced failure: transition to FAILED only if claim_owner holds active lease."""
+        failed = await self.repository.fail_job(
+            job_id=job_id,
+            claim_owner=claim_owner,
+            error_message=error_message,
+        )
+        if failed:
+            logger.info(
+                "job_failed",
+                job_id=str(job_id),
+                claim_owner=claim_owner,
+                error_message=error_message,
+            )
+        else:
+            logger.warning(
+                "job_fail_fencing_failed",
+                job_id=str(job_id),
+                claim_owner=claim_owner,
+            )
+        return failed
