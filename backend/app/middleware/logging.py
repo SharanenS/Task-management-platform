@@ -7,6 +7,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from app.core.logging import get_logger
+from app.core.metrics import metrics
 
 logger = get_logger(__name__)
 
@@ -17,6 +18,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         duration_ms = round((time.perf_counter() - start) * 1000, 2)
 
+        metrics.record_http_request(method=request.method, status=response.status_code, duration_seconds=duration_ms / 1000.0)
         logger.info(
             "http_request",
             method=request.method,

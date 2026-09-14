@@ -7,7 +7,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.logging import get_logger
+from app.core.logging import get_logger, sanitize_error
 from app.core.security import AuthenticatedUser, Role, verify_jwt_token
 from app.db.session import async_session_factory
 from app.repositories.job import JobRepository
@@ -46,14 +46,14 @@ async def get_current_identity(
             headers={"WWW-Authenticate": "Bearer"},
         )
     except jwt.InvalidTokenError as e:
-        logger.info("token_invalid", error=str(e))
+        logger.info("token_invalid", error=sanitize_error(str(e)))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
     except Exception as e:
-        logger.error("token_validation_unexpected_error", error=str(e))
+        logger.error("token_validation_unexpected_error", error=sanitize_error(str(e)))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication failed",

@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
-from app.core.logging import get_logger
+from app.core.logging import get_logger, sanitize_error
+from app.core.metrics import metrics
 from app.models.job import Job
 from app.repositories.job import JobRepository
 from app.tasks.jobs import process_job_task
@@ -71,6 +72,7 @@ async def recover_and_dispatch_jobs(
     if not reclaimed_jobs:
         return 0
 
+    metrics.record_job_recovery(count=len(reclaimed_jobs))
     logger.info("expired_jobs_reclaimed", count=len(reclaimed_jobs), recovery_id=rec_id)
 
     dispatched_count = 0
@@ -78,13 +80,13 @@ async def recover_and_dispatch_jobs(
         try:
             process_job_task.delay(str(job.id), claim_owner=rec_id)
             dispatched_count += 1
-            logger.info("reclaimed_job_dispatched", job_id=str(job.id), recovery_id=rec_id)
+            logger.info("reclaimed_job_dispatched", job_id=str(job.id), job_type=job.job_type, recovery_id=rec_id)
         except Exception as e:
             logger.error(
                 "failed_to_dispatch_reclaimed_job",
                 job_id=str(job.id),
                 recovery_id=rec_id,
-                error=str(e),
+                error=sanitize_error(str(e)),
             )
 
     return dispatched_count
@@ -124,7 +126,7 @@ async def run_recovery_loop(
                 except asyncio.TimeoutError:
                     pass
         except Exception as e:
-            logger.error("job_recovery_loop_error", error=str(e))
+            logger.error("job_recovery_loop_error", error=sanitize_error(str(e)))
             try:
                 await asyncio.wait_for(stop.wait(), timeout=interval)
             except asyncio.TimeoutError:

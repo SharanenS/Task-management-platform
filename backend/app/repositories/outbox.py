@@ -1,3 +1,4 @@
+from app.core.logging import sanitize_error
 """Repository for OutboxEvent database operations."""
 
 import uuid
@@ -132,7 +133,7 @@ class OutboxRepository:
                 lease_until=None,
                 claim_owner=None,
                 attempt_count=OutboxEvent.attempt_count + 1,
-                last_error=error_message,
+                last_error=sanitize_error(error_message) if error_message else None,
                 updated_at=func.now(),
             )
             .returning(OutboxEvent)

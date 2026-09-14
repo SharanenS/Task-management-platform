@@ -408,3 +408,55 @@ async def test_unknown_handler_fenced_failure_path(db_factory, real_project_id):
         assert "Unknown or unsupported job type" in j.error_message
         assert j.execution_claim_owner is None
         assert j.execution_lease_until is None
+
+
+@pytest.mark.asyncio
+async def test_recovery_dispatch_failure_preserves_durable_processing_claim(db_factory, real_project_id):
+    """
+    Failure Path Scenario I:
+    When recovery reclaims an expired job in PostgreSQL, but Celery dispatch fails:
+    1. Reclaim transaction has already committed to PostgreSQL.
+    2. Job remains in PROCESSING status with the new recovery claim owner and new lease.
+    3. Job is NOT marked as FAILED or COMPLETED.
+    4. When the recovery lease expires, subsequent recovery cycles can re-reclaim it.
+    """
+    from unittest.mock import patch
+
+    job_id = uuid.uuid4()
+    past_time = datetime.now(timezone.utc) - timedelta(seconds=120)
+
+    # Step 1: Create expired PROCESSING job in DB
+    async with db_factory() as session:
+        job = Job(
+            id=job_id,
+            project_id=real_project_id,
+            job_type="REPORT_GENERATION",
+            status=JobStatus.PROCESSING,
+            payload={"report_type": "summary"},
+            processing_started_at=past_time - timedelta(seconds=60),
+            execution_lease_until=past_time,
+            execution_claim_owner="dead-worker",
+        )
+        session.add(job)
+        await session.commit()
+
+    # Step 2: Run recovery with failing Celery dispatch
+    recovery_owner = "recovery-failed-dispatch"
+    with patch("app.tasks.job_recovery.process_job_task.delay", side_effect=RuntimeError("RabbitMQ broker connection refused")):
+        dispatched_count = await recover_and_dispatch_jobs(
+            batch_size=10,
+            lease_seconds=60,
+            recovery_id=recovery_owner,
+        )
+        assert dispatched_count == 0
+
+    # Step 3: Verify PostgreSQL durable state: job was reclaimed and committed
+    async with db_factory() as session:
+        repo = JobRepository(session)
+        j = await repo.get_by_id(job_id)
+        assert j is not None
+        # Must remain PROCESSING under the recovery owner with active lease
+        assert j.status == JobStatus.PROCESSING
+        assert j.execution_claim_owner == recovery_owner
+        assert j.execution_lease_until is not None
+        assert j.execution_lease_until > datetime.now(timezone.utc)

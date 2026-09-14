@@ -1,3 +1,4 @@
+import time
 """Transactional Outbox Publisher with Short-Lived Leases.
 
 Periodically claims eligible outbox events in a short database transaction using
@@ -20,7 +21,8 @@ from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 from app.core.constants import OutboxEventType
-from app.core.logging import get_logger
+from app.core.logging import get_logger, sanitize_error
+from app.core.metrics import metrics
 from app.models.outbox import OutboxEvent
 from app.repositories.outbox import OutboxRepository
 
@@ -96,10 +98,12 @@ async def publish_single_event(
     attempt_count = event.attempt_count
 
     # 1. Dispatch to RabbitMQ outside any active DB claim transaction
+    start_time = time.perf_counter()
     try:
         _dispatch_event(event)
     except Exception as e:
-        err_msg = str(e) or type(e).__name__
+        err_msg = sanitize_error(str(e) or type(e).__name__)
+        metrics.record_outbox_failure()
         logger.error(
             "outbox_event_publish_failed",
             outbox_id=str(event_id),
@@ -121,7 +125,7 @@ async def publish_single_event(
             await session.commit()
             if failed_event is None:
                 logger.warning(
-                    "outbox_record_failure_lost_ownership",
+                    "stale_publisher_settlement_rejected",
                     outbox_id=str(event_id),
                     claim_owner=claim_owner,
                 )
@@ -137,7 +141,7 @@ async def publish_single_event(
                     await fail_session.commit()
                     if failed_event is None:
                         logger.warning(
-                            "outbox_record_failure_lost_ownership",
+                            "stale_publisher_settlement_rejected",
                             outbox_id=str(event_id),
                             claim_owner=claim_owner,
                         )
@@ -146,7 +150,7 @@ async def publish_single_event(
                         "failed_to_record_outbox_failure",
                         outbox_id=str(event_id),
                         claim_owner=claim_owner,
-                        error=str(record_err),
+                        error=sanitize_error(str(record_err)),
                     )
                     await fail_session.rollback()
         return False
@@ -163,6 +167,7 @@ async def publish_single_event(
                 claim_owner=claim_owner,
             )
             return False
+        metrics.record_outbox_published(duration_seconds=time.perf_counter() - start_time)
         logger.info(
             "outbox_event_published",
             outbox_id=str(event_id),
@@ -197,7 +202,7 @@ async def publish_single_event(
                     "failed_to_mark_outbox_published",
                     outbox_id=str(event_id),
                     claim_owner=claim_owner,
-                    error=str(commit_err),
+                    error=sanitize_error(str(commit_err)),
                 )
                 await succ_session.rollback()
                 return False
@@ -267,7 +272,7 @@ async def run_publisher_loop(
                 except asyncio.TimeoutError:
                     pass
         except Exception as e:
-            logger.error("outbox_publisher_loop_error", error=str(e))
+            logger.error("outbox_publisher_loop_error", error=sanitize_error(str(e)))
             try:
                 await asyncio.wait_for(stop.wait(), timeout=interval)
             except asyncio.TimeoutError:

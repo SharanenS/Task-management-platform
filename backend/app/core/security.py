@@ -7,7 +7,7 @@ from jwt import PyJWKClient
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
-from app.core.logging import get_logger
+from app.core.logging import get_logger, sanitize_error
 
 logger = get_logger(__name__)
 
@@ -92,5 +92,5 @@ def verify_jwt_token(token: str) -> AuthenticatedUser:
         return AuthenticatedUser(**payload, roles=roles)
 
     except jwt.PyJWKClientError as e:
-        logger.error("jwks_fetch_error", error=str(e))
+        logger.error("jwks_fetch_error", error=sanitize_error(str(e)))
         raise jwt.InvalidTokenError("Unable to fetch JWKS signing keys.")
