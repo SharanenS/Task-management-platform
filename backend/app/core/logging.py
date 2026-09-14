@@ -1,3 +1,4 @@
+import re
 """Structured logging configuration using structlog."""
 
 import logging
@@ -37,3 +38,26 @@ def setup_logging(log_level: str = "INFO") -> None:
 def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
     """Get a structured logger instance."""
     return structlog.get_logger(name)
+
+def sanitize_error(message: str | None) -> str:
+    """
+    Sanitize error messages to eliminate sensitive credentials, connection strings,
+    embedded passwords, query-parameter secrets, and authorization tokens.
+    """
+    if not message:
+        return ""
+    # 1. Redact URL credentials: scheme://[user]:[password]@host or scheme://token@host
+    s = re.sub(r"://([^:/@]*):([^@]+)@", "://***:***@", str(message))
+    s = re.sub(r"://([^:/@]+)@([a-zA-Z0-9.-]+)", r"://***@\g<2>", s)
+    # 2. Redact query-string secrets: ?token=xyz, &password=xyz, etc.
+    s = re.sub(
+        r"([?&](?:token|password|passwd|secret|api_key|apikey|api-key|key|client_secret|client-secret|access_token|refresh_token|auth)=)([^&\s]+)",
+        r"\g<1>***",
+        s,
+        flags=re.IGNORECASE,
+    )
+    # 3. Redact Authorization Bearer tokens
+    s = re.sub(r"(Bearer\s+)[A-Za-z0-9\-_.]+", r"\g<1>***", s, flags=re.IGNORECASE)
+    # 4. Redact standalone JWT-like tokens
+    s = re.sub(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+", "eyJ***.***.***", s)
+    return s

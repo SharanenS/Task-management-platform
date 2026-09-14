@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import v1_router
+from app.api.v1.metrics import router as metrics_router
 from app.core.config import settings
 from app.core.exceptions import AppException
 from app.core.logging import setup_logging
@@ -46,3 +47,4 @@ app.add_exception_handler(AppException, app_exception_handler)
 
 # Routes
 app.include_router(v1_router)
+app.include_router(metrics_router)

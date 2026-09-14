@@ -84,3 +84,18 @@ async def test_recover_and_dispatch_jobs_success(sample_reclaimed_job):
 
         assert count == 1
         mock_celery.assert_called_once_with(str(sample_reclaimed_job.id), claim_owner="rec-1")
+
+
+@pytest.mark.asyncio
+async def test_recover_and_dispatch_jobs_broker_dispatch_failure(sample_reclaimed_job):
+    """When Celery dispatch fails, error is logged, and dispatched count is 0 without crashing."""
+    with (
+        patch("app.tasks.job_recovery.reclaim_batch", new_callable=AsyncMock) as mock_reclaim,
+        patch("app.tasks.job_recovery.process_job_task.delay", side_effect=RuntimeError("Broker connection refused")),
+    ):
+        mock_reclaim.return_value = [sample_reclaimed_job]
+
+        count = await recover_and_dispatch_jobs(batch_size=5, lease_seconds=300, recovery_id="rec-err")
+
+        assert count == 0
+        mock_reclaim.assert_called_once()
