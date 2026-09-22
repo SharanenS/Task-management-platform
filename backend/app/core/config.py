@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     KEYCLOAK_SERVER_URL: str
     KEYCLOAK_REALM: str
     KEYCLOAK_CLIENT_ID: str
+    KEYCLOAK_BROWSER_URL: str | None = None
 
     # Outbox Publisher
     OUTBOX_PUBLISHER_BATCH_SIZE: int = Field(default=50, gt=0)
@@ -60,6 +61,17 @@ class Settings(BaseSettings):
         """Construct the expected issuer URL for JWT validation."""
         server = self.KEYCLOAK_SERVER_URL.rstrip('/')
         return f"{server}/realms/{self.KEYCLOAK_REALM}"
+
+    @property
+    def keycloak_issuers(self) -> list[str]:
+        """List of acceptable issuers for JWT validation."""
+        issuers = [self.keycloak_issuer]
+        if self.KEYCLOAK_BROWSER_URL:
+            browser_server = self.KEYCLOAK_BROWSER_URL.rstrip('/')
+            browser_issuer = f"{browser_server}/realms/{self.KEYCLOAK_REALM}"
+            if browser_issuer not in issuers:
+                issuers.append(browser_issuer)
+        return issuers
 
     @property
     def keycloak_jwks_url(self) -> str:

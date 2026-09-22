@@ -19,12 +19,28 @@ export interface JobStats {
   failed_count: number;
 }
 
+export type ProjectStatus = "PLANNING" | "ACTIVE" | "COMPLETED" | "ARCHIVED";
+
 export interface Project {
   id: string;
   name: string;
   description: string | null;
+  status: ProjectStatus;
+  owner_id: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface ProjectCreatePayload {
+  name: string;
+  description?: string | null;
+  status?: ProjectStatus;
+}
+
+export interface ProjectUpdatePayload {
+  name?: string;
+  description?: string | null;
+  status?: ProjectStatus;
 }
 
 export interface JobCreatePayload {
@@ -39,4 +55,10 @@ export interface JobFilterParams {
   job_type?: string;
   skip?: number;
   limit?: number;
+}
+
+export interface User {
+  sub: string;
+  preferred_username: string;
+  roles: string[];
 }

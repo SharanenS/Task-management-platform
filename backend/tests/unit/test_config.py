@@ -262,3 +262,36 @@ def test_production_accepts_valid_dedicated_and_encoded_passwords():
         KEYCLOAK_CLIENT_SECRET="secure_production_client_secret_xyz123",
     )
     assert s2.is_production
+
+
+def test_keycloak_issuers_default_without_browser_url():
+    s = Settings(
+        ENVIRONMENT="development",
+        DATABASE_URL="postgresql+asyncpg://user:pass@localhost:5432/db",
+        RABBITMQ_URL="amqp://guest:guest@localhost:5672//",
+        KEYCLOAK_SERVER_URL="http://keycloak:8080",
+        KEYCLOAK_REALM="enterprise",
+        KEYCLOAK_CLIENT_ID="task-platform",
+    )
+    assert s.KEYCLOAK_BROWSER_URL is None
+    assert s.keycloak_issuer == "http://keycloak:8080/realms/enterprise"
+    assert s.keycloak_issuers == ["http://keycloak:8080/realms/enterprise"]
+
+
+def test_keycloak_issuers_with_browser_url():
+    s = Settings(
+        ENVIRONMENT="development",
+        DATABASE_URL="postgresql+asyncpg://user:pass@localhost:5432/db",
+        RABBITMQ_URL="amqp://guest:guest@localhost:5672//",
+        KEYCLOAK_SERVER_URL="http://keycloak:8080",
+        KEYCLOAK_REALM="enterprise",
+        KEYCLOAK_CLIENT_ID="task-platform",
+        KEYCLOAK_BROWSER_URL="http://localhost:8180",
+    )
+    assert s.KEYCLOAK_BROWSER_URL == "http://localhost:8180"
+    assert s.keycloak_issuer == "http://keycloak:8080/realms/enterprise"
+    assert s.keycloak_issuers == [
+        "http://keycloak:8080/realms/enterprise",
+        "http://localhost:8180/realms/enterprise",
+    ]
+

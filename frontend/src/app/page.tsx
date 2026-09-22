@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Job, JobStats, Project, JobStatus } from "@/types/job";
-import { fetchJobs, fetchJobStats, fetchProjects } from "@/lib/api";
+import { fetchJobs, fetchJobStats, fetchProjects, ApiError, UNAUTHORIZED_EVENT } from "@/lib/api";
 import { MetricsCards } from "@/components/MetricsCards";
 import { FilterBar } from "@/components/FilterBar";
 import { JobsTable } from "@/components/JobsTable";
@@ -31,6 +31,28 @@ export default function DashboardPage() {
   const [createModalOpen, setCreateModalOpen] = useState<boolean>(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
+  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleStopPollingAndRedirect = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    setPollingInterval(0);
+    if (typeof window !== "undefined") {
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.href = "/login";
+    }
+  }, []);
+
+  // Listen for global unauthorized events
+  useEffect(() => {
+    window.addEventListener(UNAUTHORIZED_EVENT, handleStopPollingAndRedirect);
+    return () => {
+      window.removeEventListener(UNAUTHORIZED_EVENT, handleStopPollingAndRedirect);
+    };
+  }, [handleStopPollingAndRedirect]);
+
   // Load Projects once
   useEffect(() => {
     fetchProjects()
@@ -42,8 +64,10 @@ export default function DashboardPage() {
 
   // Main data loader
   const loadData = useCallback(async (showRefreshing = false) => {
-    if (showRefreshing) setIsRefreshing(true);
-    setError(null);
+    if (showRefreshing) {
+      setIsRefreshing(true);
+      setError(null);
+    }
 
     try {
       const [statsData, jobsData] = await Promise.all([
@@ -59,25 +83,78 @@ export default function DashboardPage() {
 
       setStats(statsData);
       setJobs(jobsData);
+      setError(null);
     } catch (err: unknown) {
       console.error("Dashboard fetch error:", err);
+      const is401 =
+        (err instanceof ApiError && err.status === 401) ||
+        (err instanceof Error && (err.message.includes("(401)") || err.message.includes("401")));
+      if (is401) {
+        handleStopPollingAndRedirect();
+        return;
+      }
       setError(err instanceof Error ? err.message : "Failed to communicate with the task platform API");
     } finally {
       setLoading(false);
       if (showRefreshing) setIsRefreshing(false);
     }
-  }, [selectedProjectId, selectedStatus, jobTypeSearch, page, pageSize]);
+  }, [selectedProjectId, selectedStatus, jobTypeSearch, page, pageSize, handleStopPollingAndRedirect]);
 
   // Initial load
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    let active = true;
+    Promise.all([
+      fetchJobStats(selectedProjectId || undefined),
+      fetchJobs({
+        project_id: selectedProjectId || undefined,
+        status: selectedStatus || undefined,
+        job_type: jobTypeSearch || undefined,
+        skip: (page - 1) * pageSize,
+        limit: pageSize,
+      }),
+    ])
+      .then(([statsData, jobsData]) => {
+        if (active) {
+          setStats(statsData);
+          setJobs(jobsData);
+          setError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (active) {
+          console.error("Dashboard fetch error:", err);
+          const is401 =
+            (err instanceof ApiError && err.status === 401) ||
+            (err instanceof Error && (err.message.includes("(401)") || err.message.includes("401")));
+          if (is401) {
+            handleStopPollingAndRedirect();
+            return;
+          }
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Failed to communicate with the task platform API"
+          );
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedProjectId, selectedStatus, jobTypeSearch, page, pageSize, handleStopPollingAndRedirect]);
 
   // Polling effect
-  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     if (pollingInterval <= 0) {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
       return;
     }
 
@@ -86,44 +163,40 @@ export default function DashboardPage() {
     }, pollingInterval);
 
     return () => {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
     };
   }, [pollingInterval, loadData]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#090d16] text-slate-100">
-      {/* Top Navigation Bar */}
-      <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-base font-bold tracking-tight text-white flex items-center gap-2">
-                Enterprise Task Platform
-                <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
-                  Phase 9 Dashboard
-                </span>
-              </h1>
-              <p className="text-xs text-slate-400 hidden sm:block">
-                Transactional Outbox & Celery Worker Orchestration
-              </p>
-            </div>
+      {/* Subheader */}
+      <div className="border-b border-slate-800/60 bg-slate-900/30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2.5">
+              Job Execution & Outbox Monitoring
+              <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
+                Dashboard
+              </span>
+            </h1>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Transactional Outbox & Celery Worker Orchestration
+            </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-800/80 border border-slate-700/80 text-xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700/80 text-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               <span className="text-slate-300 font-medium">System Active</span>
               <span className="text-slate-500">|</span>
               <span className="text-indigo-400 font-mono">PostgreSQL + RabbitMQ</span>
             </div>
           </div>
         </div>
-      </header>
+      </div>
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">

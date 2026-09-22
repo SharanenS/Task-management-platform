@@ -76,7 +76,7 @@ def verify_jwt_token(token: str) -> AuthenticatedUser:
             token,
             key=signing_key.key,
             algorithms=["RS256"],
-            issuer=settings.keycloak_issuer,
+            issuer=settings.keycloak_issuers,
             audience=settings.KEYCLOAK_CLIENT_ID
         )
 

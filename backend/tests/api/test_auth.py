@@ -427,3 +427,63 @@ async def test_admin_endpoint_no_roles(mock_decode, mock_get_key, client, base_p
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "Insufficient permissions"
+
+
+# ── Dual-Issuer Acceptance Tests ──────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_dual_issuer_acceptance(client, base_payload):
+    """
+    Test dual-issuer JWT acceptance:
+    - Internal issuer token is accepted when browser_url is configured.
+    - Browser issuer token is accepted when browser_url is configured.
+    - Untrusted issuer token is rejected with 401.
+    - Browser issuer token is rejected with 401 when browser_url is not configured.
+    """
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_key = private_key.public_key()
+
+    internal_payload = _payload_with_roles(base_payload, ["ADMIN"])
+    internal_payload["iss"] = settings.keycloak_issuer
+
+    browser_payload = _payload_with_roles(base_payload, ["ADMIN"])
+    browser_payload["iss"] = "http://localhost:8180/realms/enterprise"
+
+    untrusted_payload = _payload_with_roles(base_payload, ["ADMIN"])
+    untrusted_payload["iss"] = "http://untrusted-issuer.com/realms/enterprise"
+
+    internal_token = jwt.encode(internal_payload, private_key, algorithm="RS256")
+    browser_token = jwt.encode(browser_payload, private_key, algorithm="RS256")
+    untrusted_token = jwt.encode(untrusted_payload, private_key, algorithm="RS256")
+
+    with patch("app.core.security.jwks_client.get_signing_key_from_jwt", return_value=MagicMock(key=public_key)):
+        # Case 1: KEYCLOAK_BROWSER_URL is configured
+        with patch.object(settings, "KEYCLOAK_BROWSER_URL", "http://localhost:8180"):
+            # Internal issuer should be accepted
+            res = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {internal_token}"})
+            assert res.status_code == 200
+            assert res.json()["sub"] == "user-123"
+
+            # Browser issuer should be accepted
+            res = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {browser_token}"})
+            assert res.status_code == 200
+            assert res.json()["sub"] == "user-123"
+
+            # Untrusted issuer should be rejected with 401
+            res = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {untrusted_token}"})
+            assert res.status_code == 401
+            assert res.json()["detail"] == "Could not validate credentials"
+
+        # Case 2: KEYCLOAK_BROWSER_URL is unset (None)
+        with patch.object(settings, "KEYCLOAK_BROWSER_URL", None):
+            # Internal issuer should still be accepted
+            res = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {internal_token}"})
+            assert res.status_code == 200
+
+            # Browser issuer must now be rejected with 401
+            res = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {browser_token}"})
+            assert res.status_code == 401
+            assert res.json()["detail"] == "Could not validate credentials"
+
