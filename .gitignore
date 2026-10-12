@@ -1,71 +1,21 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-dist/
-build/
-.eggs/
-*.egg
-.venv/
-venv/
-env/
-
-# Node
 node_modules/
 .next/
-out/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# Environment
-.env
-.env.local
-.env.*.local
-
-# OS
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# Docker volumes
-data/
-
-# Test / Coverage
-.coverage
-htmlcov/
+.venv/
+__pycache__/
+*.py[cod]
 .pytest_cache/
-
-# Alembic
-*.pyc
-# Node / Next.js additions
-.turbo/
-
-# Logs
-*.log
-logs/
-
-# Coverage / Local test artifacts
-playwright-report/
-test-results/
+pytest-cache-files-*/
 .mypy_cache/
 .ruff_cache/
-coverage.xml
-
-# Docker/local development artifacts
-*.pid
-
-# Local databases / temporary files
-*.sqlite
-*.sqlite3
-
-# Local environment/configuration files
-application-local.properties
-application-local.yml
-application-dev.properties
-application-dev.yml
-application-prod.properties
-application-prod.yml
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+coverage/
+playwright-report/
+test-results/
+test-results-*/
+.local/
+*.log
+.DS_Store
+Thumbs.db
