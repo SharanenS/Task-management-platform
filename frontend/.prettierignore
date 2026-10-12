@@ -1,0 +1,8 @@
+node_modules
+.next
+src/graphql/generated
+package-lock.json
+playwright-report
+test-results
+test-results-*
+next-env.d.ts

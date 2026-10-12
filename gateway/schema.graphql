@@ -1,0 +1,10 @@
+type Query {
+  systemInfo: SystemInfo!
+}
+
+type SystemInfo {
+  name: String!
+  version: String!
+  environment: String!
+  status: String!
+}

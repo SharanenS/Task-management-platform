@@ -1,36 +1,88 @@
 @import "tailwindcss";
 
 :root {
-  --background: #090d16;
-  --foreground: #f1f5f9;
+  --background: #f7f8fa;
+  --foreground: #222c2a;
+  --card: #ffffff;
+  --primary: #21634f;
+  --primary-foreground: #ffffff;
+  --muted: #f0f2f4;
+  --muted-foreground: #67716f;
+  --border: #e5e9e7;
+  --ring: #327f68;
+  --sidebar: #fbfcfb;
 }
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --font-sans: "Segoe UI", Arial, Helvetica, sans-serif;
 }
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
-  min-height: 100vh;
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  a,
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+  a:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 4px;
+  }
+  button:not(:disabled),
+  a {
+    cursor: pointer;
+  }
+  ::selection {
+    background: #d5e9e0;
+  }
 }
-
-/* Custom scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+@layer components {
+  .nav-label {
+    @apply px-3 text-[10px] font-semibold uppercase tracking-[.15em] text-muted-foreground;
+  }
+  .nav-item {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium text-muted-foreground transition-colors;
+  }
+  .nav-item svg {
+    @apply size-[17px] shrink-0;
+  }
+  a.nav-item:hover {
+    @apply bg-muted text-foreground;
+  }
+  .nav-active {
+    @apply bg-[#e9f1ed] text-primary;
+  }
+  .eyebrow {
+    @apply text-[10px] font-semibold uppercase tracking-[.16em] text-muted-foreground;
+  }
+  .page-title {
+    @apply mt-2 text-3xl font-semibold tracking-tight sm:text-[32px];
+  }
+  .page-description {
+    @apply mt-2 text-sm leading-6 text-muted-foreground;
+  }
 }
-::-webkit-scrollbar-track {
-  background: #0f172a;
-}
-::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
