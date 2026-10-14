@@ -18,6 +18,7 @@ Get-Content -LiteralPath $environmentFile | ForEach-Object {
 $required = @(
     "KEYCLOAK_ADMIN_USERNAME",
     "KEYCLOAK_ADMIN_PASSWORD",
+    "KEYCLOAK_ADMIN_CLIENT_SECRET",
     "DEV_USER_USERNAME",
     "DEV_USER_PASSWORD",
     "DEV_USER_EMAIL",
@@ -71,6 +72,50 @@ try {
         throw "Docker command failed while updating the Taskspace OIDC client."
     }
 
+    $adminClientJson = Invoke-Docker @(
+        "compose", "exec", "-T", "keycloak", "/opt/keycloak/bin/kcadm.sh",
+        "get", "clients", "-r", "taskspace", "-q", "clientId=taskspace-employee-admin"
+    )
+    $adminClients = @((($adminClientJson -join "`n") | ConvertFrom-Json) | Where-Object { $null -ne $_ })
+    if ($adminClients.Count -eq 0) {
+        Invoke-Docker @(
+            "compose", "exec", "-T", "keycloak", "/opt/keycloak/bin/kcadm.sh",
+            "create", "clients", "-r", "taskspace",
+            "-s", "clientId=taskspace-employee-admin", "-s", "enabled=true",
+            "-s", "publicClient=false", "-s", "standardFlowEnabled=false",
+            "-s", "directAccessGrantsEnabled=false", "-s", "serviceAccountsEnabled=true",
+            "-s", "secret=$($settings.KEYCLOAK_ADMIN_CLIENT_SECRET)"
+        ) | Out-Null
+        $adminClientJson = Invoke-Docker @(
+            "compose", "exec", "-T", "keycloak", "/opt/keycloak/bin/kcadm.sh",
+            "get", "clients", "-r", "taskspace", "-q", "clientId=taskspace-employee-admin"
+        )
+        $adminClients = @((($adminClientJson -join "`n") | ConvertFrom-Json) | Where-Object { $null -ne $_ })
+    }
+    if ($adminClients.Count -ne 1 -or -not $adminClients[0].id) {
+        throw "Expected exactly one Employee Service administration client."
+    }
+    Invoke-Docker @(
+        "compose", "exec", "-T", "keycloak", "/opt/keycloak/bin/kcadm.sh",
+        "update", "clients/$($adminClients[0].id)", "-r", "taskspace",
+        "-s", "enabled=true", "-s", "publicClient=false",
+        "-s", "standardFlowEnabled=false", "-s", "directAccessGrantsEnabled=false",
+        "-s", "serviceAccountsEnabled=true",
+        "-s", "secret=$($settings.KEYCLOAK_ADMIN_CLIENT_SECRET)"
+    ) | Out-Null
+    $serviceAccountJson = Invoke-Docker @(
+        "compose", "exec", "-T", "keycloak", "/opt/keycloak/bin/kcadm.sh",
+        "get", "clients/$($adminClients[0].id)/service-account-user", "-r", "taskspace"
+    )
+    $serviceAccount = ($serviceAccountJson -join "`n") | ConvertFrom-Json
+    foreach ($roleName in @("manage-users", "view-users", "query-users")) {
+        Invoke-Docker @(
+            "compose", "exec", "-T", "keycloak", "/opt/keycloak/bin/kcadm.sh",
+            "add-roles", "-r", "taskspace", "--uid", $serviceAccount.id,
+            "--cclientid", "realm-management", "--rolename", $roleName
+        ) | Out-Null
+    }
+
     $userJson = Invoke-Docker @(
         "compose", "exec", "-T", "keycloak", "/opt/keycloak/bin/kcadm.sh",
         "get", "users", "-r", "taskspace", "-q", "username=$($settings.DEV_USER_USERNAME)"
@@ -111,7 +156,8 @@ try {
 
     Invoke-Docker @(
         "compose", "exec", "-T", "employee", "python", "-m", "app.bootstrap",
-        "--subject", $subject, "--email", $settings.DEV_USER_EMAIL,
+        "--subject", $subject, "--username", $settings.DEV_USER_USERNAME,
+        "--email", $settings.DEV_USER_EMAIL,
         "--display-name", $settings.DEV_USER_DISPLAY_NAME, "--role", $settings.DEV_USER_ROLE
     )
     Write-Output "Development identity and employee profile are ready."

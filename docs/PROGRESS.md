@@ -36,5 +36,33 @@ Delivered:
 Acceptance completed on 2026-10-14. Automated, Docker-backed, end-to-end, and
 manual checks passed. The final development dependency audit records 12
 high-severity `braces` findings in repository-controlled code-generation and lint
-tooling; the production dependency audit reports zero vulnerabilities. Phase 3 has
-not started.
+tooling; the production dependency audit reports zero vulnerabilities.
+
+## Phase 3 — Employee Administration
+
+Status: **Accepted**
+
+Delivered:
+
+- ADMIN-only cursor-paginated directory, search and filters, detail, provisioning,
+  role management, activation, deactivation, and reconciliation.
+- Defense-in-depth authorization at the gateway and Employee Service boundaries.
+- Dedicated Keycloak service account with bounded calls and minimum user-management
+  roles assigned by the idempotent development bootstrap.
+- Fail-closed identity/profile coordination, idempotent provisioning requests, and
+  explicit non-sensitive reconciliation state.
+- Forward-only PostgreSQL migration and generated GraphQL client artifacts.
+- Responsive UI states, confirmation flows, backend/unit coverage, and a real
+  disposable-identity browser journey.
+
+Acceptance completed on 2026-10-14. Automated functional, authorization,
+security, lifecycle, outage, recovery, responsive-overflow, and basic
+accessibility checks passed. Subjective visual and UX redesign remains
+intentionally deferred to Phases 12 and 15; Phase 3 acceptance does not claim
+final visual or accessibility certification.
+
+The accepted limitations are forward-only pagination, no concurrent PostgreSQL
+stress test, no separate real MANAGER browser journey, and no full real
+provisioning-during-Keycloak-outage journey. Ambiguous null-linked idempotency
+records remain untouched because their ownership cannot be proven safely. These
+limitations do not block Phase 3 functional acceptance. Phase 4 has not started.

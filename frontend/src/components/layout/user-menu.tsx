@@ -36,6 +36,7 @@ export function UserMenu({ user }: { user: EmployeeProfile }) {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
+        aria-label={`${user.displayName} ${user.role}`}
         aria-expanded={open}
         aria-haspopup="menu"
         className="flex items-center gap-2 rounded-lg border bg-background px-2.5 py-1.5 text-left hover:bg-muted"

@@ -27,7 +27,8 @@ def add_employee(factory: sessionmaker[Session], subject: str) -> None:
             Employee(
                 id=uuid4(),
                 keycloak_subject=subject,
-                email="acceptance@example.test",
+                username=subject,
+                email=f"{subject}@example.test",
                 display_name="Acceptance User",
                 role=ApplicationRole.MEMBER,
                 active=True,

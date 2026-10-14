@@ -1,4 +1,4 @@
-# Architecture decisions — Phases 1 and 2
+# Architecture decisions — Phases 1–3
 
 ## Fixed boundaries
 
@@ -10,6 +10,29 @@ bounded services, each with its own database and migrations when introduced.
 
 Phase 2 implements only the Employee Service. Work administration, workflow,
 queues, and job execution remain outside this phase.
+
+## Employee administration
+
+The public GraphQL gateway is the only employee-administration API. It validates
+the bearer token, reloads the actor's current Employee Service profile for every
+administrative operation, and requires an active `ADMIN`. Employee Service repeats
+the authorization check and owns directory queries, profile data, application
+roles, active status, idempotency records, and reconciliation state. Its internal
+HTTP endpoints require the existing service credential and are not host-published.
+
+Keycloak remains the source of identity and credentials. Employee Service uses a
+dedicated confidential service-account client; the browser never receives its
+secret or administrative token. The bootstrap assigns only `manage-users`,
+`view-users`, and `query-users`. Calls use a bounded timeout and translate upstream
+details to fixed domain errors.
+
+Provisioning records an idempotency key, creates a disabled owned Keycloak user,
+persists the profile linked by stable subject, then enables the identity. Temporary
+credentials stay only in Keycloak and require replacement at first login. A failed
+cross-system step leaves access disabled and records `RECONCILIATION_REQUIRED`.
+Reconciliation safely restores agreement before a separate activation when needed.
+Role and status changes prevent self-lockout and removal or deactivation of the
+final active administrator. Repeated status requests are idempotent.
 
 ## Browser and session boundary
 
@@ -71,8 +94,9 @@ The frontend `/graphql` route forwards the request body to the public gateway. I
 a valid session exists, the route adds its bearer access token server-side. The
 route preserves GraphQL as the single business contract and adds no REST business
 operations. The authenticated shell uses Employee Service-backed `me` data. The
-Employees navigation entry is visible only to an `ADMIN`; server-side enforcement
-remains mandatory when Phase 3 operations are added.
+Employees navigation entry is visible only to an `ADMIN`. Phase 3 enforces
+administrative authorization independently at both the gateway and Employee Service
+boundaries; hidden navigation is only a presentation rule.
 
 ## Development bootstrap and persistence
 
@@ -88,17 +112,17 @@ containers start. Host-published ports bind to loopback.
 
 ## Threats and mitigations
 
-| Threat | Mitigation |
-| --- | --- |
-| Authorization response substitution | One-time state, nonce, PKCE, and transaction expiry |
-| Token theft by browser script | Opaque `HttpOnly` session; tokens remain server-side |
-| Open redirect | Strict relative return-path validation and exact registered URIs |
-| Cross-site logout | Cookie, request header, and session CSRF values must match |
-| Refresh storm | Redis distributed lock with expiry |
-| Forged gateway identity | JWT signature and required claim validation |
-| Spoofed employee lookup | Internal endpoint credential and unexposed service port |
-| Identity without application access | Employee profile and active status are mandatory |
-| Information leakage | Sanitized HTTP and GraphQL failures; sensitive values are not logged |
+| Threat                              | Mitigation                                                           |
+| ----------------------------------- | -------------------------------------------------------------------- |
+| Authorization response substitution | One-time state, nonce, PKCE, and transaction expiry                  |
+| Token theft by browser script       | Opaque `HttpOnly` session; tokens remain server-side                 |
+| Open redirect                       | Strict relative return-path validation and exact registered URIs     |
+| Cross-site logout                   | Cookie, request header, and session CSRF values must match           |
+| Refresh storm                       | Redis distributed lock with expiry                                   |
+| Forged gateway identity             | JWT signature and required claim validation                          |
+| Spoofed employee lookup             | Internal endpoint credential and unexposed service port              |
+| Identity without application access | Employee profile and active status are mandatory                     |
+| Information leakage                 | Sanitized HTTP and GraphQL failures; sensitive values are not logged |
 
 ## Dependency choices
 

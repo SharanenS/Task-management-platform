@@ -16,10 +16,7 @@ test.beforeEach(async ({ page }) => {
   await expect(page).toHaveURL("http://localhost:3010/");
 });
 
-test("real GraphQL connection and responsive navigation", async ({
-  page,
-  isMobile,
-}, testInfo) => {
+test("real GraphQL connection and responsive navigation", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Make room for great work." }),
   ).toBeVisible();
@@ -34,20 +31,17 @@ test("real GraphQL connection and responsive navigation", async ({
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBeTruthy();
-  await page.screenshot({
-    path: testInfo.outputPath("overview.png"),
-    fullPage: true,
+  const navigationButton = page.getByRole("button", {
+    name: "Open navigation",
   });
-  if (isMobile) {
-    await page.getByRole("button", { name: "Open navigation" }).click();
+  if (await navigationButton.isVisible()) {
+    await navigationButton.click();
     await expect(
       page.getByRole("dialog", { name: "Navigation" }),
     ).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(
-      page.getByRole("button", { name: "Open navigation" }),
-    ).toBeFocused();
-    await page.getByRole("button", { name: "Open navigation" }).click();
+    await expect(navigationButton).toBeFocused();
+    await navigationButton.click();
   }
   await page.getByRole("link", { name: "System status", exact: true }).click();
   await expect(
@@ -56,10 +50,6 @@ test("real GraphQL connection and responsive navigation", async ({
   await expect(
     page.getByText("Enterprise Task Platform Gateway", { exact: true }),
   ).toBeVisible();
-  await page.screenshot({
-    path: testInfo.outputPath("system.png"),
-    fullPage: true,
-  });
 });
 test("connection failure and recovery", async ({ page }) => {
   await page.goto("/system");

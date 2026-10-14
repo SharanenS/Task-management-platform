@@ -55,6 +55,7 @@ def test_inactive_employee_is_denied(database: sessionmaker[Session]) -> None:
         session.add(
             Employee(
                 keycloak_subject="inactive",
+                username="inactive",
                 email="inactive@example.test",
                 display_name="Inactive Employee",
                 role=ApplicationRole.MEMBER,
@@ -74,6 +75,7 @@ def test_active_employee_profile(database: sessionmaker[Session]) -> None:
     with database() as session:
         employee = Employee(
             keycloak_subject="active",
+            username="active",
             email="active@example.test",
             display_name="Active Employee",
             role=ApplicationRole.ADMIN,

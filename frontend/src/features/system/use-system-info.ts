@@ -5,7 +5,8 @@ import { requestGraphQL } from "@/lib/graphql";
 export function useSystemInfo() {
   return useQuery({
     queryKey: ["systemInfo"],
-    queryFn: ({ signal }) => requestGraphQL(SystemInfoDocument, signal),
+    queryFn: ({ signal }) =>
+      requestGraphQL(SystemInfoDocument, undefined, signal),
     refetchInterval: 15_000,
   });
 }

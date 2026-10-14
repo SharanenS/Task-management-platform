@@ -1,14 +1,31 @@
 import hmac
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from app.admin_service import (
+    AdminError,
+    get_employee_detail,
+    list_employees,
+    provision_employee,
+    reconcile_employee,
+    set_employee_active,
+    update_role,
+)
 from app.config import settings
 from app.db import get_session
-from app.models import Employee
-from app.schemas import EmployeeResponse
+from app.models import ApplicationRole, Employee
+from app.schemas import (
+    ActiveUpdateRequest,
+    EmployeeAdminResponse,
+    EmployeePageResponse,
+    EmployeeResponse,
+    ProvisionEmployeeRequest,
+    RoleUpdateRequest,
+)
 
 app = FastAPI(title="Employee Service", docs_url=None, redoc_url=None, openapi_url=None)
 SessionDependency = Annotated[Session, Depends(get_session)]
@@ -17,6 +34,37 @@ SessionDependency = Annotated[Session, Depends(get_session)]
 def require_internal_service(x_internal_service_key: str = Header(default="")) -> None:
     if not hmac.compare_digest(x_internal_service_key, settings.internal_service_key):
         raise HTTPException(status_code=403, detail="Forbidden")
+
+
+def actor_subject(x_actor_subject: str = Header(default="")) -> str:
+    if not x_actor_subject:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return x_actor_subject
+
+
+ActorSubject = Annotated[str, Depends(actor_subject)]
+
+
+def admin_failure(error: AdminError) -> HTTPException:
+    return HTTPException(
+        status_code=error.status_code,
+        detail={"code": error.code, "message": error.message},
+    )
+
+
+def admin_response(employee: Employee) -> EmployeeAdminResponse:
+    return EmployeeAdminResponse(
+        id=str(employee.id),
+        username=employee.username,
+        display_name=employee.display_name,
+        email=employee.email,
+        role=employee.role,
+        active=employee.active,
+        provisioning_status=employee.provisioning_status,
+        created_at=employee.created_at,
+        updated_at=employee.updated_at,
+        version=employee.version,
+    )
 
 
 @app.get("/health/live")
@@ -45,3 +93,117 @@ def employee_by_subject(subject: str, session: SessionDependency) -> EmployeeRes
         email=employee.email,
         role=employee.role,
     )
+
+
+@app.get(
+    "/internal/admin/employees",
+    response_model=EmployeePageResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def employee_directory(
+    session: SessionDependency,
+    actor: ActorSubject,
+    first: int = Query(default=20, ge=1, le=50),
+    after: str | None = None,
+    search: str | None = Query(default=None, max_length=200),
+    role: ApplicationRole | None = None,
+    active: bool | None = None,
+) -> EmployeePageResponse:
+    try:
+        page = list_employees(
+            session, actor, first=first, after=after, search=search, role=role, active=active
+        )
+    except AdminError as error:
+        raise admin_failure(error) from error
+    return EmployeePageResponse(
+        items=[admin_response(employee) for employee in page.items],
+        next_cursor=page.next_cursor,
+        has_next_page=page.has_next_page,
+    )
+
+
+@app.get(
+    "/internal/admin/employees/{employee_id}",
+    response_model=EmployeeAdminResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def employee_detail(
+    employee_id: UUID, session: SessionDependency, actor: ActorSubject
+) -> EmployeeAdminResponse:
+    try:
+        return admin_response(get_employee_detail(session, actor, employee_id))
+    except AdminError as error:
+        raise admin_failure(error) from error
+
+
+@app.post(
+    "/internal/admin/employees",
+    response_model=EmployeeAdminResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def provision(
+    body: ProvisionEmployeeRequest, session: SessionDependency, actor: ActorSubject
+) -> EmployeeAdminResponse:
+    try:
+        employee = provision_employee(
+            session,
+            actor,
+            idempotency_key=body.idempotency_key,
+            username=body.username,
+            email=body.email,
+            display_name=body.display_name,
+            role=body.role,
+            active=body.active,
+            temporary_password=body.temporary_password,
+        )
+        return admin_response(employee)
+    except AdminError as error:
+        raise admin_failure(error) from error
+
+
+@app.put(
+    "/internal/admin/employees/{employee_id}/role",
+    response_model=EmployeeAdminResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def change_role(
+    employee_id: UUID,
+    body: RoleUpdateRequest,
+    session: SessionDependency,
+    actor: ActorSubject,
+) -> EmployeeAdminResponse:
+    try:
+        return admin_response(update_role(session, actor, employee_id, body.role))
+    except AdminError as error:
+        raise admin_failure(error) from error
+
+
+@app.put(
+    "/internal/admin/employees/{employee_id}/active",
+    response_model=EmployeeAdminResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def change_active(
+    employee_id: UUID,
+    body: ActiveUpdateRequest,
+    session: SessionDependency,
+    actor: ActorSubject,
+) -> EmployeeAdminResponse:
+    try:
+        return admin_response(set_employee_active(session, actor, employee_id, body.active))
+    except AdminError as error:
+        raise admin_failure(error) from error
+
+
+@app.post(
+    "/internal/admin/employees/{employee_id}/reconcile",
+    response_model=EmployeeAdminResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def reconcile(
+    employee_id: UUID, session: SessionDependency, actor: ActorSubject
+) -> EmployeeAdminResponse:
+    try:
+        return admin_response(reconcile_employee(session, actor, employee_id))
+    except AdminError as error:
+        raise admin_failure(error) from error
