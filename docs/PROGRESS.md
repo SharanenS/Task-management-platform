@@ -1,6 +1,6 @@
 # Project progress
 
-Last updated: 2026-10-12
+Last updated: 2026-10-14
 
 ## Phase 1 — Project Foundation and Frontend Design System
 
@@ -8,36 +8,33 @@ Status: **Accepted**
 
 Delivered:
 
-- Next.js App Router application with TypeScript and Tailwind CSS.
-- Responsive application shell with desktop and mobile navigation.
-- Reusable buttons, cards, badges, loading, empty, success, and error states.
-- Clearly identified demonstration dashboard content.
-- System Status page backed by the live GraphQL gateway.
-- Design System page with interactive component-state previews.
-- FastAPI and Strawberry GraphQL gateway with `systemInfo`.
-- Liveness and readiness endpoints.
-- Request identifiers, structured request logging, sanitized GraphQL errors,
-  query-depth limits, alias limits, and disabled GET queries.
-- Generated TypeScript GraphQL operation types.
-- Docker Compose environment containing only the Phase 1 frontend and gateway.
-- Automated backend, frontend, browser, integration, and recovery tests.
-- Architecture, setup, dependency, verification, and acceptance documentation.
-
-Acceptance evidence:
-
-- Automated Phase 1 checks passed.
-- Desktop and mobile browser acceptance passed.
-- Responsive behavior passed at 768 px and 390 px.
-- Keyboard navigation and visible focus behavior passed.
-- Gateway outage, error, retry, and recovery behavior passed.
-- The frontend recovered from a gateway outage without restarting.
-- Demonstration content remained clearly distinguishable from live system data.
+- Responsive Next.js application shell and reusable interface states.
+- Clearly labeled demonstration dashboard content.
+- Live GraphQL System Status and interactive Design System pages.
+- FastAPI and Strawberry gateway with `systemInfo`, health endpoints, bounded
+  query complexity, sanitized failures, and generated client types.
+- Docker, automated, browser, accessibility, outage, and recovery verification.
 
 ## Phase 2 — Authentication and Real Application Shell
 
-Status: **Not started**
+Status: **Accepted**
 
-Phase 2 will not begin until it is explicitly authorized. Its planned scope
-includes Keycloak, OIDC Authorization Code Flow with PKCE, secure session handling,
-protected application routes, logout, token-expiration behavior, an authenticated
-`me` query, and role-aware navigation.
+Delivered:
+
+- Keycloak Authorization Code Flow with PKCE, strict state and nonce validation,
+  exact redirect targets, disabled registration, and a reproducible realm.
+- Redis-backed server sessions with opaque cookies, CSRF-protected logout, a
+  distributed refresh lock, and explicit expiry and failure states.
+- Protected shell with Employee Service-backed identity and role-aware navigation.
+- Same-origin GraphQL transport that supplies access tokens only on the server.
+- Gateway JWT signature and claim validation plus authenticated `me` composition.
+- Employee Service with owned PostgreSQL database, Alembic migration, stable
+  Keycloak-subject link, application role, and active access status.
+- Development-only identity/profile bootstrap with credentials held in `.env`.
+- Unit, integration, and opt-in Docker-backed browser coverage.
+
+Acceptance completed on 2026-10-14. Automated, Docker-backed, end-to-end, and
+manual checks passed. The final development dependency audit records 12
+high-severity `braces` findings in repository-controlled code-generation and lint
+tooling; the production dependency audit reports zero vulnerabilities. Phase 3 has
+not started.

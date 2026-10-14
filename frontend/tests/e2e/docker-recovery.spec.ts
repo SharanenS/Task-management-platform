@@ -13,6 +13,8 @@ test("real gateway container outage and recovery", async ({
 }, testInfo) => {
   test.skip(
     process.env.RUN_DOCKER_RECOVERY !== "1" ||
+      !process.env.DEV_USER_USERNAME ||
+      !process.env.DEV_USER_PASSWORD ||
       testInfo.project.name !== "desktop",
     "Opt-in, isolated Docker recovery check",
   );
@@ -22,6 +24,11 @@ test("real gateway container outage and recovery", async ({
       timeout: 30_000,
     });
   await page.goto("/system");
+  await page.getByRole("link", { name: "Sign in" }).click();
+  await page.locator("#username").fill(process.env.DEV_USER_USERNAME!);
+  await page.locator("#password").fill(process.env.DEV_USER_PASSWORD!);
+  await page.locator("#kc-login").click();
+  await expect(page).toHaveURL("http://localhost:3010/system");
   await expect(
     page.getByRole("heading", { name: "Gateway is reachable" }),
   ).toBeVisible();
@@ -30,6 +37,7 @@ test("real gateway container outage and recovery", async ({
     await page.getByRole("button", { name: "Refresh status" }).click();
     await expect(page.getByRole("main").getByRole("alert")).toContainText(
       "Gateway unavailable",
+      { timeout: 15_000 },
     );
     await expect(
       page.getByText("Gateway connected", { exact: true }),

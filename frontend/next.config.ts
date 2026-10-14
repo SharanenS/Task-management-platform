@@ -11,14 +11,6 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: projectRoot,
   },
-  async rewrites() {
-    return [
-      {
-        source: "/graphql",
-        destination: `${process.env.GATEWAY_URL ?? "http://127.0.0.1:8010"}/graphql`,
-      },
-    ];
-  },
   async headers() {
     return [
       {

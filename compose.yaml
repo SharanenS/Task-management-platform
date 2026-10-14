@@ -1,13 +1,114 @@
-name: enterprise-task-platform-phase1
+name: enterprise-task-platform-phase2
+
 services:
+  keycloak-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Set KEYCLOAK_DB_PASSWORD in .env}
+    volumes:
+      - keycloak_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  employee-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: employee
+      POSTGRES_USER: employee
+      POSTGRES_PASSWORD: ${EMPLOYEE_DB_PASSWORD:?Set EMPLOYEE_DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${EMPLOYEE_DB_PORT:-5435}:5432"
+    volumes:
+      - employee_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U employee -d employee"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  session-store:
+    image: redis:8.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    ports:
+      - "127.0.0.1:${SESSION_REDIS_PORT:-6380}:6379"
+    volumes:
+      - session_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.5
+    command: ["start-dev", "--import-realm", "--health-enabled=true", "--hostname=http://localhost:8080", "--hostname-backchannel-dynamic=true"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Set KEYCLOAK_DB_PASSWORD in .env}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:?Set KEYCLOAK_ADMIN_USERNAME in .env}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${KEYCLOAK_PORT:-8080}:8080"
+    volumes:
+      - ./infrastructure/keycloak/taskspace-realm.json:/opt/keycloak/data/import/taskspace-realm.json:ro
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; grep -q '200 OK' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+    restart: unless-stopped
+
+  employee:
+    build:
+      context: ./services/employee
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://employee:${EMPLOYEE_DB_PASSWORD}@employee-db:5432/employee
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
+    depends_on:
+      employee-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8020/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    init: true
+    restart: unless-stopped
+
   gateway:
     build:
       context: ./gateway
     environment:
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      OIDC_ISSUER: http://localhost:${KEYCLOAK_PORT:-8080}/realms/taskspace
+      OIDC_JWKS_URL: http://keycloak:8080/realms/taskspace/protocol/openid-connect/certs
+      OIDC_AUDIENCE: taskspace-web
+      EMPLOYEE_SERVICE_URL: http://employee:8020
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
     ports:
       - "127.0.0.1:${GATEWAY_PORT:-8010}:8000"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      employee:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
       interval: 10s
@@ -15,24 +116,39 @@ services:
       retries: 5
       start_period: 10s
     init: true
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend
-      args:
-        GATEWAY_URL: http://gateway:8000
-    ports:
-      - "127.0.0.1:${FRONTEND_PORT:-3010}:3000"
     environment:
       HOSTNAME: 0.0.0.0
       PORT: 3000
       NEXT_TELEMETRY_DISABLED: 1
+      APP_BASE_URL: http://localhost:${FRONTEND_PORT:-3010}
+      OIDC_ISSUER: http://localhost:${KEYCLOAK_PORT:-8080}/realms/taskspace
+      OIDC_INTERNAL_BASE_URL: http://keycloak:8080
+      OIDC_CLIENT_ID: taskspace-web
+      OIDC_ALLOW_INSECURE_LOCAL: "true"
+      REDIS_URL: redis://session-store:6379
+      GATEWAY_URL: http://gateway:8000
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3010}:3000"
     depends_on:
       gateway:
         condition: service_healthy
+      session-store:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/sign-in').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 15s
       timeout: 5s
-      retries: 5
-      start_period: 15s
+      retries: 8
+      start_period: 20s
     init: true
+    restart: unless-stopped
+
+volumes:
+  keycloak_data:
+  employee_data:
+  session_data:

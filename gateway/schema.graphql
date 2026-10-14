@@ -1,5 +1,19 @@
+enum ApplicationRole {
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+type Employee {
+  id: ID!
+  displayName: String!
+  email: String!
+  role: ApplicationRole!
+}
+
 type Query {
   systemInfo: SystemInfo!
+  me: Employee!
 }
 
 type SystemInfo {

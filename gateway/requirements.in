@@ -3,6 +3,7 @@ strawberry-graphql[fastapi]>=0.300,<1
 pydantic-settings>=2,<3
 uvicorn[standard]>=0.40,<1
 httpx>=0.28,<1
+PyJWT[crypto]>=2.15,<3
 pytest>=9,<10
 ruff>=0.15,<1
 mypy>=1.19,<2

@@ -8,6 +8,11 @@ class Settings(BaseSettings):
 
     app_env: Literal["development", "test", "production"] = "development"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    oidc_issuer: str = "http://localhost:8080/realms/taskspace"
+    oidc_jwks_url: str = "http://localhost:8080/realms/taskspace/protocol/openid-connect/certs"
+    oidc_audience: str = "taskspace-web"
+    employee_service_url: str = "http://127.0.0.1:8020"
+    internal_service_key: str = "development-only-placeholder"
 
 
 settings = Settings()

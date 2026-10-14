@@ -1,9 +1,25 @@
 import { test, expect } from "@playwright/test";
+
+test.skip(
+  process.env.RUN_AUTH_E2E !== "1" ||
+    !process.env.DEV_USER_USERNAME ||
+    !process.env.DEV_USER_PASSWORD,
+  "Phase 1 browser regression requires the Docker-backed development identity.",
+);
+
+test.beforeEach(async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "Sign in" }).click();
+  await page.locator("#username").fill(process.env.DEV_USER_USERNAME!);
+  await page.locator("#password").fill(process.env.DEV_USER_PASSWORD!);
+  await page.locator("#kc-login").click();
+  await expect(page).toHaveURL("http://localhost:3010/");
+});
+
 test("real GraphQL connection and responsive navigation", async ({
   page,
   isMobile,
 }, testInfo) => {
-  await page.goto("/");
   await expect(
     page.getByRole("heading", { name: "Make room for great work." }),
   ).toBeVisible();

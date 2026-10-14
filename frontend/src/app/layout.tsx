@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import { Providers } from "@/components/providers";
-import { AppShell } from "@/components/layout/app-shell";
 import "./globals.css";
 export const metadata: Metadata = {
   title: { default: "Overview · Taskspace", template: "%s · Taskspace" },
-  description: "Enterprise Task Platform — Phase 1 development foundation",
+  description: "Enterprise Task Platform workspace",
   robots: { index: false, follow: false },
 };
 export default function RootLayout({
@@ -13,9 +12,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <Providers>
-          <AppShell>{children}</AppShell>
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
