@@ -1,65 +1,110 @@
-# Architecture decisions — Phase 1
+# Architecture decisions — Phases 1 and 2
 
 ## Fixed boundaries
 
-Single enterprise per deployment. No tenants, public registration, or public REST
-business endpoints. The four future domain services are Employee, Work Management,
-Workflow, and Job Execution. Each owns a separate PostgreSQL database, migrations,
-authorization, and durable publication. The gateway owns neither domain rules nor
-a business database. Domain services will not be publicly exposed.
+One company is deployed per stack. There is no tenancy or public registration.
+GraphQL is the only public business API. Health, OIDC callback, logout, and
+infrastructure endpoints are explicit HTTP exceptions. The gateway owns no domain
+data. Employee, Work Management, Workflow, and Job Execution remain independent
+bounded services, each with its own database and migrations when introduced.
 
-## Foundation decisions
+Phase 2 implements only the Employee Service. Work administration, workflow,
+queues, and job execution remain outside this phase.
 
-- Monorepo: `frontend/`, `gateway/`, `services/`, and `docs/`.
-- npm with a committed lockfile; Python 3.13 virtual environment with pinned requirements.
-- Same-origin browser requests to `/graphql`; a Next.js rewrite forwards them to
-  the gateway. No CORS wildcard or alternative REST business interface.
-- Rewrite destination is a trusted server-side build setting, never user input.
-  Rebuild production frontend images if the destination changes.
-- Strawberry is the source of the schema. Export SDL with `gateway/export_schema.py`;
-  GraphQL Code Generator emits typed documents from SDL and checked-in operations.
-- TanStack Query owns server state. The status query refreshes every 15 seconds
-  in active pages, times out after 8 seconds, and supports explicit retry.
-- A failed refresh hides previously successful status data. The status describes
-  gateway reachability only, not aggregate platform readiness.
-- The only Phase 1 operation is `SystemInfo`; fields are name, version, environment,
-  and status. There are no mutations or persisted business entities.
-- Two container services only. No empty database, broker, Redis, or identity server.
-- Compose project name is `enterprise-task-platform-phase1`; host ports default
-  to 3010 and 8010 to coexist with the owner's older project on 3000/8000.
-- Local Compose ports bind to loopback. Both application containers use non-root users.
+## Browser and session boundary
 
-## Interface conventions
+Next.js acts as a backend for frontend. A cryptographically random opaque session
+identifier is stored in an `HttpOnly`, `SameSite=Lax`, path-wide cookie. Production
+HTTPS enables `Secure`. Access, refresh, and ID tokens are stored only in Redis
+under an eight-hour session TTL. A separate browser-readable random CSRF value is
+matched against both a request header and the server session for logout.
 
-Taskspace is the interface label for Enterprise Task Platform. A neutral canvas,
-forest green accent, system fonts (no remote font dependency), restrained borders,
-and an 8px spacing rhythm establish the visual foundation. Local shadcn/ui-style
-source components use Tailwind 4, class-variance-authority, and Radix primitives.
-`components.json` enables subsequent shadcn component additions. Interactive
-navigation includes focus management and a modal mobile drawer.
+Protected page middleware performs the inexpensive cookie-presence redirect. The
+server layout then loads and validates the authoritative session. A missing or
+unrefreshable session goes to the explicit session-expired page. Client JavaScript
+receives only the employee profile and CSRF value; it never receives tokens.
 
-Dashboard business content is explicitly illustrative. Planned feature controls
-are disabled. `/system` contains real data; `/design-system` contains explicit
-interactive previews. No forms are needed yet; React Hook Form and Zod will be
-introduced when the first actual business form needs them.
+## OIDC flow
 
-## Incremental security
+Sign-in creates cryptographically secure state, nonce, PKCE verifier, and one-time
+transaction identifiers. The transaction is stored in Redis for ten minutes, and
+its opaque identifier is placed in an `HttpOnly` callback-scoped cookie. Callback
+processing atomically consumes the transaction, then `openid-client` validates the
+authorization response, issuer-bound ID token, state, nonce, and PKCE exchange.
+Return paths must begin with one slash and cannot begin with two, preventing an
+external redirect.
 
-Public metadata contains no hostnames, tokens, credentials, or infrastructure
-inventory. GraphQL errors are sanitized. Initial depth and alias caps limit this
-small schema; GET queries are disabled. Request IDs are server-generated, and
-structured request logs exclude query text, headers, and payloads. GraphiQL is
-development-only. Introspection is not an authorization mechanism.
+The browser-visible issuer is `http://localhost:8080/realms/taskspace`. Containers
+cannot use the browser hostname to reach Keycloak, so server-side token and JWKS
+requests use `http://keycloak:8080`. Token validation always requires the public
+issuer exactly. Plain HTTP is allowed only when an explicit local setting is true
+and the issuer host is loopback. Production configurations require HTTPS.
 
-This is a local foundation, not a production security release. OIDC with PKCE,
-secure sessions, JWT validation, service authentication, and authorization belong
-to their functional slices; broader complexity/rate controls and telemetry grow
-with the schema. An exact session/token forwarding contract must be recorded in
-Phase 2 before introducing authenticated data.
+Expired access tokens are refreshed server-side. A Redis `NX` lock with a short
+TTL allows one refresh per session and prevents refresh storms. A waiter reloads
+the updated record. Refresh failure deletes the local session. Logout first deletes
+the Redis session and cookies, then returns an exact Keycloak end-session URL with
+the configured post-logout redirect.
 
-## Dependency references
+## Gateway and Employee Service
 
-Versions were resolved from the npm/Python package indexes during implementation.
-Compatibility references: [Next.js installation](https://nextjs.org/docs/app/getting-started/installation),
-[shadcn Tailwind 4](https://ui.shadcn.com/docs/tailwind-v4), and
-[Strawberry FastAPI integration](https://strawberry.rocks/docs/integrations/fastapi).
+The public gateway validates RS256 access-token signatures through a cached JWKS
+client and requires issuer, audience, expiration, issued-at, and subject claims.
+Key rotation is supported by key-ID lookup and cache refresh. The gateway calls
+the Employee Service with the validated subject and a constant-time checked
+internal service credential. It never persists employee data.
+
+The Employee Service owns UUID, unique Keycloak subject, email, display name,
+application role (`ADMIN`, `MANAGER`, or `MEMBER`), active status, and timestamps.
+Its PostgreSQL schema is owned by Alembic. Missing and inactive profiles both deny
+access without revealing which condition occurred. The internal endpoint is not
+published to the host.
+
+The GraphQL `me` query returns only ID, display name, email, and application role.
+Missing or invalid authentication maps to `UNAUTHENTICATED`; a missing or inactive
+profile maps to `FORBIDDEN`; a dependency failure maps to `SERVICE_UNAVAILABLE`.
+Messages are sanitized. The existing public `systemInfo` query remains available.
+
+## Same-origin GraphQL transport
+
+The frontend `/graphql` route forwards the request body to the public gateway. If
+a valid session exists, the route adds its bearer access token server-side. The
+route preserves GraphQL as the single business contract and adds no REST business
+operations. The authenticated shell uses Employee Service-backed `me` data. The
+Employees navigation entry is visible only to an `ADMIN`; server-side enforcement
+remains mandatory when Phase 3 operations are added.
+
+## Development bootstrap and persistence
+
+The committed Keycloak realm contains a public PKCE client, exact local redirect,
+logout, and origin values, an audience mapper, and no users or usable secrets.
+Public registration is disabled. `scripts/bootstrap-development.ps1` reads only
+the ignored local `.env`, creates or updates a development Keycloak user, obtains
+its stable subject, and invokes an internal Employee Service bootstrap command.
+
+Keycloak, Employee Service PostgreSQL, and Redis each use a distinct named volume.
+Readiness checks verify database connectivity or service endpoints before dependent
+containers start. Host-published ports bind to loopback.
+
+## Threats and mitigations
+
+| Threat | Mitigation |
+| --- | --- |
+| Authorization response substitution | One-time state, nonce, PKCE, and transaction expiry |
+| Token theft by browser script | Opaque `HttpOnly` session; tokens remain server-side |
+| Open redirect | Strict relative return-path validation and exact registered URIs |
+| Cross-site logout | Cookie, request header, and session CSRF values must match |
+| Refresh storm | Redis distributed lock with expiry |
+| Forged gateway identity | JWT signature and required claim validation |
+| Spoofed employee lookup | Internal endpoint credential and unexposed service port |
+| Identity without application access | Employee profile and active status are mandatory |
+| Information leakage | Sanitized HTTP and GraphQL failures; sensitive values are not logged |
+
+## Dependency choices
+
+`openid-client` implements the standards-sensitive authorization, token, and ID
+token processing while the application retains transaction storage, cookie policy,
+session lifecycle, authorization, and error handling. The official Redis client
+supports durable shared sessions and atomic lock acquisition. PyJWT performs strict
+gateway JWT validation with cached JWKS lookup. SQLAlchemy, Alembic, and psycopg
+provide explicit Employee Service ownership of models, migrations, and PostgreSQL.

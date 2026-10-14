@@ -1,9 +1,14 @@
-# Identity / Employee Service (future phase)
+# Employee Service
 
-Owns employee profiles, application roles, status, Keycloak subject linkage,
-administrator provisioning, reconciliation, and security audit records.
-Keycloak owns credentials. No public signup.
+The Employee Service owns employee profiles, active access status, and application
+roles. Its internal HTTP contract is reachable only on the Compose network and
+requires the shared internal-service credential. The GraphQL gateway supplies the
+already validated Keycloak subject; browser-provided identity headers are never
+accepted directly.
 
-Foundation integration begins in Phase 2; administration and database migrations
-arrive in Phase 3. This directory contains no running service in Phase 1.
-The service will own its PostgreSQL database and enforce its own authorization.
+The service owns its PostgreSQL database and Alembic migrations. Phase 2 exposes
+only subject-based profile resolution. Employee administration belongs to Phase 3.
+
+For local bootstrap, use `scripts/bootstrap-development.ps1` after the stack is
+healthy. It creates the configured Keycloak development user and invokes the
+service's internal provisioning command inside its container.

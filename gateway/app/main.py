@@ -19,14 +19,20 @@ class SafeGraphQLRouter(GraphQLRouter):
     ) -> GraphQLHTTPResponse:
         response = await super().process_result(request, result)
         if result.errors:
-            response["errors"] = [
-                {
-                    "message": "Request could not be completed."
-                    if error.original_error
-                    else "Invalid GraphQL request."
-                }
-                for error in result.errors
-            ]
+            safe_errors: list[object] = []
+            for error in result.errors:
+                code = error.extensions.get("code") if error.extensions else None
+                if code in {"UNAUTHENTICATED", "FORBIDDEN", "SERVICE_UNAVAILABLE"}:
+                    safe_errors.append({"message": error.message, "extensions": {"code": code}})
+                else:
+                    safe_errors.append(
+                        {
+                            "message": "Request could not be completed."
+                            if error.original_error
+                            else "Invalid GraphQL request."
+                        }
+                    )
+            response["errors"] = safe_errors
         return response
 
 
@@ -35,6 +41,10 @@ app = FastAPI(
 )
 logger = logging.getLogger("gateway")
 logging.basicConfig(level=settings.log_level, format="%(message)s")
+
+
+async def graphql_context(request: Request) -> dict[str, str | None]:
+    return {"authorization": request.headers.get("authorization")}
 
 
 @app.middleware("http")
@@ -75,6 +85,7 @@ async def readiness() -> dict[str, str]:
 app.include_router(
     SafeGraphQLRouter(
         schema,
+        context_getter=graphql_context,
         graphql_ide="graphiql" if settings.app_env == "development" else None,
         allow_queries_via_get=False,
     ),

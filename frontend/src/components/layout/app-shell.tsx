@@ -23,6 +23,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { ConnectionStatus } from "@/features/system/connection-status";
 import { cn } from "@/lib/utils";
+import type { EmployeeProfile } from "@/auth/types";
+import { canViewEmployeeNavigation } from "@/auth/authorization";
+import { UserMenu } from "@/components/layout/user-menu";
 
 const navigation = [
   { label: "Overview", href: "/", icon: LayoutDashboard },
@@ -37,7 +40,13 @@ const foundation = [
   { label: "Design system", href: "/design-system", icon: Palette },
 ];
 
-function Sidebar({ close }: { close?: () => void }) {
+function Sidebar({
+  close,
+  user,
+}: {
+  close?: () => void;
+  user: EmployeeProfile;
+}) {
   const pathname = usePathname();
   return (
     <div className="flex h-full flex-col bg-sidebar px-4 py-6">
@@ -70,33 +79,38 @@ function Sidebar({ close }: { close?: () => void }) {
       <nav aria-label="Main navigation">
         <p className="nav-label">Workspace</p>
         <div className="mt-2 space-y-1">
-          {navigation.map(({ label, href, icon: Icon, phase }) =>
-            href ? (
-              <Link
-                key={label}
-                href={href}
-                onClick={close}
-                aria-current={pathname === href ? "page" : undefined}
-                className={cn("nav-item", pathname === href && "nav-active")}
-              >
-                <Icon />
-                <span>{label}</span>
-              </Link>
-            ) : (
-              <button
-                key={label}
-                disabled
-                title={`Available in Phase ${phase}`}
-                className="nav-item w-full cursor-not-allowed opacity-55"
-              >
-                <Icon />
-                <span>{label}</span>
-                <span className="ml-auto text-[9px] font-medium uppercase tracking-wider">
-                  Soon
-                </span>
-              </button>
-            ),
-          )}
+          {navigation
+            .filter(
+              ({ label }) =>
+                label !== "Employees" || canViewEmployeeNavigation(user.role),
+            )
+            .map(({ label, href, icon: Icon, phase }) =>
+              href ? (
+                <Link
+                  key={label}
+                  href={href}
+                  onClick={close}
+                  aria-current={pathname === href ? "page" : undefined}
+                  className={cn("nav-item", pathname === href && "nav-active")}
+                >
+                  <Icon />
+                  <span>{label}</span>
+                </Link>
+              ) : (
+                <button
+                  key={label}
+                  disabled
+                  title={`Available in Phase ${phase}`}
+                  className="nav-item w-full cursor-not-allowed opacity-55"
+                >
+                  <Icon />
+                  <span>{label}</span>
+                  <span className="ml-auto text-[9px] font-medium uppercase tracking-wider">
+                    Soon
+                  </span>
+                </button>
+              ),
+            )}
         </div>
         <p className="nav-label mt-8">Foundation</p>
         <div className="mt-2 space-y-1">
@@ -141,7 +155,13 @@ function Sidebar({ close }: { close?: () => void }) {
   );
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  user,
+}: {
+  children: React.ReactNode;
+  user: EmployeeProfile;
+}) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const title =
@@ -159,7 +179,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r lg:block">
-        <Sidebar />
+        <Sidebar user={user} />
       </aside>
       <div className="lg:pl-64">
         <header className="flex h-[76px] items-center justify-between gap-3 border-b bg-card px-5 sm:px-8 lg:px-10">
@@ -182,7 +202,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Dialog.Description className="sr-only">
                     Workspace and foundation pages
                   </Dialog.Description>
-                  <Sidebar close={() => setOpen(false)} />
+                  <Sidebar close={() => setOpen(false)} user={user} />
                   <Dialog.Close asChild>
                     <Button
                       variant="ghost"
@@ -205,9 +225,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-4">
             <ConnectionStatus />
             <span className="hidden h-5 border-l sm:block" />
-            <span className="hidden rounded-md bg-muted px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider sm:block">
-              Dev preview
-            </span>
+            <UserMenu user={user} />
           </div>
         </header>
         <main
@@ -219,7 +237,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <footer className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-5 pb-6 text-[11px] text-muted-foreground sm:px-8 lg:px-10">
           <span>
             Enterprise Task Platform <span className="mx-2 text-border">/</span>{" "}
-            Phase 1 foundation
+            Authenticated workspace
           </span>
           <Link
             href="/design-system"

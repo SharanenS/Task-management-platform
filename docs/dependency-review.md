@@ -1,24 +1,33 @@
-# Dependency review — 2026-10-08
+# Dependency review — 2026-10-14
 
-The initial npm audit reported 12 high-severity development dependency entries
-stemming from one advisory: [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
+The Phase 1 npm audit reported 12 high-severity development dependency entries stemming
+from [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
 `braces <=3.0.3` can exhaust the stack when parsing deeply nested patterns. The
-dependency paths are GraphQL Code Generator and Next.js ESLint tooling, which
-consume repository-controlled patterns in this project. They do not accept
-public request input here.
+paths are GraphQL Code Generator and Next.js ESLint tooling, which consume
+repository-controlled patterns here. They do not accept public request input.
 
-The audit's suggested automatic fixes downgrade GraphQL Code Generator to 3.2.0
-and the Next.js lint configuration to 14.2.35. Those are not compatible upgrades
-for this foundation. No forced downgrade or unsupported override was applied.
-Recheck upstream patches before production release. Do not describe the full
-dependency tree as vulnerability-free.
+The Phase 2 final audit on 2026-10-14 reported zero production vulnerabilities.
+The full development audit still reported 12 high-severity entries through `braces`
+in GraphQL Code Generator and Next.js ESLint dependency paths. npm offered only a
+forced, breaking downgrade of GraphQL Code Generator, so the finding remains
+documented with the repository-controlled input constraint above.
+Both Python lock files reported no known vulnerabilities when checked with
+`pip-audit` 2.10.1.
 
-`npm audit --omit=dev` reported zero vulnerabilities for the production frontend
-dependency set on this date.
+Phase 2 adds `openid-client` 6.8.8 and `redis` 6.3.0. `openid-client` was selected
+for standards-compliant Authorization Code, PKCE, ID-token, and refresh processing;
+the application still owns cookie policy, server session storage, CSRF defense,
+return-path validation, authorization, and sanitized failures. The official Redis
+client provides the shared session store and atomic refresh lock.
 
-Node 24 LTS is required by the resolved current toolchain. `.nvmrc`, the npm engine
-constraint, and Docker images agree on that major version. All direct npm versions
-and transitive lockfile resolutions are pinned. Python dependencies are pinned in
-`gateway/requirements.lock`; that development lock includes test tooling and is
-also used by the local verification container. Production image slimming and
-separate production dependency locks are deferred to deployment work.
+The gateway adds PyJWT 2.15.1 with cryptography support for strict RS256/JWKS claim
+validation. The Employee Service uses SQLAlchemy 2.1.4, Alembic 1.20.0, and psycopg
+3.3.6 for its owned PostgreSQL model and migrations. Python versions are pinned in
+service-specific lock files.
+
+Node 24 LTS is required by the current toolchain. `.nvmrc`, the npm engine
+constraint, and Docker images agree on that major version. Direct npm dependencies
+and transitive resolutions are locked. Python dependencies are pinned in
+`gateway/requirements.lock` and `services/employee/requirements.lock`; these locks
+include verification tooling and are also used by local containers. Production
+image slimming and separate production dependency locks are deferred to deployment work.

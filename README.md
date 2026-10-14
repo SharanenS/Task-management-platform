@@ -1,123 +1,111 @@
 # Enterprise Task Platform
 
 A GraphQL-first enterprise work platform, developed in verified full-stack slices.
-**Current scope: Phase 1 — Project Foundation + Frontend Design System.**
+Phases 1 and 2 are accepted. Phase 3 has not started.
 
-The Taskspace interface contains a responsive dashboard shell, explicit sample
-content, a live GraphQL connection screen, and interactive component previews.
-Authentication and business features arrive in later phases.
+Phase 2 adds a protected Taskspace shell, Keycloak Authorization Code Flow with
+PKCE, Redis-backed server sessions, an Employee Service with its own PostgreSQL
+database and Alembic migrations, an authenticated GraphQL `me` query, role-aware
+navigation, logout, refresh, and explicit authentication failure states.
 
 ## Run with Docker
 
-Start Docker Desktop with Linux containers, then from the repository root:
-
-```powershell
-Copy-Item .env.example .env
-docker compose up --build -d
-docker compose ps
-```
-
-Open http://localhost:3010. Live diagnostics: http://localhost:3010/system.
-Gateway development explorer: http://localhost:8010/graphql.
-Health endpoints: `/health/live` and `/health/ready` on port 8010.
-GET GraphQL queries are disabled; use POST or the development explorer.
-
-```powershell
-docker compose logs --tail 100
-docker compose stop gateway
-# In the browser, refresh status to verify the unavailable state.
-docker compose start gateway
-# Retry to verify recovery.
-docker compose down
-```
-
-Compose is a local development verification environment, not an AWS deployment.
-The frontend image runs an optimized production build. Rebuild after source edits.
-There are no persistent volumes or databases in Phase 1.
-The isolated Compose name is `enterprise-task-platform-phase1`. Ports 3010/8010
-avoid the older local project on 3000/8000. Override host ports in `.env` if needed.
-
-## Run natively on Windows
-
-Prerequisites: Node.js 24.15 or newer in the Node 24 LTS line, Python 3.13, npm 11.21+.
-Run from the repository root:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r gateway/requirements.lock
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir gateway --host 127.0.0.1 --port 8010 --no-access-log
-```
-
-In another terminal:
-
-```powershell
-cd frontend
-npm ci
-npm run dev
-```
-
-Open http://localhost:3010. Native development defaults to gateway port 8010.
-If needed, copy `frontend/.env.example` to `frontend/.env.local` and edit the
-server-side `GATEWAY_URL`. Restart Next.js after changing it. Root `.env` controls
-Compose and gateway settings; it is ignored by Git.
-
-## Verify
-
+Prerequisites are Docker Desktop with Linux containers, Node.js 24, and PowerShell.
 From the repository root:
 
 ```powershell
-cd gateway
-..\.venv\Scripts\python.exe export_schema.py
-..\.venv\Scripts\python.exe -m pytest
-..\.venv\Scripts\python.exe -m ruff check .
-..\.venv\Scripts\python.exe -m ruff format --check .
-..\.venv\Scripts\python.exe -m mypy app
-cd ../frontend
+Copy-Item .env.example .env
+# Replace every change-me value in .env with a unique local value.
+docker compose up --build -d
+docker compose ps
+.\scripts\bootstrap-development.ps1
+```
+
+Open http://localhost:3010 and select **Sign in**. Use the development username
+and password stored only in the ignored `.env` file. The bootstrap is idempotent:
+it creates or updates one Keycloak identity and its matching active Employee
+Service profile. Public registration remains disabled.
+
+Local endpoints:
+
+- Application: http://localhost:3010
+- Keycloak: http://localhost:8080
+- GraphQL gateway: http://localhost:8010/graphql
+- Gateway health: http://localhost:8010/health/live and `/health/ready`
+- Employee PostgreSQL: loopback port 5435
+- Session Redis: loopback port 6380
+
+Keycloak, Employee Service, and session data use separate named volumes. Do not
+use `docker compose down --volumes` when the data should be retained.
+
+## Authentication boundary
+
+The browser receives only opaque session and CSRF cookies. Access, refresh, and ID
+tokens remain in Redis and are used by Next.js server routes. `/graphql` is a
+same-origin transparent transport that attaches the current access token before
+forwarding the GraphQL request to the public gateway. It does not create a second
+business API.
+
+The browser uses the public issuer `http://localhost:8080/realms/taskspace` for
+authorization and logout. Containers use `http://keycloak:8080` for token and JWKS
+traffic. The gateway still validates the exact public issuer in every token. The
+HTTP allowance is explicitly limited to loopback local development; deployed
+environments must use HTTPS.
+
+## Verify
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest gateway/tests
+.\.venv\Scripts\python.exe -m ruff check gateway
+.\.venv\Scripts\python.exe -m ruff format --check gateway
+.\.venv\Scripts\python.exe -m mypy gateway/app
+.\.venv\Scripts\python.exe -m pytest services/employee/tests
+.\.venv\Scripts\python.exe -m ruff check services/employee
+.\.venv\Scripts\python.exe -m ruff format --check services/employee
+.\.venv\Scripts\python.exe -m mypy services/employee/app
+Set-Location frontend
 npm run codegen
-npm run lint
 npm run typecheck
+npm run lint
 npm test
 npm run format:check
 npm run build
+npm audit --omit=dev
+Set-Location ..
+docker compose config --quiet
+docker compose build
 ```
 
-With both servers running (native or Compose):
+The Docker-backed authentication suite is opt-in and reads credentials from the
+process environment. It never embeds them in test source or reports:
 
 ```powershell
-npx playwright install chromium
-npm run test:e2e
+$settings = @{}
+Get-Content .env | ForEach-Object {
+  if ($_ -match '^([^#=]+)=(.*)$') { $settings[$matches[1]] = $matches[2] }
+}
+$env:RUN_AUTH_E2E = "1"
+$env:DEV_USER_USERNAME = $settings.DEV_USER_USERNAME
+$env:DEV_USER_PASSWORD = $settings.DEV_USER_PASSWORD
+Set-Location frontend
+npx playwright test authentication foundation --project=desktop --workers=1
+$env:RUN_AUTH_REFRESH_E2E = "1"
+npx playwright test authentication --project=desktop --workers=1 --grep "expired access token"
+Remove-Item Env:RUN_AUTH_E2E, Env:RUN_AUTH_REFRESH_E2E, Env:DEV_USER_USERNAME, Env:DEV_USER_PASSWORD
 ```
 
-The real container-outage test is opt-in and must run by itself against the default
-Compose ports. It stops only this project's gateway and restarts it in a `finally`
-block:
-
-```powershell
-$env:RUN_DOCKER_RECOVERY="1"
-npx playwright test docker-recovery --project=desktop --workers=1
-Remove-Item Env:RUN_DOCKER_RECOVERY
-```
-
-Generated TypeScript files are included in the source for reproducible builds. After schema
-changes, regenerate both SDL and client documents and review the diff. Never
-manually duplicate response types. The schema consistency test detects stale SDL.
+Generated GraphQL TypeScript is committed for reproducible builds. After schema
+changes, run `gateway/export_schema.py` and `npm run codegen`, then review both.
 
 ## Repository
 
 | Directory | Responsibility |
 | --- | --- |
-| `frontend/` | Next.js App Router, Tailwind, UI components, generated GraphQL client |
-| `gateway/` | FastAPI + Strawberry, safe metadata, health checks, tests |
-| `services/` | Documented future service boundaries; no running domain services yet |
-| `docs/` | Architecture decisions and phase acceptance |
+| `frontend/` | Next.js UI, BFF session boundary, same-origin GraphQL transport |
+| `gateway/` | Public GraphQL schema, JWT validation, service composition |
+| `services/employee/` | Employee profiles, roles, access status, migrations |
+| `infrastructure/keycloak/` | Reproducible realm and public-client configuration |
+| `docs/` | Architecture, dependency, progress, and verification records |
 
-Read [architecture decisions](docs/architecture.md) and the
-[manual acceptance checklist](docs/phase-1-acceptance.md).
-See the [dependency review](docs/dependency-review.md) for the known development
-tooling advisory and production audit result.
-Actual implementation checks are recorded in the [verification report](docs/phase-1-verification.md).
-
-The final architecture has four independently deployable domains, each with its
-own PostgreSQL database. Keycloak handles authentication; RabbitMQ and Celery
-handle asynchronous transport/execution. These components are intentionally
-introduced only as their functional phases require them.
+See [architecture](docs/architecture.md), [dependency review](docs/dependency-review.md),
+and [Phase 2 verification](docs/phase-2-verification.md).
