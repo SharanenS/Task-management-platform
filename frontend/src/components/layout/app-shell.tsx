@@ -31,7 +31,7 @@ const navigation = [
   { label: "Overview", href: "/", icon: LayoutDashboard },
   { label: "Projects", icon: FolderKanban, phase: 4 },
   { label: "My tasks", icon: ListTodo, phase: 5 },
-  { label: "Employees", icon: Users, phase: 3 },
+  { label: "Employees", href: "/employees", icon: Users },
   { label: "Workflows", icon: Workflow, phase: 10 },
   { label: "Background jobs", icon: Zap, phase: 6 },
 ];
@@ -169,7 +169,9 @@ export function AppShell({
       ? "System status"
       : pathname === "/design-system"
         ? "Design system"
-        : "Overview";
+        : pathname.startsWith("/employees")
+          ? "Employees"
+          : "Overview";
   return (
     <div className="min-h-screen">
       <a

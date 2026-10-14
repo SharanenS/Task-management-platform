@@ -1,12 +1,21 @@
 # Enterprise Task Platform
 
 A GraphQL-first enterprise work platform, developed in verified full-stack slices.
-Phases 1 and 2 are accepted. Phase 3 has not started.
+Phases 1, 2, and 3 are accepted. Phase 4 has not started.
 
 Phase 2 adds a protected Taskspace shell, Keycloak Authorization Code Flow with
 PKCE, Redis-backed server sessions, an Employee Service with its own PostgreSQL
 database and Alembic migrations, an authenticated GraphQL `me` query, role-aware
 navigation, logout, refresh, and explicit authentication failure states.
+
+Phase 3 adds ADMIN-only employee directory, detail, provisioning, role, status,
+and reconciliation workflows. Keycloak owns identities and credentials; Employee
+Service owns application profiles, roles, active status, and provisioning state.
+The owner accepted Phase 3 on 2026-10-14 after automated functional,
+authorization, security, lifecycle, outage, recovery, responsive-overflow, and
+basic accessibility checks passed. Subjective visual and UX redesign remains
+deferred to Phases 12 and 15; this acceptance is not a final visual or
+accessibility certification.
 
 ## Run with Docker
 
@@ -94,18 +103,23 @@ npx playwright test authentication --project=desktop --workers=1 --grep "expired
 Remove-Item Env:RUN_AUTH_E2E, Env:RUN_AUTH_REFRESH_E2E, Env:DEV_USER_USERNAME, Env:DEV_USER_PASSWORD
 ```
 
+The Phase 3 browser journey also reads its disposable identity values from `.env`.
+Set `RUN_EMPLOYEE_ADMIN_E2E=1` and export the `PHASE3_E2E_*` variables before
+running `tests/e2e/employee-administration.spec.ts`. Never use the primary
+administrator as the disposable identity.
+
 Generated GraphQL TypeScript is committed for reproducible builds. After schema
 changes, run `gateway/export_schema.py` and `npm run codegen`, then review both.
 
 ## Repository
 
-| Directory | Responsibility |
-| --- | --- |
-| `frontend/` | Next.js UI, BFF session boundary, same-origin GraphQL transport |
-| `gateway/` | Public GraphQL schema, JWT validation, service composition |
-| `services/employee/` | Employee profiles, roles, access status, migrations |
-| `infrastructure/keycloak/` | Reproducible realm and public-client configuration |
-| `docs/` | Architecture, dependency, progress, and verification records |
+| Directory                  | Responsibility                                                  |
+| -------------------------- | --------------------------------------------------------------- |
+| `frontend/`                | Next.js UI, BFF session boundary, same-origin GraphQL transport |
+| `gateway/`                 | Public GraphQL schema, JWT validation, service composition      |
+| `services/employee/`       | Employee profiles, roles, access status, migrations             |
+| `infrastructure/keycloak/` | Reproducible realm and public-client configuration              |
+| `docs/`                    | Architecture, dependency, progress, and verification records    |
 
 See [architecture](docs/architecture.md), [dependency review](docs/dependency-review.md),
-and [Phase 2 verification](docs/phase-2-verification.md).
+and [Phase 3 verification](docs/phase-3-verification.md).

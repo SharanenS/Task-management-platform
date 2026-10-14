@@ -8,6 +8,92 @@ import { getRedis } from "@/auth/redis";
 import { createSession } from "@/auth/session";
 import type { AuthTransaction } from "@/auth/types";
 
+const CALLBACK_DIAGNOSTIC = {
+  AUTHORIZATION_RESPONSE_INVALID: "AUTHORIZATION_RESPONSE_INVALID",
+  ID_TOKEN_INVALID: "ID_TOKEN_INVALID",
+  TOKEN_RESPONSE_INVALID: "TOKEN_RESPONSE_INVALID",
+  UPSTREAM_RESPONSE_INVALID: "UPSTREAM_RESPONSE_INVALID",
+  UPSTREAM_TIMEOUT: "UPSTREAM_TIMEOUT",
+  UNKNOWN: "UNKNOWN",
+} as const;
+
+type CallbackDiagnostic =
+  (typeof CALLBACK_DIAGNOSTIC)[keyof typeof CALLBACK_DIAGNOSTIC];
+
+function readStringProperty(
+  value: unknown,
+  property: string,
+): string | undefined {
+  if (
+    (typeof value !== "object" || value === null) &&
+    typeof value !== "function"
+  )
+    return undefined;
+  try {
+    const candidate = Reflect.get(value, property);
+    return typeof candidate === "string" ? candidate : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function readCause(value: unknown): unknown {
+  if (
+    (typeof value !== "object" || value === null) &&
+    typeof value !== "function"
+  )
+    return undefined;
+  try {
+    return Reflect.get(value, "cause");
+  } catch {
+    return undefined;
+  }
+}
+
+function callbackErrorCategory(error: unknown): CallbackDiagnostic {
+  let current = error;
+  for (let depth = 0; depth < 4 && current !== undefined; depth += 1) {
+    const code = readStringProperty(current, "code");
+    if (
+      code === "OAUTH_JWT_CLAIM_COMPARISON_FAILED" ||
+      code === "OAUTH_JWT_TIMESTAMP_CHECK_FAILED"
+    )
+      return CALLBACK_DIAGNOSTIC.ID_TOKEN_INVALID;
+    if (
+      code === "OAUTH_RESPONSE_IS_NOT_JSON" ||
+      code === "OAUTH_RESPONSE_IS_NOT_CONFORM"
+    )
+      return CALLBACK_DIAGNOSTIC.UPSTREAM_RESPONSE_INVALID;
+    if (code === "OAUTH_TIMEOUT") return CALLBACK_DIAGNOSTIC.UPSTREAM_TIMEOUT;
+
+    const message = readStringProperty(current, "message")?.toLowerCase();
+    if (message?.includes("state") || message?.includes("authorization code"))
+      return CALLBACK_DIAGNOSTIC.AUTHORIZATION_RESPONSE_INVALID;
+    if (
+      message?.includes("nonce") ||
+      message?.includes("issuer") ||
+      message?.includes("audience") ||
+      message?.includes("signature") ||
+      message?.includes("jwt")
+    )
+      return CALLBACK_DIAGNOSTIC.ID_TOKEN_INVALID;
+    if (
+      message?.includes("access_token") ||
+      message?.includes("id_token") ||
+      message?.includes("token_type")
+    )
+      return CALLBACK_DIAGNOSTIC.TOKEN_RESPONSE_INVALID;
+    if (message?.includes("response body"))
+      return CALLBACK_DIAGNOSTIC.UPSTREAM_RESPONSE_INVALID;
+    if (message?.includes("timed out") || message?.includes("timeout"))
+      return CALLBACK_DIAGNOSTIC.UPSTREAM_TIMEOUT;
+    if (code === "OAUTH_INVALID_RESPONSE")
+      return CALLBACK_DIAGNOSTIC.AUTHORIZATION_RESPONSE_INVALID;
+    current = readCause(current);
+  }
+  return CALLBACK_DIAGNOSTIC.UNKNOWN;
+}
+
 export async function GET(request: NextRequest) {
   const store = await cookies();
   const transactionId = store.get(TRANSACTION_COOKIE)?.value;
@@ -48,6 +134,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(
         new URL("/access-denied", authConfig.appBaseUrl),
       );
+    console.error("OIDC callback failed.", callbackErrorCategory(error));
     return NextResponse.redirect(
       new URL("/sign-in?error=callback", authConfig.appBaseUrl),
     );

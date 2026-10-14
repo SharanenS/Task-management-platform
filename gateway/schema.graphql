@@ -1,8 +1,24 @@
+type AdminEmployee {
+  id: ID!
+  username: String!
+  displayName: String!
+  email: String!
+  role: ApplicationRole!
+  active: Boolean!
+  provisioningStatus: ProvisioningStatus!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  version: Int!
+}
+
 enum ApplicationRole {
   ADMIN
   MANAGER
   MEMBER
 }
+
+"""Date with time (isoformat)"""
+scalar DateTime
 
 type Employee {
   id: ID!
@@ -11,9 +27,43 @@ type Employee {
   role: ApplicationRole!
 }
 
+type EmployeeConnection {
+  nodes: [AdminEmployee!]!
+  pageInfo: PageInfo!
+}
+
+type Mutation {
+  provisionEmployee(input: ProvisionEmployeeInput!): AdminEmployee!
+  updateEmployeeRole(employeeId: ID!, role: ApplicationRole!): AdminEmployee!
+  setEmployeeActive(employeeId: ID!, active: Boolean!): AdminEmployee!
+  reconcileEmployee(employeeId: ID!): AdminEmployee!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  endCursor: String
+}
+
+input ProvisionEmployeeInput {
+  idempotencyKey: String!
+  username: String!
+  email: String!
+  displayName: String!
+  role: ApplicationRole!
+  active: Boolean!
+  temporaryPassword: String!
+}
+
+enum ProvisioningStatus {
+  COMPLETE
+  RECONCILIATION_REQUIRED
+}
+
 type Query {
   systemInfo: SystemInfo!
   me: Employee!
+  employees(first: Int! = 20, after: String = null, search: String = null, role: ApplicationRole = null, active: Boolean = null): EmployeeConnection!
+  employee(id: ID!): AdminEmployee!
 }
 
 type SystemInfo {

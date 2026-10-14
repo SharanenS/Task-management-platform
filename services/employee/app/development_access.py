@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.db import SessionLocal
-from app.models import Employee
+from app.models import Employee, ProvisioningRequest
 
 ALLOWED_ENVIRONMENTS = {"development", "test"}
 
@@ -36,6 +36,12 @@ def remove(subject: str, *, protected_subject: str) -> None:
         if employee is None:
             print("Development employee profile is already absent.")
             return
+        request = session.scalar(
+            select(ProvisioningRequest).where(ProvisioningRequest.employee_id == employee.id)
+        )
+        if request is not None:
+            session.delete(request)
+            session.flush()
         session.delete(employee)
         session.commit()
         print("Development employee profile removed.")

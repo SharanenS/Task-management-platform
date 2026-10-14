@@ -22,7 +22,19 @@ class SafeGraphQLRouter(GraphQLRouter):
             safe_errors: list[object] = []
             for error in result.errors:
                 code = error.extensions.get("code") if error.extensions else None
-                if code in {"UNAUTHENTICATED", "FORBIDDEN", "SERVICE_UNAVAILABLE"}:
+                if code in {
+                    "UNAUTHENTICATED",
+                    "FORBIDDEN",
+                    "SERVICE_UNAVAILABLE",
+                    "INVALID_INPUT",
+                    "NOT_FOUND",
+                    "DUPLICATE_EMPLOYEE",
+                    "IDENTITY_COLLISION",
+                    "IDEMPOTENCY_CONFLICT",
+                    "SELF_PROTECTED",
+                    "FINAL_ADMIN",
+                    "RECONCILIATION_REQUIRED",
+                }:
                     safe_errors.append({"message": error.message, "extensions": {"code": code}})
                 else:
                     safe_errors.append(
