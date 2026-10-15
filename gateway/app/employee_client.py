@@ -50,6 +50,27 @@ class EmployeeAdminPage:
     has_next_page: bool
 
 
+@dataclass(frozen=True)
+class EligibleEmployee:
+    id: str
+    display_name: str
+    email: str
+
+
+@dataclass(frozen=True)
+class EligibleEmployeePage:
+    items: list[EligibleEmployee]
+    next_cursor: str | None
+    has_next_page: bool
+
+
+def _eligible_employee(data: dict[str, Any]) -> EligibleEmployee:
+    try:
+        return EligibleEmployee(data["id"], data["display_name"], data["email"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise EmployeeUnavailableError from error
+
+
 def _admin_profile(data: dict[str, Any]) -> EmployeeAdminProfile:
     try:
         return EmployeeAdminProfile(
@@ -185,6 +206,51 @@ async def reconcile_admin_employee(actor_subject: str, employee_id: str) -> Empl
             "POST", f"/internal/admin/employees/{employee_id}/reconcile", actor_subject
         )
     )
+
+
+async def list_eligible_employees(
+    actor_subject: str, *, first: int, after: str | None, search: str | None
+) -> EligibleEmployeePage:
+    data = await _admin_request(
+        "GET",
+        "/internal/project-members/eligible",
+        actor_subject,
+        params={
+            "first": first,
+            **({"after": after} if after else {}),
+            **({"search": search} if search else {}),
+        },
+    )
+    try:
+        return EligibleEmployeePage(
+            [_eligible_employee(item) for item in data["items"]],
+            data.get("next_cursor"),
+            data["has_next_page"],
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise EmployeeUnavailableError from error
+
+
+async def validate_eligible_employee(actor_subject: str, employee_id: str) -> EligibleEmployee:
+    return _eligible_employee(
+        await _admin_request(
+            "GET", f"/internal/project-members/{employee_id}/validate", actor_subject
+        )
+    )
+
+
+async def resolve_employee_references(
+    actor_subject: str, employee_ids: list[str]
+) -> list[EligibleEmployee]:
+    data = await _admin_request(
+        "POST",
+        "/internal/project-members/resolve",
+        actor_subject,
+        json={"employee_ids": employee_ids},
+    )
+    if not isinstance(data, list):
+        raise EmployeeUnavailableError
+    return [_eligible_employee(item) for item in data]
 
 
 async def get_employee(subject: str) -> EmployeeProfile:

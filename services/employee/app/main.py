@@ -9,9 +9,12 @@ from sqlalchemy.orm import Session
 from app.admin_service import (
     AdminError,
     get_employee_detail,
+    list_eligible_employees,
     list_employees,
     provision_employee,
     reconcile_employee,
+    require_active_employee,
+    resolve_employee_references,
     set_employee_active,
     update_role,
 )
@@ -20,8 +23,11 @@ from app.db import get_session
 from app.models import ApplicationRole, Employee
 from app.schemas import (
     ActiveUpdateRequest,
+    EligibleEmployeePageResponse,
+    EligibleEmployeeResponse,
     EmployeeAdminResponse,
     EmployeePageResponse,
+    EmployeeReferenceRequest,
     EmployeeResponse,
     ProvisionEmployeeRequest,
     RoleUpdateRequest,
@@ -93,6 +99,71 @@ def employee_by_subject(subject: str, session: SessionDependency) -> EmployeeRes
         email=employee.email,
         role=employee.role,
     )
+
+
+@app.get(
+    "/internal/project-members/eligible",
+    response_model=EligibleEmployeePageResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def eligible_project_members(
+    session: SessionDependency,
+    actor: ActorSubject,
+    first: int = Query(default=20, ge=1, le=25),
+    after: str | None = None,
+    search: str | None = Query(default=None, max_length=200),
+) -> EligibleEmployeePageResponse:
+    try:
+        page = list_eligible_employees(session, actor, first=first, after=after, search=search)
+    except AdminError as error:
+        raise admin_failure(error) from error
+    return EligibleEmployeePageResponse(
+        items=[
+            EligibleEmployeeResponse(
+                id=str(employee.id), display_name=employee.display_name, email=employee.email
+            )
+            for employee in page.items
+        ],
+        next_cursor=page.next_cursor,
+        has_next_page=page.has_next_page,
+    )
+
+
+@app.get(
+    "/internal/project-members/{employee_id}/validate",
+    response_model=EligibleEmployeeResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def validate_project_member(
+    employee_id: UUID, session: SessionDependency, actor: ActorSubject
+) -> EligibleEmployeeResponse:
+    try:
+        employee = require_active_employee(session, actor, employee_id)
+    except AdminError as error:
+        raise admin_failure(error) from error
+    return EligibleEmployeeResponse(
+        id=str(employee.id), display_name=employee.display_name, email=employee.email
+    )
+
+
+@app.post(
+    "/internal/project-members/resolve",
+    response_model=list[EligibleEmployeeResponse],
+    dependencies=[Depends(require_internal_service)],
+)
+def resolve_project_members(
+    body: EmployeeReferenceRequest, session: SessionDependency, actor: ActorSubject
+) -> list[EligibleEmployeeResponse]:
+    try:
+        employees = resolve_employee_references(session, actor, body.employee_ids)
+    except AdminError as error:
+        raise admin_failure(error) from error
+    return [
+        EligibleEmployeeResponse(
+            id=str(employee.id), display_name=employee.display_name, email=employee.email
+        )
+        for employee in employees
+    ]
 
 
 @app.get(

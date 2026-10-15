@@ -7,6 +7,7 @@ import pytest
 
 from app.auth import AuthenticationError, Identity
 from app.employee_client import (
+    EligibleEmployee,
     EmployeeAdminPage,
     EmployeeAdminProfile,
     EmployeeDomainError,
@@ -16,6 +17,13 @@ from app.employee_client import (
 )
 from app.main import app
 from app.schema import schema
+from app.work_client import (
+    WorkDomainError,
+    WorkMembership,
+    WorkProject,
+    WorkProjectPage,
+    WorkUnavailableError,
+)
 
 
 def request(
@@ -270,6 +278,268 @@ def allow_admin(monkeypatch: pytest.MonkeyPatch, role: str = "ADMIN") -> None:
         )
 
     monkeypatch.setattr("app.schema.get_employee", actor)
+
+
+def work_project() -> WorkProject:
+    return WorkProject(
+        id="project-id",
+        key="OPS",
+        name="Operations",
+        description=None,
+        status="DRAFT",
+        creator_employee_id="actor",
+        version=1,
+        created_at="2026-10-14T00:00:00+00:00",
+        updated_at="2026-10-14T00:00:00+00:00",
+        memberships=[],
+    )
+
+
+def test_projects_reload_current_profile_and_return_typed_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    allow_admin(monkeypatch, "MEMBER")
+
+    async def directory(*_: object, **__: object) -> WorkProjectPage:
+        return WorkProjectPage([work_project()], None, False)
+
+    monkeypatch.setattr("app.schema.work_list_projects", directory)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": "{ projects(first: 10) { nodes { id key name status } } }"},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["data"]["projects"]["nodes"][0]["key"] == "OPS"
+
+
+def test_member_cannot_forge_project_creation(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch, "MEMBER")
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": 'mutation { createProject(input: {key: "OPS", name: "Operations"}) { id } }'
+        },
+        headers={"Authorization": "Bearer forged-request"},
+    ).json()
+    assert result["errors"][0]["extensions"]["code"] == "FORBIDDEN"
+
+
+def test_project_domain_errors_are_sanitized(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch)
+
+    async def project(*_: object, **__: object) -> WorkProject:
+        raise WorkDomainError("VERSION_CONFLICT", "The project changed; reload and retry.")
+
+    monkeypatch.setattr("app.schema.work_get_project", project)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": '{ project(id: "project-id") { id } }'},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"] == [
+        {
+            "message": "The project changed; reload and retry.",
+            "extensions": {"code": "VERSION_CONFLICT"},
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "{ projects(first: 10) { nodes { id } } }",
+        '{ project(id: "project-id") { id } }',
+        'mutation { createProject(input: {key: "OPS", name: "Operations"}) { id } }',
+        'mutation { updateProject(projectId: "project-id", input: {name: "Updated", description: null, expectedVersion: 1}) { id } }',
+        'mutation { setProjectStatus(projectId: "project-id", status: ACTIVE, expectedVersion: 1) { id } }',
+        'mutation { addProjectMember(projectId: "project-id", employeeId: "employee-id", role: CONTRIBUTOR) { id } }',
+        'mutation { updateProjectMemberRole(projectId: "project-id", employeeId: "employee-id", role: PROJECT_MANAGER) { id } }',
+        'mutation { removeProjectMember(projectId: "project-id", employeeId: "employee-id") { id } }',
+        "{ eligibleProjectMembers(first: 10) { nodes { id } } }",
+    ],
+)
+def test_every_project_operation_rejects_unauthenticated(operation: str) -> None:
+    result = request("POST", "/graphql", payload={"query": operation}).json()
+    assert result["errors"][0]["extensions"]["code"] == "UNAUTHENTICATED"
+
+
+def test_inactive_profile_rejects_project_access(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.schema.token_validator.validate", lambda _: Identity(subject="inactive-subject")
+    )
+
+    async def inactive(_: str) -> EmployeeProfile:
+        raise EmployeeForbiddenError
+
+    monkeypatch.setattr("app.schema.get_employee", inactive)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": "{ projects(first: 10) { nodes { id } } }"},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"][0]["extensions"]["code"] == "FORBIDDEN"
+
+
+@pytest.mark.parametrize("role", ["ADMIN", "MANAGER"])
+def test_admin_and_manager_create_project(monkeypatch: pytest.MonkeyPatch, role: str) -> None:
+    allow_admin(monkeypatch, role)
+
+    async def create(*_: object, **__: object) -> WorkProject:
+        return work_project()
+
+    monkeypatch.setattr("app.schema.work_create_project", create)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": 'mutation { createProject(input: {key: "OPS", name: "Operations"}) { key status version } }'
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["data"]["createProject"] == {
+        "key": "OPS",
+        "status": "DRAFT",
+        "version": 1,
+    }
+
+
+def test_project_members_are_resolved_in_one_bounded_employee_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    allow_admin(monkeypatch)
+    first = work_project()
+    first.memberships.extend(
+        [
+            WorkMembership("membership-1", "employee-1", "PROJECT_MANAGER", first.created_at),
+            WorkMembership("membership-2", "employee-2", "CONTRIBUTOR", first.created_at),
+        ]
+    )
+    second = WorkProject(**{**first.__dict__, "id": "project-2", "memberships": first.memberships})
+
+    async def directory(*_: object, **__: object) -> WorkProjectPage:
+        return WorkProjectPage([first, second], None, False)
+
+    calls: list[list[str]] = []
+
+    async def resolve(_: str, employee_ids: list[str]) -> list[EligibleEmployee]:
+        calls.append(employee_ids)
+        return [EligibleEmployee("employee-1", "Active Manager", "manager@example.test")]
+
+    monkeypatch.setattr("app.schema.work_list_projects", directory)
+    monkeypatch.setattr("app.schema.resolve_employee_references", resolve)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": "{ projects(first: 10) { nodes { memberships { employeeId displayName email } } } }"
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert calls == [["employee-1", "employee-2"]]
+    memberships = result["data"]["projects"]["nodes"][0]["memberships"]
+    assert memberships[0]["displayName"] == "Active Manager"
+    assert memberships[1]["displayName"] is None
+    assert memberships[1]["email"] is None
+
+
+@pytest.mark.parametrize(
+    ("operation", "client_name"),
+    [
+        (
+            'mutation { updateProject(projectId: "project-id", input: {name: "Updated", description: null, expectedVersion: 1}) { id } }',
+            "work_update_project",
+        ),
+        (
+            'mutation { setProjectStatus(projectId: "project-id", status: ACTIVE, expectedVersion: 1) { id } }',
+            "work_change_status",
+        ),
+        (
+            'mutation { updateProjectMemberRole(projectId: "project-id", employeeId: "employee-id", role: PROJECT_MANAGER) { id } }',
+            "work_change_member_role",
+        ),
+        (
+            'mutation { removeProjectMember(projectId: "project-id", employeeId: "employee-id") { id } }',
+            "work_remove_member",
+        ),
+    ],
+)
+def test_project_mutations_return_typed_payloads(
+    monkeypatch: pytest.MonkeyPatch, operation: str, client_name: str
+) -> None:
+    allow_admin(monkeypatch)
+
+    async def client(*_: object, **__: object) -> WorkProject:
+        return work_project()
+
+    monkeypatch.setattr(f"app.schema.{client_name}", client)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": operation},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result.get("errors") is None
+    assert next(iter(result["data"].values()))["id"] == "project-id"
+
+
+def test_add_member_validates_employee_before_work_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    allow_admin(monkeypatch, "MANAGER")
+    sequence: list[str] = []
+
+    async def validate(*_: object) -> EligibleEmployee:
+        sequence.append("employee")
+        return EligibleEmployee("employee-id", "Employee", "employee@example.test")
+
+    async def add(*_: object, **__: object) -> WorkProject:
+        sequence.append("work")
+        return work_project()
+
+    monkeypatch.setattr("app.schema.validate_eligible_employee", validate)
+    monkeypatch.setattr("app.schema.work_add_member", add)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": 'mutation { addProjectMember(projectId: "project-id", employeeId: "employee-id", role: CONTRIBUTOR) { id } }'
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result.get("errors") is None
+    assert sequence == ["employee", "work"]
+
+
+@pytest.mark.parametrize(
+    ("error", "message"),
+    [
+        (WorkUnavailableError(), "Project management is temporarily unavailable."),
+        (EmployeeUnavailableError(), "Project management is temporarily unavailable."),
+    ],
+)
+def test_project_dependency_failures_are_sanitized(
+    monkeypatch: pytest.MonkeyPatch, error: Exception, message: str
+) -> None:
+    allow_admin(monkeypatch)
+
+    async def directory(*_: object, **__: object) -> WorkProjectPage:
+        raise error
+
+    monkeypatch.setattr("app.schema.work_list_projects", directory)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": "{ projects(first: 10) { nodes { id } } }"},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"] == [{"message": message, "extensions": {"code": "SERVICE_UNAVAILABLE"}}]
+    serialized = str(result).lower()
+    assert "http://work" not in serialized
+    assert "connection" not in serialized
 
 
 @pytest.mark.parametrize(

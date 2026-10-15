@@ -17,8 +17,25 @@ enum ApplicationRole {
   MEMBER
 }
 
+input CreateProjectInput {
+  key: String!
+  name: String!
+  description: String = null
+}
+
 """Date with time (isoformat)"""
 scalar DateTime
+
+type EligibleEmployee {
+  id: ID!
+  displayName: String!
+  email: String!
+}
+
+type EligibleEmployeeConnection {
+  nodes: [EligibleEmployee!]!
+  pageInfo: PageInfo!
+}
 
 type Employee {
   id: ID!
@@ -37,11 +54,55 @@ type Mutation {
   updateEmployeeRole(employeeId: ID!, role: ApplicationRole!): AdminEmployee!
   setEmployeeActive(employeeId: ID!, active: Boolean!): AdminEmployee!
   reconcileEmployee(employeeId: ID!): AdminEmployee!
+  createProject(input: CreateProjectInput!): Project!
+  updateProject(projectId: ID!, input: UpdateProjectInput!): Project!
+  setProjectStatus(projectId: ID!, status: ProjectStatus!, expectedVersion: Int!): Project!
+  addProjectMember(projectId: ID!, employeeId: ID!, role: ProjectRole!): Project!
+  updateProjectMemberRole(projectId: ID!, employeeId: ID!, role: ProjectRole!): Project!
+  removeProjectMember(projectId: ID!, employeeId: ID!): Project!
 }
 
 type PageInfo {
   hasNextPage: Boolean!
   endCursor: String
+}
+
+type Project {
+  id: ID!
+  key: String!
+  name: String!
+  description: String
+  status: ProjectStatus!
+  creatorEmployeeId: ID!
+  version: Int!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  memberships: [ProjectMembership!]!
+}
+
+type ProjectConnection {
+  nodes: [Project!]!
+  pageInfo: PageInfo!
+}
+
+type ProjectMembership {
+  id: ID!
+  employeeId: ID!
+  role: ProjectRole!
+  createdAt: DateTime!
+  displayName: String
+  email: String
+}
+
+enum ProjectRole {
+  PROJECT_MANAGER
+  CONTRIBUTOR
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
 }
 
 input ProvisionEmployeeInput {
@@ -64,6 +125,9 @@ type Query {
   me: Employee!
   employees(first: Int! = 20, after: String = null, search: String = null, role: ApplicationRole = null, active: Boolean = null): EmployeeConnection!
   employee(id: ID!): AdminEmployee!
+  projects(first: Int! = 20, after: String = null, search: String = null, status: ProjectStatus = null): ProjectConnection!
+  project(id: ID!): Project!
+  eligibleProjectMembers(first: Int! = 20, after: String = null, search: String = null): EligibleEmployeeConnection!
 }
 
 type SystemInfo {
@@ -71,4 +135,10 @@ type SystemInfo {
   version: String!
   environment: String!
   status: String!
+}
+
+input UpdateProjectInput {
+  name: String!
+  description: String
+  expectedVersion: Int!
 }

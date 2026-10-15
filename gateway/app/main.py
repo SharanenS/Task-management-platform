@@ -34,6 +34,14 @@ class SafeGraphQLRouter(GraphQLRouter):
                     "SELF_PROTECTED",
                     "FINAL_ADMIN",
                     "RECONCILIATION_REQUIRED",
+                    "INVALID_CURSOR",
+                    "PROJECT_KEY_CONFLICT",
+                    "MEMBERSHIP_CONFLICT",
+                    "VERSION_CONFLICT",
+                    "INVALID_STATUS",
+                    "PROJECT_ARCHIVED",
+                    "FINAL_PROJECT_MANAGER",
+                    "EMPLOYEE_NOT_ELIGIBLE",
                 }:
                     safe_errors.append({"message": error.message, "extensions": {"code": code}})
                 else:

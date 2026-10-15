@@ -29,7 +29,7 @@ import { UserMenu } from "@/components/layout/user-menu";
 
 const navigation = [
   { label: "Overview", href: "/", icon: LayoutDashboard },
-  { label: "Projects", icon: FolderKanban, phase: 4 },
+  { label: "Projects", href: "/projects", icon: FolderKanban },
   { label: "My tasks", icon: ListTodo, phase: 5 },
   { label: "Employees", href: "/employees", icon: Users },
   { label: "Workflows", icon: Workflow, phase: 10 },
@@ -171,7 +171,9 @@ export function AppShell({
         ? "Design system"
         : pathname.startsWith("/employees")
           ? "Employees"
-          : "Overview";
+          : pathname.startsWith("/projects")
+            ? "Projects"
+            : "Overview";
   return (
     <div className="min-h-screen">
       <a
