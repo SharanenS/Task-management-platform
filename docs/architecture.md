@@ -1,4 +1,4 @@
-# Architecture decisions — Phases 1–3
+# Architecture decisions — Phases 1–4
 
 ## Fixed boundaries
 
@@ -8,8 +8,35 @@ infrastructure endpoints are explicit HTTP exceptions. The gateway owns no domai
 data. Employee, Work Management, Workflow, and Job Execution remain independent
 bounded services, each with its own database and migrations when introduced.
 
-Phase 2 implements only the Employee Service. Work administration, workflow,
-queues, and job execution remain outside this phase.
+Employee Service and Work Service are implemented. Workflow, queues, and job
+execution remain outside Phase 4.
+
+## Project management
+
+Work Service owns project metadata, lifecycle state, membership roles, optimistic
+versions, and its PostgreSQL schema. It has no host-published business endpoint;
+the gateway is the only public project API. The service-to-service credential is
+separate from the Employee Service credential.
+
+Before every project query or mutation, the gateway validates the access token and
+reloads the actor's current Employee Service profile. Inactive or missing profiles
+fail closed. Work Service independently applies application-role and project-role
+rules from the asserted actor identity. An `ADMIN` may view and govern all projects;
+a `MANAGER` may create projects and administer projects where they are a project
+manager; contributors have read-only access to their projects.
+
+Projects move from `DRAFT` to `ACTIVE` to `ARCHIVED`, with reactivation from
+`ARCHIVED` to `ACTIVE`. Archived projects are read-only until reactivated. There
+is no public hard-delete operation. Version checks reject stale metadata and
+lifecycle updates, and the final project manager cannot be demoted or removed.
+
+Employee Service remains the source for eligible active employee profiles. Its
+internal project-member endpoints expose only stable ID, display name, and email.
+The gateway validates an employee before adding a membership and resolves project
+responses through one bounded Employee Service batch per GraphQL operation. Work
+Service stores only the stable employee ID and never copies employee-owned profile
+data. Missing or newly inactive profiles fail closed for selection and render as
+unavailable in an existing membership response.
 
 ## Employee administration
 
@@ -106,23 +133,28 @@ Public registration is disabled. `scripts/bootstrap-development.ps1` reads only
 the ignored local `.env`, creates or updates a development Keycloak user, obtains
 its stable subject, and invokes an internal Employee Service bootstrap command.
 
-Keycloak, Employee Service PostgreSQL, and Redis each use a distinct named volume.
+Keycloak, Employee Service PostgreSQL, Work Service PostgreSQL, and Redis each use
+a distinct named volume.
 Readiness checks verify database connectivity or service endpoints before dependent
 containers start. Host-published ports bind to loopback.
 
 ## Threats and mitigations
 
-| Threat                              | Mitigation                                                           |
-| ----------------------------------- | -------------------------------------------------------------------- |
-| Authorization response substitution | One-time state, nonce, PKCE, and transaction expiry                  |
-| Token theft by browser script       | Opaque `HttpOnly` session; tokens remain server-side                 |
-| Open redirect                       | Strict relative return-path validation and exact registered URIs     |
-| Cross-site logout                   | Cookie, request header, and session CSRF values must match           |
-| Refresh storm                       | Redis distributed lock with expiry                                   |
-| Forged gateway identity             | JWT signature and required claim validation                          |
-| Spoofed employee lookup             | Internal endpoint credential and unexposed service port              |
-| Identity without application access | Employee profile and active status are mandatory                     |
-| Information leakage                 | Sanitized HTTP and GraphQL failures; sensitive values are not logged |
+| Threat                                | Mitigation                                                                                 |
+| ------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Authorization response substitution   | One-time state, nonce, PKCE, and transaction expiry                                        |
+| Token theft by browser script         | Opaque `HttpOnly` session; tokens remain server-side                                       |
+| Open redirect                         | Strict relative return-path validation and exact registered URIs                           |
+| Cross-site logout                     | Cookie, request header, and session CSRF values must match                                 |
+| Refresh storm                         | Redis distributed lock with expiry                                                         |
+| Forged gateway identity               | JWT signature and required claim validation                                                |
+| Spoofed employee lookup               | Internal endpoint credential and unexposed service port                                    |
+| Identity without application access   | Employee profile and active status are mandatory                                           |
+| Information leakage                   | Sanitized HTTP and GraphQL failures; sensitive values are not logged                       |
+| Unauthorized project access           | Current Employee profile reload plus Work Service project-role enforcement                 |
+| Forged internal project actor context | Unexposed Work endpoint, dedicated service credential, and validated gateway actor context |
+| Membership race or orphaned project   | PostgreSQL constraints, locked mutations, version checks, and final-manager protection     |
+| Work Service information leakage      | Sanitized gateway mapping and bounded internal client behavior                             |
 
 ## Dependency choices
 
@@ -131,4 +163,5 @@ token processing while the application retains transaction storage, cookie polic
 session lifecycle, authorization, and error handling. The official Redis client
 supports durable shared sessions and atomic lock acquisition. PyJWT performs strict
 gateway JWT validation with cached JWKS lookup. SQLAlchemy, Alembic, and psycopg
-provide explicit Employee Service ownership of models, migrations, and PostgreSQL.
+provide explicit Employee Service and Work Service ownership of their respective
+models, migrations, and PostgreSQL schemas.

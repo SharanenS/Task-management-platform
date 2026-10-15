@@ -51,6 +51,103 @@ def require_admin(session: Session, actor_subject: str) -> Employee:
     return actor
 
 
+def require_project_creator(session: Session, actor_subject: str) -> Employee:
+    actor = session.scalar(
+        select(Employee).where(
+            Employee.keycloak_subject == actor_subject,
+            Employee.active.is_(True),
+            Employee.provisioning_status == ProvisioningStatus.COMPLETE,
+        )
+    )
+    if actor is None or actor.role not in {ApplicationRole.ADMIN, ApplicationRole.MANAGER}:
+        raise AdminError("FORBIDDEN", "Project membership lookup is not permitted.", 403)
+    return actor
+
+
+def require_active_project_viewer(session: Session, actor_subject: str) -> Employee:
+    actor = session.scalar(
+        select(Employee).where(
+            Employee.keycloak_subject == actor_subject,
+            Employee.active.is_(True),
+            Employee.provisioning_status == ProvisioningStatus.COMPLETE,
+        )
+    )
+    if actor is None:
+        raise AdminError("FORBIDDEN", "Project member lookup is not permitted.", 403)
+    return actor
+
+
+def resolve_employee_references(
+    session: Session, actor_subject: str, employee_ids: list[uuid.UUID]
+) -> list[Employee]:
+    require_active_project_viewer(session, actor_subject)
+    if len(employee_ids) > 50:
+        raise AdminError("INVALID_INPUT", "At most 50 employee references may be resolved.")
+    if not employee_ids:
+        return []
+    return list(
+        session.scalars(
+            select(Employee)
+            .where(
+                Employee.id.in_(set(employee_ids)),
+                Employee.active.is_(True),
+                Employee.provisioning_status == ProvisioningStatus.COMPLETE,
+            )
+            .order_by(Employee.id)
+        )
+    )
+
+
+def list_eligible_employees(
+    session: Session,
+    actor_subject: str,
+    *,
+    first: int,
+    after: str | None,
+    search: str | None,
+) -> EmployeePage:
+    require_project_creator(session, actor_subject)
+    if first < 1 or first > 25:
+        raise AdminError("INVALID_INPUT", "Page size must be between 1 and 25.")
+    query = select(Employee).where(
+        Employee.active.is_(True),
+        Employee.provisioning_status == ProvisioningStatus.COMPLETE,
+    )
+    cursor_id = _cursor_value(after)
+    if cursor_id:
+        query = query.where(Employee.id > cursor_id)
+    if search and search.strip():
+        pattern = f"%{search.strip().lower()}%"
+        query = query.where(
+            or_(
+                func.lower(Employee.display_name).like(pattern),
+                func.lower(Employee.email).like(pattern),
+            )
+        )
+    items = list(session.scalars(query.order_by(Employee.id).limit(first + 1)))
+    has_next = len(items) > first
+    items = items[:first]
+    return EmployeePage(
+        items, _encode_cursor(items[-1].id) if has_next and items else None, has_next
+    )
+
+
+def require_active_employee(
+    session: Session, actor_subject: str, employee_id: uuid.UUID
+) -> Employee:
+    require_project_creator(session, actor_subject)
+    employee = session.scalar(
+        select(Employee).where(
+            Employee.id == employee_id,
+            Employee.active.is_(True),
+            Employee.provisioning_status == ProvisioningStatus.COMPLETE,
+        )
+    )
+    if employee is None:
+        raise AdminError("EMPLOYEE_NOT_ELIGIBLE", "Employee is not eligible for membership.", 409)
+    return employee
+
+
 def _cursor_value(cursor: str | None) -> uuid.UUID | None:
     if not cursor:
         return None

@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -33,6 +34,24 @@ class EmployeePageResponse(BaseModel):
     items: list[EmployeeAdminResponse]
     next_cursor: str | None
     has_next_page: bool
+
+
+class EligibleEmployeeResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    display_name: str
+    email: str
+
+
+class EligibleEmployeePageResponse(BaseModel):
+    items: list[EligibleEmployeeResponse]
+    next_cursor: str | None
+    has_next_page: bool
+
+
+class EmployeeReferenceRequest(BaseModel):
+    employee_ids: list[UUID] = Field(max_length=50)
 
 
 class ProvisionEmployeeRequest(BaseModel):

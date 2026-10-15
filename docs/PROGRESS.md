@@ -65,4 +65,35 @@ The accepted limitations are forward-only pagination, no concurrent PostgreSQL
 stress test, no separate real MANAGER browser journey, and no full real
 provisioning-during-Keycloak-outage journey. Ambiguous null-linked idempotency
 records remain untouched because their ownership cannot be proven safely. These
-limitations do not block Phase 3 functional acceptance. Phase 4 has not started.
+limitations do not block Phase 3 functional acceptance.
+
+## Phase 4 — Project Management
+
+Status: **Accepted**
+
+Delivered:
+
+- Work Service with an independently owned PostgreSQL database and forward-only
+  Alembic migration for projects and memberships.
+- Cursor-paginated project directory, search and status filtering, project detail,
+  creation, lifecycle transitions, and membership governance.
+- ADMIN override, project-manager administration, contributor read-only access,
+  final-project-manager protection, and optimistic version checks.
+- Current Employee Service profile reload at the gateway boundary and independent
+  authorization enforcement in Work Service.
+- Typed GraphQL operations and generated frontend types, responsive project pages,
+  and opt-in Docker-backed lifecycle verification with exact test-data cleanup.
+- Real manager, contributor, and non-member authorization; PostgreSQL concurrency;
+  clean migration; persistence; and dependency outage/recovery verification.
+
+Acceptance completed on 2026-10-14. Automated functional, authorization,
+security, lifecycle, persistence, outage, recovery, responsive-overflow, and basic
+accessibility checks passed.
+
+The accepted limitations are forward-only service pagination, deterministic
+PostgreSQL contention coverage rather than large-scale stress, and a desktop
+multi-role browser lifecycle. Basic automated accessibility evidence is not
+accessibility certification. Subjective visual and UX redesign remains deferred
+to Phases 12 and 15. These limitations do not block Phase 4 functional acceptance,
+which does not claim final visual quality, performance or load-testing
+certification, or accessibility certification. Phase 5 has not started.

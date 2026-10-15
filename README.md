@@ -1,7 +1,7 @@
 # Enterprise Task Platform
 
 A GraphQL-first enterprise work platform, developed in verified full-stack slices.
-Phases 1, 2, and 3 are accepted. Phase 4 has not started.
+Phases 1–4 are accepted. Phase 5 has not started.
 
 Phase 2 adds a protected Taskspace shell, Keycloak Authorization Code Flow with
 PKCE, Redis-backed server sessions, an Employee Service with its own PostgreSQL
@@ -15,6 +15,22 @@ The owner accepted Phase 3 on 2026-10-14 after automated functional,
 authorization, security, lifecycle, outage, recovery, responsive-overflow, and
 basic accessibility checks passed. Subjective visual and UX redesign remains
 deferred to Phases 12 and 15; this acceptance is not a final visual or
+accessibility certification.
+
+Phase 4 adds project directories, project creation and detail, lifecycle controls,
+and membership governance. The Work Service owns project and membership data in
+its own PostgreSQL database. The gateway reloads the current Employee Service
+profile before every project operation and exposes project behavior only through
+typed GraphQL operations.
+
+The owner accepted Phase 4 on 2026-10-14 after automated functional,
+authorization, security, lifecycle, persistence, outage, recovery,
+responsive-overflow, and basic accessibility checks passed. Forward-only service
+pagination, deterministic PostgreSQL contention coverage rather than large-scale
+stress, and a desktop multi-role browser lifecycle are accepted limitations.
+Automated accessibility evidence is not accessibility certification. Subjective
+visual and UX redesign remains deferred to Phases 12 and 15; this acceptance does
+not claim final visual quality, performance or load-testing certification, or
 accessibility certification.
 
 ## Run with Docker
@@ -42,10 +58,12 @@ Local endpoints:
 - GraphQL gateway: http://localhost:8010/graphql
 - Gateway health: http://localhost:8010/health/live and `/health/ready`
 - Employee PostgreSQL: loopback port 5435
+- Work PostgreSQL: loopback port 5436
 - Session Redis: loopback port 6380
 
-Keycloak, Employee Service, and session data use separate named volumes. Do not
-use `docker compose down --volumes` when the data should be retained.
+Keycloak, Employee Service PostgreSQL, Work Service PostgreSQL, and Redis each use
+a distinct named volume. Do not use `docker compose down --volumes` when the data
+should be retained.
 
 ## Authentication boundary
 
@@ -72,6 +90,10 @@ environments must use HTTPS.
 .\.venv\Scripts\python.exe -m ruff check services/employee
 .\.venv\Scripts\python.exe -m ruff format --check services/employee
 .\.venv\Scripts\python.exe -m mypy services/employee/app
+.\.venv\Scripts\python.exe -m pytest services/work/tests
+.\.venv\Scripts\python.exe -m ruff check services/work
+.\.venv\Scripts\python.exe -m ruff format --check services/work
+.\.venv\Scripts\python.exe -m mypy services/work/app
 Set-Location frontend
 npm run codegen
 npm run typecheck
@@ -108,6 +130,16 @@ Set `RUN_EMPLOYEE_ADMIN_E2E=1` and export the `PHASE3_E2E_*` variables before
 running `tests/e2e/employee-administration.spec.ts`. Never use the primary
 administrator as the disposable identity.
 
+The Phase 4 browser journey is also opt-in. Set `RUN_PROJECT_E2E=1`, export the
+development administrator username and password from the ignored `.env`, and run
+`tests/e2e/project-management.spec.ts`. It creates a unique project and removes
+only that project after the test by matching both its UUID and key.
+
+The real multi-role and Work outage journeys require
+`RUN_PROJECT_MULTI_ROLE_E2E=1` and `RUN_PROJECT_OUTAGE_E2E=1`, respectively. They
+run serially, use only unique test-owned resources, restore stopped services, and
+perform exact cleanup.
+
 Generated GraphQL TypeScript is committed for reproducible builds. After schema
 changes, run `gateway/export_schema.py` and `npm run codegen`, then review both.
 
@@ -118,8 +150,9 @@ changes, run `gateway/export_schema.py` and `npm run codegen`, then review both.
 | `frontend/`                | Next.js UI, BFF session boundary, same-origin GraphQL transport |
 | `gateway/`                 | Public GraphQL schema, JWT validation, service composition      |
 | `services/employee/`       | Employee profiles, roles, access status, migrations             |
+| `services/work/`           | Projects, memberships, lifecycle, and owned migrations          |
 | `infrastructure/keycloak/` | Reproducible realm and public-client configuration              |
 | `docs/`                    | Architecture, dependency, progress, and verification records    |
 
 See [architecture](docs/architecture.md), [dependency review](docs/dependency-review.md),
-and [Phase 3 verification](docs/phase-3-verification.md).
+and [Phase 4 verification](docs/phase-4-verification.md).

@@ -12,7 +12,9 @@ class Settings(BaseSettings):
     oidc_jwks_url: str = "http://localhost:8080/realms/taskspace/protocol/openid-connect/certs"
     oidc_audience: str = "taskspace-web"
     employee_service_url: str = "http://127.0.0.1:8020"
+    work_service_url: str = "http://127.0.0.1:8030"
     internal_service_key: str = "development-only-placeholder"
+    work_internal_service_key: str = "development-only-placeholder"
 
 
 settings = Settings()

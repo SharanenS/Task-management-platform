@@ -11,8 +11,8 @@ The full development audit still reported 12 high-severity entries through `brac
 in GraphQL Code Generator and Next.js ESLint dependency paths. npm offered only a
 forced, breaking downgrade of GraphQL Code Generator, so the finding remains
 documented with the repository-controlled input constraint above.
-Both Python lock files reported no known vulnerabilities when checked with
-`pip-audit` 2.10.1.
+The gateway, Employee Service, and Work Service Python locks reported no known
+vulnerabilities when checked with `pip-audit` 2.10.1.
 
 Phase 2 adds `openid-client` 6.8.8 and `redis` 6.3.0. `openid-client` was selected
 for standards-compliant Authorization Code, PKCE, ID-token, and refresh processing;
@@ -28,6 +28,11 @@ service-specific lock files.
 Node 24 LTS is required by the current toolchain. `.nvmrc`, the npm engine
 constraint, and Docker images agree on that major version. Direct npm dependencies
 and transitive resolutions are locked. Python dependencies are pinned in
-`gateway/requirements.lock` and `services/employee/requirements.lock`; these locks
-include verification tooling and are also used by local containers. Production
-image slimming and separate production dependency locks are deferred to deployment work.
+`gateway/requirements.lock`, `services/employee/requirements.lock`, and
+`services/work/requirements.lock`; these locks include verification tooling and
+are also used by local containers. `services/work/requirements.in` records its
+direct dependencies; the lock contains the independently resolved pinned versions.
+Work Service uses the same reviewed FastAPI, SQLAlchemy, Alembic, psycopg,
+Pydantic, and Uvicorn package families as Employee Service, so Phase 4 introduces
+no new Python package family. Production image slimming and separate production
+dependency locks are deferred to deployment work.
