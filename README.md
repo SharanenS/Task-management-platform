@@ -1,7 +1,7 @@
 # Enterprise Task Platform
 
 A GraphQL-first enterprise work platform, developed in verified full-stack slices.
-Phases 1–4 are accepted. Phase 5 has not started.
+Phases 1–5 are accepted. Phase 6 has not started.
 
 Phase 2 adds a protected Taskspace shell, Keycloak Authorization Code Flow with
 PKCE, Redis-backed server sessions, an Employee Service with its own PostgreSQL
@@ -32,6 +32,20 @@ Automated accessibility evidence is not accessibility certification. Subjective
 visual and UX redesign remains deferred to Phases 12 and 15; this acceptance does
 not claim final visual quality, performance or load-testing certification, or
 accessibility certification.
+
+Phase 5 adds project-scoped task lists and bounded status boards, task creation and
+editing, assignment, explicit status transitions, comments, and append-only
+activity history. Work Service owns this data in its existing PostgreSQL database;
+the gateway remains the only public business API.
+
+The owner accepted Phase 5 on 2026-10-15 after automated functional,
+authorization, security, lifecycle, concurrency, persistence, outage, recovery,
+responsive-overflow, and basic accessibility verification passed. The accepted
+limitations and complete results are recorded in the Phase 5 verification report.
+Acceptance does not claim final visual quality, accessibility certification,
+performance or load-testing certification, or cross-service distributed
+transaction guarantees. Subjective visual and UX redesign remains deferred to
+Phases 12 and 15.
 
 ## Run with Docker
 
@@ -140,6 +154,11 @@ The real multi-role and Work outage journeys require
 run serially, use only unique test-owned resources, restore stopped services, and
 perform exact cleanup.
 
+The Phase 5 task lifecycle is opt-in through `RUN_TASK_E2E=1`. It runs at desktop,
+768 px, and 390 px using credentials from the ignored `.env`. The existing
+multi-role and Work recovery journeys also verify contributor/non-member task
+authorization and task, comment, and activity persistence.
+
 Generated GraphQL TypeScript is committed for reproducible builds. After schema
 changes, run `gateway/export_schema.py` and `npm run codegen`, then review both.
 
@@ -155,4 +174,4 @@ changes, run `gateway/export_schema.py` and `npm run codegen`, then review both.
 | `docs/`                    | Architecture, dependency, progress, and verification records    |
 
 See [architecture](docs/architecture.md), [dependency review](docs/dependency-review.md),
-and [Phase 4 verification](docs/phase-4-verification.md).
+and [Phase 5 verification](docs/phase-5-verification.md).

@@ -22,6 +22,8 @@ from app.work_client import (
     WorkMembership,
     WorkProject,
     WorkProjectPage,
+    WorkTask,
+    WorkTaskPage,
     WorkUnavailableError,
 )
 
@@ -295,6 +297,221 @@ def work_project() -> WorkProject:
     )
 
 
+def work_task() -> WorkTask:
+    return WorkTask(
+        id="task-id",
+        project_id="project-id",
+        number=1,
+        title="Review changes",
+        description=None,
+        status="TODO",
+        priority="HIGH",
+        assignee_employee_id="employee-1",
+        creator_employee_id="actor",
+        due_date=None,
+        version=1,
+        created_at="2026-10-15T00:00:00+00:00",
+        updated_at="2026-10-15T00:00:00+00:00",
+    )
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        '{ projectTasks(projectId: "project-id", first: 10, unassigned: false) { nodes { id } } }',
+        '{ projectTaskBoard(projectId: "project-id") { lanes { status } } }',
+        '{ task(projectId: "project-id", taskId: "task-id") { id } }',
+        '{ taskComments(projectId: "project-id", taskId: "task-id") { nodes { id } } }',
+        '{ taskActivity(projectId: "project-id", taskId: "task-id") { nodes { id } } }',
+        'mutation { createTask(projectId: "project-id", input: {title: "Task"}) { id } }',
+        'mutation { updateTask(projectId: "project-id", taskId: "task-id", input: {title: "Task", description: null, priority: HIGH, dueDate: null, expectedVersion: 1}) { id } }',
+        'mutation { assignTask(projectId: "project-id", taskId: "task-id", assigneeEmployeeId: null, expectedVersion: 1) { id } }',
+        'mutation { changeTaskStatus(projectId: "project-id", taskId: "task-id", status: IN_PROGRESS, expectedVersion: 1) { id } }',
+        'mutation { addTaskComment(projectId: "project-id", taskId: "task-id", body: "Comment") { id } }',
+    ],
+)
+def test_every_task_operation_rejects_unauthenticated(operation: str) -> None:
+    result = request("POST", "/graphql", payload={"query": operation}).json()
+    assert result["errors"][0]["extensions"]["code"] == "UNAUTHENTICATED"
+
+
+def test_task_list_batches_assignee_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch, "MEMBER")
+
+    async def project(*_: object, **__: object) -> WorkProject:
+        return work_project()
+
+    async def tasks(*_: object, **__: object) -> WorkTaskPage:
+        second = WorkTask(**{**work_task().__dict__, "id": "task-2"})
+        return WorkTaskPage([work_task(), second], None, False)
+
+    calls: list[list[str]] = []
+
+    async def resolve(_: str, employee_ids: list[str]) -> list[EligibleEmployee]:
+        calls.append(employee_ids)
+        return [EligibleEmployee("employee-1", "Employee One", "one@example.test")]
+
+    monkeypatch.setattr("app.schema.work_get_project", project)
+    monkeypatch.setattr("app.schema.work_list_tasks", tasks)
+    monkeypatch.setattr("app.schema.resolve_employee_references", resolve)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": '{ projectTasks(projectId: "project-id", first: 10, unassigned: false) { nodes { reference assigneeDisplayName } } }'
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["data"]["projectTasks"]["nodes"][0] == {
+        "reference": "OPS-1",
+        "assigneeDisplayName": "Employee One",
+    }
+    assert calls == [["employee-1"]]
+
+
+def test_create_task_validates_assignee_before_work(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch, "MANAGER")
+    sequence: list[str] = []
+
+    async def validate(*_: object) -> EligibleEmployee:
+        sequence.append("employee")
+        return EligibleEmployee("employee-1", "Employee", "employee@example.test")
+
+    async def create(*_: object, **__: object) -> WorkTask:
+        sequence.append("work")
+        return work_task()
+
+    async def project(*_: object, **__: object) -> WorkProject:
+        return work_project()
+
+    async def resolve(*_: object, **__: object) -> list[EligibleEmployee]:
+        return []
+
+    monkeypatch.setattr("app.schema.validate_eligible_employee", validate)
+    monkeypatch.setattr("app.schema.work_create_task", create)
+    monkeypatch.setattr("app.schema.work_get_project", project)
+    monkeypatch.setattr("app.schema.resolve_employee_references", resolve)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": 'mutation { createTask(projectId: "project-id", input: {title: "Task", assigneeEmployeeId: "employee-1"}) { id } }'
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result.get("errors") is None
+    assert sequence == ["employee", "work"]
+
+
+def test_current_contributor_profile_can_create_unassigned_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    allow_admin(monkeypatch, "MEMBER")
+    captured: list[tuple[str, str, dict[str, object]]] = []
+
+    async def create(actor: EmployeeProfile, project_id: str, data: dict[str, object]) -> WorkTask:
+        captured.append((actor.id, project_id, data))
+        return WorkTask(**{**work_task().__dict__, "creator_employee_id": actor.id})
+
+    async def project(*_: object, **__: object) -> WorkProject:
+        return work_project()
+
+    async def resolve(*_: object, **__: object) -> list[EligibleEmployee]:
+        return []
+
+    monkeypatch.setattr("app.schema.work_create_task", create)
+    monkeypatch.setattr("app.schema.work_get_project", project)
+    monkeypatch.setattr("app.schema.resolve_employee_references", resolve)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": 'mutation { createTask(projectId: "project-id", input: {title: "Contributor task", dueDate: "2026-12-01"}) { creatorEmployeeId dueDate } }'
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result.get("errors") is None
+    assert result["data"]["createTask"] == {
+        "creatorEmployeeId": "actor",
+        "dueDate": None,
+    }
+    assert captured == [
+        (
+            "actor",
+            "project-id",
+            {
+                "title": "Contributor task",
+                "description": None,
+                "priority": "MEDIUM",
+                "assignee_employee_id": None,
+                "due_date": "2026-12-01",
+            },
+        )
+    ]
+
+
+@pytest.mark.parametrize("profile_error", [EmployeeForbiddenError(), EmployeeUnavailableError()])
+def test_task_creation_requires_current_available_employee_profile(
+    monkeypatch: pytest.MonkeyPatch, profile_error: Exception
+) -> None:
+    monkeypatch.setattr(
+        "app.schema.token_validator.validate", lambda _: Identity(subject="actor-subject")
+    )
+
+    async def actor(_: str) -> EmployeeProfile:
+        raise profile_error
+
+    called = False
+
+    async def create(*_: object, **__: object) -> WorkTask:
+        nonlocal called
+        called = True
+        return work_task()
+
+    monkeypatch.setattr("app.schema.get_employee", actor)
+    monkeypatch.setattr("app.schema.work_create_task", create)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": 'mutation { createTask(projectId: "project-id", input: {title: "Task"}) { id } }'
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    expected = (
+        "FORBIDDEN" if isinstance(profile_error, EmployeeForbiddenError) else "SERVICE_UNAVAILABLE"
+    )
+    assert result["errors"][0]["extensions"]["code"] == expected
+    assert called is False
+
+
+def test_activity_history_has_no_public_edit_or_delete_mutation() -> None:
+    exported = schema.as_str()
+    assert "updateTaskActivity" not in exported
+    assert "deleteTaskActivity" not in exported
+
+
+def test_task_dependency_failure_is_sanitized(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch)
+
+    async def project(*_: object, **__: object) -> WorkProject:
+        raise WorkUnavailableError
+
+    monkeypatch.setattr("app.schema.work_get_project", project)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": '{ task(projectId: "project-id", taskId: "task-id") { id } }'},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"] == [
+        {
+            "message": "Project management is temporarily unavailable.",
+            "extensions": {"code": "SERVICE_UNAVAILABLE"},
+        }
+    ]
+
+
 def test_projects_reload_current_profile_and_return_typed_data(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -345,6 +562,39 @@ def test_project_domain_errors_are_sanitized(monkeypatch: pytest.MonkeyPatch) ->
             "extensions": {"code": "VERSION_CONFLICT"},
         }
     ]
+
+
+def test_assigned_member_removal_error_is_mapped_without_internal_leakage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    allow_admin(monkeypatch, "MANAGER")
+
+    async def remove(*_: object, **__: object) -> WorkProject:
+        raise WorkDomainError(
+            "MEMBER_HAS_ASSIGNED_TASKS",
+            "PRIVATE response from http://work.internal with database detail",
+        )
+
+    monkeypatch.setattr("app.schema.work_remove_member", remove)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": 'mutation { removeProjectMember(projectId: "project-id", employeeId: "employee-id") { id } }'
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"] == [
+        {
+            "message": "Reassign the employee's tasks before removing project membership.",
+            "extensions": {"code": "MEMBER_HAS_ASSIGNED_TASKS"},
+        }
+    ]
+    serialized = str(result)
+    assert "http://" not in serialized
+    assert "private" not in serialized.lower()
+    assert "database" not in serialized.lower()
+    assert "traceback" not in serialized.lower()
 
 
 @pytest.mark.parametrize(

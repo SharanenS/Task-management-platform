@@ -53,6 +53,7 @@ export default async function SignInPage({
         </div>
         <Link
           href={`/auth/login?returnTo=${encodeURIComponent(returnTo)}`}
+          prefetch={false}
           className="mt-8 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           <LogIn className="size-4" /> Sign in

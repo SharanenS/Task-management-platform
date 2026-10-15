@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_session
-from app.models import ProjectStatus
+from app.models import ProjectStatus, TaskPriority, TaskStatus
 from app.schemas import (
     MembershipCreateRequest,
     MembershipRoleRequest,
@@ -17,18 +17,41 @@ from app.schemas import (
     ProjectResponse,
     ProjectStatusRequest,
     ProjectUpdateRequest,
+    TaskActivityPageResponse,
+    TaskActivityResponse,
+    TaskAssignmentRequest,
+    TaskBoardResponse,
+    TaskCommentCreateRequest,
+    TaskCommentPageResponse,
+    TaskCommentResponse,
+    TaskCreateRequest,
+    TaskLaneResponse,
+    TaskPageResponse,
+    TaskResponse,
+    TaskStatusRequest,
+    TaskUpdateRequest,
 )
 from app.service import (
     Actor,
     WorkError,
     add_member,
+    add_task_comment,
+    assign_task,
     change_member_role,
+    change_task_status,
     create_project,
+    create_task,
     get_project,
+    get_task,
     list_projects,
+    list_task_activity,
+    list_task_comments,
+    list_tasks,
     remove_member,
     set_status,
+    task_board,
     update_project,
+    update_task,
 )
 
 app = FastAPI(title="Work Service", docs_url=None, redoc_url=None, openapi_url=None)
@@ -216,6 +239,233 @@ def remove(
     try:
         return ProjectResponse.model_validate(
             remove_member(session, actor, project_id, employee_id)
+        )
+    except WorkError as error:
+        raise failure(error) from error
+
+
+@app.get(
+    "/internal/projects/{project_id}/tasks",
+    response_model=TaskPageResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def task_directory(
+    project_id: UUID,
+    session: SessionDependency,
+    actor: ActorDependency,
+    first: int = Query(default=20, ge=1, le=50),
+    after: str | None = None,
+    search: str | None = Query(default=None, max_length=200),
+    status: TaskStatus | None = None,
+    priority: TaskPriority | None = None,
+    assignee_employee_id: UUID | None = None,
+    unassigned: bool = False,
+) -> TaskPageResponse:
+    try:
+        page = list_tasks(
+            session,
+            actor,
+            project_id,
+            first=first,
+            after=after,
+            search=search,
+            status=status,
+            priority=priority,
+            assignee_employee_id=assignee_employee_id,
+            unassigned=unassigned,
+        )
+        return TaskPageResponse(
+            items=[TaskResponse.model_validate(item) for item in page.items],
+            next_cursor=page.next_cursor,
+            has_next_page=page.has_next_page,
+        )
+    except WorkError as error:
+        raise failure(error) from error
+
+
+@app.get(
+    "/internal/projects/{project_id}/task-board",
+    response_model=TaskBoardResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def board(
+    project_id: UUID,
+    session: SessionDependency,
+    actor: ActorDependency,
+    lane_size: int = Query(default=20, ge=1, le=25),
+) -> TaskBoardResponse:
+    try:
+        lanes = task_board(session, actor, project_id, lane_size=lane_size)
+        return TaskBoardResponse(
+            lanes=[
+                TaskLaneResponse(
+                    status=status,
+                    items=[TaskResponse.model_validate(item) for item in items],
+                    has_more=has_more,
+                )
+                for status, (items, has_more) in lanes.items()
+            ]
+        )
+    except WorkError as error:
+        raise failure(error) from error
+
+
+@app.get(
+    "/internal/projects/{project_id}/tasks/{task_id}",
+    response_model=TaskResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def task_detail(
+    project_id: UUID, task_id: UUID, session: SessionDependency, actor: ActorDependency
+) -> TaskResponse:
+    try:
+        return TaskResponse.model_validate(get_task(session, actor, project_id, task_id))
+    except WorkError as error:
+        raise failure(error) from error
+
+
+@app.post(
+    "/internal/projects/{project_id}/tasks",
+    response_model=TaskResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def task_create(
+    project_id: UUID,
+    body: TaskCreateRequest,
+    session: SessionDependency,
+    actor: ActorDependency,
+) -> TaskResponse:
+    try:
+        return TaskResponse.model_validate(
+            create_task(session, actor, project_id, **body.model_dump())
+        )
+    except WorkError as error:
+        raise failure(error) from error
+
+
+@app.put(
+    "/internal/projects/{project_id}/tasks/{task_id}",
+    response_model=TaskResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def task_update(
+    project_id: UUID,
+    task_id: UUID,
+    body: TaskUpdateRequest,
+    session: SessionDependency,
+    actor: ActorDependency,
+) -> TaskResponse:
+    try:
+        return TaskResponse.model_validate(
+            update_task(session, actor, project_id, task_id, **body.model_dump())
+        )
+    except WorkError as error:
+        raise failure(error) from error
+
+
+@app.put(
+    "/internal/projects/{project_id}/tasks/{task_id}/assignment",
+    response_model=TaskResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def task_assignment(
+    project_id: UUID,
+    task_id: UUID,
+    body: TaskAssignmentRequest,
+    session: SessionDependency,
+    actor: ActorDependency,
+) -> TaskResponse:
+    try:
+        return TaskResponse.model_validate(
+            assign_task(session, actor, project_id, task_id, **body.model_dump())
+        )
+    except WorkError as error:
+        raise failure(error) from error
+
+
+@app.put(
+    "/internal/projects/{project_id}/tasks/{task_id}/status",
+    response_model=TaskResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def task_status_change(
+    project_id: UUID,
+    task_id: UUID,
+    body: TaskStatusRequest,
+    session: SessionDependency,
+    actor: ActorDependency,
+) -> TaskResponse:
+    try:
+        return TaskResponse.model_validate(
+            change_task_status(session, actor, project_id, task_id, **body.model_dump())
+        )
+    except WorkError as error:
+        raise failure(error) from error
+
+
+@app.get(
+    "/internal/projects/{project_id}/tasks/{task_id}/comments",
+    response_model=TaskCommentPageResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def task_comments(
+    project_id: UUID,
+    task_id: UUID,
+    session: SessionDependency,
+    actor: ActorDependency,
+    first: int = Query(default=20, ge=1, le=50),
+    after: str | None = None,
+) -> TaskCommentPageResponse:
+    try:
+        page = list_task_comments(session, actor, project_id, task_id, first=first, after=after)
+        return TaskCommentPageResponse(
+            items=[TaskCommentResponse.model_validate(item) for item in page.items],
+            next_cursor=page.next_cursor,
+            has_next_page=page.has_next_page,
+        )
+    except WorkError as error:
+        raise failure(error) from error
+
+
+@app.post(
+    "/internal/projects/{project_id}/tasks/{task_id}/comments",
+    response_model=TaskCommentResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def task_comment_add(
+    project_id: UUID,
+    task_id: UUID,
+    body: TaskCommentCreateRequest,
+    session: SessionDependency,
+    actor: ActorDependency,
+) -> TaskCommentResponse:
+    try:
+        return TaskCommentResponse.model_validate(
+            add_task_comment(session, actor, project_id, task_id, body=body.body)
+        )
+    except WorkError as error:
+        raise failure(error) from error
+
+
+@app.get(
+    "/internal/projects/{project_id}/tasks/{task_id}/activity",
+    response_model=TaskActivityPageResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def task_activity(
+    project_id: UUID,
+    task_id: UUID,
+    session: SessionDependency,
+    actor: ActorDependency,
+    first: int = Query(default=20, ge=1, le=50),
+    after: str | None = None,
+) -> TaskActivityPageResponse:
+    try:
+        page = list_task_activity(session, actor, project_id, task_id, first=first, after=after)
+        return TaskActivityPageResponse(
+            items=[TaskActivityResponse.model_validate(item) for item in page.items],
+            next_cursor=page.next_cursor,
+            has_next_page=page.has_next_page,
         )
     except WorkError as error:
         raise failure(error) from error

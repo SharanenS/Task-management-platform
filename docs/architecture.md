@@ -38,6 +38,33 @@ Service stores only the stable employee ID and never copies employee-owned profi
 data. Missing or newly inactive profiles fail closed for selection and render as
 unavailable in an existing membership response.
 
+## Task management
+
+Work Service owns tasks, project-scoped numbering, assignment, lifecycle,
+comments, and append-only activity in the existing Work PostgreSQL schema. The
+Phase 5 migration follows the accepted Phase 4 revision. Project row locking plus
+a unique `(project_id, number)` constraint makes task references concurrency-safe;
+task row locks and optimistic versions serialize competing mutations.
+
+The task state machine permits `TODO` to move to `IN_PROGRESS`, `BLOCKED`, or
+`CANCELLED`; `IN_PROGRESS` to move to `TODO`, `BLOCKED`, `DONE`, or `CANCELLED`;
+`BLOCKED` to move to `TODO`, `IN_PROGRESS`, or `CANCELLED`; `DONE` to reopen as
+`IN_PROGRESS`; and `CANCELLED` to reopen as `TODO`. Archived projects reject all
+task writes while preserving readable task, comment, and activity history.
+
+Application administrators manage tasks everywhere. Project managers manage every
+task in their projects. Contributors may create tasks and comments and may change
+status only on tasks assigned to them. Non-members cannot infer task data. The
+gateway reloads the current Employee profile before every operation and validates
+an active assignee; Work Service independently rechecks current project membership
+inside the assignment transaction.
+
+Comments are immutable plain text. Activity records use a constrained activity
+type and non-sensitive structured change data and are committed atomically with
+the related Work mutation. Task, comment, and activity responses resolve Employee
+references in bounded batches. The board uses a bounded query per status lane and
+reports `hasMore`; it never loads the full task collection into the browser.
+
 ## Employee administration
 
 The public GraphQL gateway is the only employee-administration API. It validates

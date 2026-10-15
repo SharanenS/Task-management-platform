@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
-from typing import NoReturn
+from typing import NoReturn, cast
 
 import strawberry
 from graphql import GraphQLError
 from strawberry.extensions import MaxAliasesLimiter, QueryDepthLimiter
+from strawberry.scalars import JSON
 from strawberry.types import Info
 
 from app.auth import AuthenticationError, token_validator
@@ -31,10 +32,17 @@ from app.work_client import (
     WorkDomainError,
     WorkMembership,
     WorkProject,
+    WorkTask,
     WorkUnavailableError,
 )
 from app.work_client import (
     add_member as work_add_member,
+)
+from app.work_client import (
+    add_task_comment as work_add_task_comment,
+)
+from app.work_client import (
+    assign_task as work_assign_task,
 )
 from app.work_client import (
     change_member_role as work_change_member_role,
@@ -43,19 +51,43 @@ from app.work_client import (
     change_status as work_change_status,
 )
 from app.work_client import (
+    change_task_status as work_change_task_status,
+)
+from app.work_client import (
     create_project as work_create_project,
+)
+from app.work_client import (
+    create_task as work_create_task,
 )
 from app.work_client import (
     get_project as work_get_project,
 )
 from app.work_client import (
+    get_task as work_get_task,
+)
+from app.work_client import (
     list_projects as work_list_projects,
+)
+from app.work_client import (
+    list_task_activity as work_list_task_activity,
+)
+from app.work_client import (
+    list_task_comments as work_list_task_comments,
+)
+from app.work_client import (
+    list_tasks as work_list_tasks,
 )
 from app.work_client import (
     remove_member as work_remove_member,
 )
 from app.work_client import (
+    task_board as work_task_board,
+)
+from app.work_client import (
     update_project as work_update_project,
+)
+from app.work_client import (
+    update_task as work_update_task,
 )
 
 
@@ -91,6 +123,32 @@ class ProjectStatus(StrEnum):
 class ProjectRole(StrEnum):
     PROJECT_MANAGER = "PROJECT_MANAGER"
     CONTRIBUTOR = "CONTRIBUTOR"
+
+
+@strawberry.enum
+class TaskStatus(StrEnum):
+    TODO = "TODO"
+    IN_PROGRESS = "IN_PROGRESS"
+    BLOCKED = "BLOCKED"
+    DONE = "DONE"
+    CANCELLED = "CANCELLED"
+
+
+@strawberry.enum
+class TaskPriority(StrEnum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    URGENT = "URGENT"
+
+
+@strawberry.enum
+class TaskActivityType(StrEnum):
+    CREATED = "CREATED"
+    METADATA_UPDATED = "METADATA_UPDATED"
+    ASSIGNMENT_CHANGED = "ASSIGNMENT_CHANGED"
+    STATUS_CHANGED = "STATUS_CHANGED"
+    COMMENT_ADDED = "COMMENT_ADDED"
 
 
 @strawberry.type
@@ -170,6 +228,76 @@ class ProjectConnection:
     page_info: PageInfo
 
 
+@strawberry.type
+class Task:
+    id: strawberry.ID
+    project_id: strawberry.ID
+    reference: str
+    number: int
+    title: str
+    description: str | None
+    status: TaskStatus
+    priority: TaskPriority
+    assignee_employee_id: strawberry.ID | None
+    assignee_display_name: str | None
+    creator_employee_id: strawberry.ID
+    due_date: date | None
+    version: int
+    created_at: datetime
+    updated_at: datetime
+
+
+@strawberry.type
+class TaskConnection:
+    nodes: list[Task]
+    page_info: PageInfo
+
+
+@strawberry.type
+class TaskBoardLane:
+    status: TaskStatus
+    tasks: list[Task]
+    has_more: bool
+
+
+@strawberry.type
+class TaskBoard:
+    lanes: list[TaskBoardLane]
+
+
+@strawberry.type
+class TaskComment:
+    id: strawberry.ID
+    task_id: strawberry.ID
+    author_employee_id: strawberry.ID
+    author_display_name: str | None
+    body: str
+    created_at: datetime
+
+
+@strawberry.type
+class TaskCommentConnection:
+    nodes: list[TaskComment]
+    page_info: PageInfo
+
+
+@strawberry.type
+class TaskActivity:
+    id: strawberry.ID
+    task_id: strawberry.ID
+    actor_employee_id: strawberry.ID
+    actor_display_name: str | None
+    activity_type: TaskActivityType
+    change_data: JSON
+    created_at: datetime
+
+
+@strawberry.type
+class TaskActivityConnection:
+    nodes: list[TaskActivity]
+    page_info: PageInfo
+
+
 @strawberry.input
 class ProvisionEmployeeInput:
     idempotency_key: str
@@ -192,6 +320,24 @@ class CreateProjectInput:
 class UpdateProjectInput:
     name: str
     description: str | None
+    expected_version: int
+
+
+@strawberry.input
+class CreateTaskInput:
+    title: str
+    description: str | None = None
+    priority: TaskPriority = TaskPriority.MEDIUM
+    assignee_employee_id: strawberry.ID | None = None
+    due_date: date | None = None
+
+
+@strawberry.input
+class UpdateTaskInput:
+    title: str
+    description: str | None
+    priority: TaskPriority
+    due_date: date | None
     expected_version: int
 
 
@@ -257,6 +403,51 @@ async def _enriched_projects(subject: str, values: list[WorkProject]) -> list[Pr
 
 async def _enriched_project(subject: str, value: WorkProject) -> Project:
     return (await _enriched_projects(subject, [value]))[0]
+
+
+def _task_value(
+    value: WorkTask,
+    project_key: str,
+    profiles: dict[str, EligibleEmployeeProfile],
+) -> Task:
+    assignee = profiles.get(value.assignee_employee_id or "")
+    return Task(
+        id=strawberry.ID(value.id),
+        project_id=strawberry.ID(value.project_id),
+        reference=f"{project_key}-{value.number}",
+        number=value.number,
+        title=value.title,
+        description=value.description,
+        status=TaskStatus(value.status),
+        priority=TaskPriority(value.priority),
+        assignee_employee_id=(
+            strawberry.ID(value.assignee_employee_id) if value.assignee_employee_id else None
+        ),
+        assignee_display_name=assignee.display_name if assignee else None,
+        creator_employee_id=strawberry.ID(value.creator_employee_id),
+        due_date=date.fromisoformat(value.due_date) if value.due_date else None,
+        version=value.version,
+        created_at=datetime.fromisoformat(value.created_at),
+        updated_at=datetime.fromisoformat(value.updated_at),
+    )
+
+
+async def _enriched_tasks(subject: str, project: WorkProject, values: list[WorkTask]) -> list[Task]:
+    employee_ids = list(
+        dict.fromkeys(value.assignee_employee_id for value in values if value.assignee_employee_id)
+    )
+    profiles = {
+        profile.id: profile
+        for profile in (
+            await resolve_employee_references(subject, employee_ids) if employee_ids else []
+        )
+    }
+    return [_task_value(value, project.key, profiles) for value in values]
+
+
+async def _enriched_task(subject: str, actor: EmployeeProfile, value: WorkTask) -> Task:
+    project = await work_get_project(actor, value.project_id)
+    return (await _enriched_tasks(subject, project, [value]))[0]
 
 
 async def _project_actor(info: Info) -> tuple[str, EmployeeProfile]:
@@ -468,6 +659,162 @@ class Query:
         except (EmployeeDomainError, EmployeeUnavailableError) as error:
             _raise_project_error(error)
 
+    @strawberry.field
+    async def project_tasks(
+        self,
+        info: Info,
+        project_id: strawberry.ID,
+        first: int = 20,
+        after: str | None = None,
+        search: str | None = None,
+        status: TaskStatus | None = None,
+        priority: TaskPriority | None = None,
+        assignee_employee_id: strawberry.ID | None = None,
+        unassigned: bool = False,
+    ) -> TaskConnection:
+        subject, actor = await _project_actor(info)
+        try:
+            project = await work_get_project(actor, str(project_id))
+            page = await work_list_tasks(
+                actor,
+                str(project_id),
+                params={
+                    "first": first,
+                    **({"after": after} if after else {}),
+                    **({"search": search} if search else {}),
+                    **({"status": status.value} if status else {}),
+                    **({"priority": priority.value} if priority else {}),
+                    **(
+                        {"assignee_employee_id": str(assignee_employee_id)}
+                        if assignee_employee_id
+                        else {}
+                    ),
+                    "unassigned": unassigned,
+                },
+            )
+            return TaskConnection(
+                nodes=await _enriched_tasks(subject, project, page.items),
+                page_info=PageInfo(has_next_page=page.has_next_page, end_cursor=page.next_cursor),
+            )
+        except (WorkDomainError, WorkUnavailableError, EmployeeUnavailableError) as error:
+            _raise_project_error(error)
+
+    @strawberry.field
+    async def project_task_board(
+        self, info: Info, project_id: strawberry.ID, lane_size: int = 20
+    ) -> TaskBoard:
+        subject, actor = await _project_actor(info)
+        try:
+            project = await work_get_project(actor, str(project_id))
+            lanes = await work_task_board(actor, str(project_id), lane_size)
+            values = [task for lane in lanes for task in lane.items]
+            enriched = {
+                str(task.id): task for task in await _enriched_tasks(subject, project, values)
+            }
+            return TaskBoard(
+                lanes=[
+                    TaskBoardLane(
+                        status=TaskStatus(lane.status),
+                        tasks=[enriched[item.id] for item in lane.items],
+                        has_more=lane.has_more,
+                    )
+                    for lane in lanes
+                ]
+            )
+        except (WorkDomainError, WorkUnavailableError, EmployeeUnavailableError) as error:
+            _raise_project_error(error)
+
+    @strawberry.field
+    async def task(self, info: Info, project_id: strawberry.ID, task_id: strawberry.ID) -> Task:
+        subject, actor = await _project_actor(info)
+        try:
+            return await _enriched_task(
+                subject, actor, await work_get_task(actor, str(project_id), str(task_id))
+            )
+        except (WorkDomainError, WorkUnavailableError, EmployeeUnavailableError) as error:
+            _raise_project_error(error)
+
+    @strawberry.field
+    async def task_comments(
+        self,
+        info: Info,
+        project_id: strawberry.ID,
+        task_id: strawberry.ID,
+        first: int = 20,
+        after: str | None = None,
+    ) -> TaskCommentConnection:
+        subject, actor = await _project_actor(info)
+        try:
+            values, cursor, more = await work_list_task_comments(
+                actor, str(project_id), str(task_id), first=first, after=after
+            )
+            ids = list(dict.fromkeys(value.author_employee_id for value in values))
+            profiles = {
+                item.id: item
+                for item in (await resolve_employee_references(subject, ids) if ids else [])
+            }
+            return TaskCommentConnection(
+                nodes=[
+                    TaskComment(
+                        id=strawberry.ID(value.id),
+                        task_id=strawberry.ID(value.task_id),
+                        author_employee_id=strawberry.ID(value.author_employee_id),
+                        author_display_name=(
+                            profiles[value.author_employee_id].display_name
+                            if value.author_employee_id in profiles
+                            else None
+                        ),
+                        body=value.body,
+                        created_at=datetime.fromisoformat(value.created_at),
+                    )
+                    for value in values
+                ],
+                page_info=PageInfo(has_next_page=more, end_cursor=cursor),
+            )
+        except (WorkDomainError, WorkUnavailableError, EmployeeUnavailableError) as error:
+            _raise_project_error(error)
+
+    @strawberry.field
+    async def task_activity(
+        self,
+        info: Info,
+        project_id: strawberry.ID,
+        task_id: strawberry.ID,
+        first: int = 20,
+        after: str | None = None,
+    ) -> TaskActivityConnection:
+        subject, actor = await _project_actor(info)
+        try:
+            values, cursor, more = await work_list_task_activity(
+                actor, str(project_id), str(task_id), first=first, after=after
+            )
+            ids = list(dict.fromkeys(value.actor_employee_id for value in values))
+            profiles = {
+                item.id: item
+                for item in (await resolve_employee_references(subject, ids) if ids else [])
+            }
+            return TaskActivityConnection(
+                nodes=[
+                    TaskActivity(
+                        id=strawberry.ID(value.id),
+                        task_id=strawberry.ID(value.task_id),
+                        actor_employee_id=strawberry.ID(value.actor_employee_id),
+                        actor_display_name=(
+                            profiles[value.actor_employee_id].display_name
+                            if value.actor_employee_id in profiles
+                            else None
+                        ),
+                        activity_type=TaskActivityType(value.activity_type),
+                        change_data=cast(JSON, value.change_data),
+                        created_at=datetime.fromisoformat(value.created_at),
+                    )
+                    for value in values
+                ],
+                page_info=PageInfo(has_next_page=more, end_cursor=cursor),
+            )
+        except (WorkDomainError, WorkUnavailableError, EmployeeUnavailableError) as error:
+            _raise_project_error(error)
+
 
 @strawberry.type
 class Mutation:
@@ -636,6 +983,148 @@ class Mutation:
             return await _enriched_project(
                 subject,
                 await work_remove_member(actor, str(project_id), str(employee_id)),
+            )
+        except (WorkDomainError, WorkUnavailableError, EmployeeUnavailableError) as error:
+            _raise_project_error(error)
+
+    @strawberry.mutation
+    async def create_task(
+        self, info: Info, project_id: strawberry.ID, input: CreateTaskInput
+    ) -> Task:
+        subject, actor = await _project_actor(info)
+        try:
+            if input.assignee_employee_id:
+                await validate_eligible_employee(subject, str(input.assignee_employee_id))
+            value = await work_create_task(
+                actor,
+                str(project_id),
+                {
+                    "title": input.title,
+                    "description": input.description,
+                    "priority": input.priority.value,
+                    "assignee_employee_id": (
+                        str(input.assignee_employee_id) if input.assignee_employee_id else None
+                    ),
+                    "due_date": input.due_date.isoformat() if input.due_date else None,
+                },
+            )
+            return await _enriched_task(subject, actor, value)
+        except (
+            EmployeeDomainError,
+            EmployeeUnavailableError,
+            WorkDomainError,
+            WorkUnavailableError,
+        ) as error:
+            _raise_project_error(error)
+
+    @strawberry.mutation
+    async def update_task(
+        self,
+        info: Info,
+        project_id: strawberry.ID,
+        task_id: strawberry.ID,
+        input: UpdateTaskInput,
+    ) -> Task:
+        subject, actor = await _project_actor(info)
+        try:
+            return await _enriched_task(
+                subject,
+                actor,
+                await work_update_task(
+                    actor,
+                    str(project_id),
+                    str(task_id),
+                    {
+                        "title": input.title,
+                        "description": input.description,
+                        "priority": input.priority.value,
+                        "due_date": input.due_date.isoformat() if input.due_date else None,
+                        "expected_version": input.expected_version,
+                    },
+                ),
+            )
+        except (WorkDomainError, WorkUnavailableError, EmployeeUnavailableError) as error:
+            _raise_project_error(error)
+
+    @strawberry.mutation
+    async def assign_task(
+        self,
+        info: Info,
+        project_id: strawberry.ID,
+        task_id: strawberry.ID,
+        assignee_employee_id: strawberry.ID | None,
+        expected_version: int,
+    ) -> Task:
+        subject, actor = await _project_actor(info)
+        try:
+            if assignee_employee_id:
+                await validate_eligible_employee(subject, str(assignee_employee_id))
+            return await _enriched_task(
+                subject,
+                actor,
+                await work_assign_task(
+                    actor,
+                    str(project_id),
+                    str(task_id),
+                    {
+                        "assignee_employee_id": (
+                            str(assignee_employee_id) if assignee_employee_id else None
+                        ),
+                        "expected_version": expected_version,
+                    },
+                ),
+            )
+        except (
+            EmployeeDomainError,
+            EmployeeUnavailableError,
+            WorkDomainError,
+            WorkUnavailableError,
+        ) as error:
+            _raise_project_error(error)
+
+    @strawberry.mutation
+    async def change_task_status(
+        self,
+        info: Info,
+        project_id: strawberry.ID,
+        task_id: strawberry.ID,
+        status: TaskStatus,
+        expected_version: int,
+    ) -> Task:
+        subject, actor = await _project_actor(info)
+        try:
+            return await _enriched_task(
+                subject,
+                actor,
+                await work_change_task_status(
+                    actor,
+                    str(project_id),
+                    str(task_id),
+                    {"status": status.value, "expected_version": expected_version},
+                ),
+            )
+        except (WorkDomainError, WorkUnavailableError, EmployeeUnavailableError) as error:
+            _raise_project_error(error)
+
+    @strawberry.mutation
+    async def add_task_comment(
+        self,
+        info: Info,
+        project_id: strawberry.ID,
+        task_id: strawberry.ID,
+        body: str,
+    ) -> TaskComment:
+        subject, actor = await _project_actor(info)
+        try:
+            value = await work_add_task_comment(actor, str(project_id), str(task_id), body)
+            profiles = await resolve_employee_references(subject, [value.author_employee_id])
+            return TaskComment(
+                id=strawberry.ID(value.id),
+                task_id=strawberry.ID(value.task_id),
+                author_employee_id=strawberry.ID(value.author_employee_id),
+                author_display_name=profiles[0].display_name if profiles else None,
+                body=value.body,
+                created_at=datetime.fromisoformat(value.created_at),
             )
         except (WorkDomainError, WorkUnavailableError, EmployeeUnavailableError) as error:
             _raise_project_error(error)

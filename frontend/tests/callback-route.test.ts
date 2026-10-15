@@ -4,12 +4,16 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
+  cookieGet,
   cookieDelete,
   getDel,
   authorizationCodeGrant,
   fetchEmployeeProfile,
   createSession,
 } = vi.hoisted(() => ({
+  cookieGet: vi.fn<() => { value: string } | undefined>(() => ({
+    value: "transaction-id",
+  })),
   cookieDelete: vi.fn(),
   getDel: vi.fn(),
   authorizationCodeGrant: vi.fn(),
@@ -19,7 +23,7 @@ const {
 
 vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => ({
-    get: vi.fn(() => ({ value: "transaction-id" })),
+    get: cookieGet,
     delete: cookieDelete,
   })),
 }));
@@ -41,6 +45,8 @@ import { ProfileAccessDeniedError } from "@/auth/gateway";
 
 describe("OIDC callback", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    cookieGet.mockReturnValue({ value: "transaction-id" });
     getDel.mockResolvedValue(
       JSON.stringify({
         codeVerifier: "verifier",
@@ -105,7 +111,9 @@ describe("OIDC callback", () => {
       .mockImplementation(() => {});
     authorizationCodeGrant.mockRejectedValueOnce(failure);
     const response = await GET(
-      new NextRequest("http://localhost:3010/auth/callback?code=bad"),
+      new NextRequest(
+        "http://localhost:3010/auth/callback?code=bad&state=expected-state",
+      ),
     );
 
     expect(consoleError).toHaveBeenCalledWith(
@@ -135,7 +143,9 @@ describe("OIDC callback", () => {
     });
 
     const response = await GET(
-      new NextRequest("http://localhost:3010/auth/callback?code=bad"),
+      new NextRequest(
+        "http://localhost:3010/auth/callback?code=bad&state=expected-state",
+      ),
     );
 
     expect(consoleError).toHaveBeenCalledWith(
@@ -160,12 +170,80 @@ describe("OIDC callback", () => {
     fetchEmployeeProfile.mockRejectedValueOnce(new ProfileAccessDeniedError());
 
     const response = await GET(
-      new NextRequest("http://localhost:3010/auth/callback?code=denied"),
+      new NextRequest(
+        "http://localhost:3010/auth/callback?code=denied&state=expected-state",
+      ),
     );
 
     expect(response.headers.get("location")).toBe(
       "http://localhost:3010/access-denied",
     );
     expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it("classifies missing, consumed, and mismatched transactions with fixed values", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    cookieGet.mockReturnValueOnce(undefined);
+    await GET(new NextRequest("http://localhost:3010/auth/callback"));
+    expect(consoleError).toHaveBeenLastCalledWith(
+      "OIDC callback failed.",
+      "TRANSACTION_MISSING",
+    );
+
+    getDel.mockResolvedValueOnce(null);
+    await GET(new NextRequest("http://localhost:3010/auth/callback"));
+    expect(consoleError).toHaveBeenLastCalledWith(
+      "OIDC callback failed.",
+      "TRANSACTION_ALREADY_CONSUMED",
+    );
+
+    await GET(
+      new NextRequest(
+        "http://localhost:3010/auth/callback?code=code&state=unexpected",
+      ),
+    );
+    expect(consoleError).toHaveBeenLastCalledWith(
+      "OIDC callback failed.",
+      "STATE_VALIDATION_FAILED",
+    );
+    expect(authorizationCodeGrant).not.toHaveBeenCalled();
+  });
+
+  it("uses fixed profile and session failure categories without leaking errors", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    fetchEmployeeProfile.mockRejectedValueOnce(
+      new Error("PRIVATE-PROFILE-DETAIL"),
+    );
+    await GET(
+      new NextRequest(
+        "http://localhost:3010/auth/callback?code=code&state=expected-state",
+      ),
+    );
+    expect(consoleError).toHaveBeenLastCalledWith(
+      "OIDC callback failed.",
+      "EMPLOYEE_PROFILE_LOOKUP_FAILED",
+    );
+
+    fetchEmployeeProfile.mockResolvedValueOnce({
+      id: "employee-id",
+      displayName: "Local User",
+      email: "local.user@example.test",
+      role: "ADMIN",
+    });
+    createSession.mockRejectedValueOnce(new Error("PRIVATE-SESSION-DETAIL"));
+    await GET(
+      new NextRequest(
+        "http://localhost:3010/auth/callback?code=code&state=expected-state",
+      ),
+    );
+    expect(consoleError).toHaveBeenLastCalledWith(
+      "OIDC callback failed.",
+      "SESSION_CREATION_FAILED",
+    );
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain("PRIVATE-");
   });
 });

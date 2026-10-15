@@ -23,6 +23,17 @@ input CreateProjectInput {
   description: String = null
 }
 
+input CreateTaskInput {
+  title: String!
+  description: String = null
+  priority: TaskPriority! = MEDIUM
+  assigneeEmployeeId: ID = null
+  dueDate: Date = null
+}
+
+"""Date (isoformat)"""
+scalar Date
+
 """Date with time (isoformat)"""
 scalar DateTime
 
@@ -49,6 +60,11 @@ type EmployeeConnection {
   pageInfo: PageInfo!
 }
 
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf).
+"""
+scalar JSON @specifiedBy(url: "https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf")
+
 type Mutation {
   provisionEmployee(input: ProvisionEmployeeInput!): AdminEmployee!
   updateEmployeeRole(employeeId: ID!, role: ApplicationRole!): AdminEmployee!
@@ -60,6 +76,11 @@ type Mutation {
   addProjectMember(projectId: ID!, employeeId: ID!, role: ProjectRole!): Project!
   updateProjectMemberRole(projectId: ID!, employeeId: ID!, role: ProjectRole!): Project!
   removeProjectMember(projectId: ID!, employeeId: ID!): Project!
+  createTask(projectId: ID!, input: CreateTaskInput!): Task!
+  updateTask(projectId: ID!, taskId: ID!, input: UpdateTaskInput!): Task!
+  assignTask(projectId: ID!, taskId: ID!, assigneeEmployeeId: ID, expectedVersion: Int!): Task!
+  changeTaskStatus(projectId: ID!, taskId: ID!, status: TaskStatus!, expectedVersion: Int!): Task!
+  addTaskComment(projectId: ID!, taskId: ID!, body: String!): TaskComment!
 }
 
 type PageInfo {
@@ -128,6 +149,11 @@ type Query {
   projects(first: Int! = 20, after: String = null, search: String = null, status: ProjectStatus = null): ProjectConnection!
   project(id: ID!): Project!
   eligibleProjectMembers(first: Int! = 20, after: String = null, search: String = null): EligibleEmployeeConnection!
+  projectTasks(projectId: ID!, first: Int! = 20, after: String = null, search: String = null, status: TaskStatus = null, priority: TaskPriority = null, assigneeEmployeeId: ID = null, unassigned: Boolean! = false): TaskConnection!
+  projectTaskBoard(projectId: ID!, laneSize: Int! = 20): TaskBoard!
+  task(projectId: ID!, taskId: ID!): Task!
+  taskComments(projectId: ID!, taskId: ID!, first: Int! = 20, after: String = null): TaskCommentConnection!
+  taskActivity(projectId: ID!, taskId: ID!, first: Int! = 20, after: String = null): TaskActivityConnection!
 }
 
 type SystemInfo {
@@ -137,8 +163,101 @@ type SystemInfo {
   status: String!
 }
 
+type Task {
+  id: ID!
+  projectId: ID!
+  reference: String!
+  number: Int!
+  title: String!
+  description: String
+  status: TaskStatus!
+  priority: TaskPriority!
+  assigneeEmployeeId: ID
+  assigneeDisplayName: String
+  creatorEmployeeId: ID!
+  dueDate: Date
+  version: Int!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type TaskActivity {
+  id: ID!
+  taskId: ID!
+  actorEmployeeId: ID!
+  actorDisplayName: String
+  activityType: TaskActivityType!
+  changeData: JSON!
+  createdAt: DateTime!
+}
+
+type TaskActivityConnection {
+  nodes: [TaskActivity!]!
+  pageInfo: PageInfo!
+}
+
+enum TaskActivityType {
+  CREATED
+  METADATA_UPDATED
+  ASSIGNMENT_CHANGED
+  STATUS_CHANGED
+  COMMENT_ADDED
+}
+
+type TaskBoard {
+  lanes: [TaskBoardLane!]!
+}
+
+type TaskBoardLane {
+  status: TaskStatus!
+  tasks: [Task!]!
+  hasMore: Boolean!
+}
+
+type TaskComment {
+  id: ID!
+  taskId: ID!
+  authorEmployeeId: ID!
+  authorDisplayName: String
+  body: String!
+  createdAt: DateTime!
+}
+
+type TaskCommentConnection {
+  nodes: [TaskComment!]!
+  pageInfo: PageInfo!
+}
+
+type TaskConnection {
+  nodes: [Task!]!
+  pageInfo: PageInfo!
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+  CANCELLED
+}
+
 input UpdateProjectInput {
   name: String!
   description: String
+  expectedVersion: Int!
+}
+
+input UpdateTaskInput {
+  title: String!
+  description: String
+  priority: TaskPriority!
+  dueDate: Date
   expectedVersion: Int!
 }

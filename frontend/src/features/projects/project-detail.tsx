@@ -329,6 +329,17 @@ export function ProjectDetail({
           )}
         </Card>
       </div>
+      <Card className="flex flex-wrap items-center justify-between gap-4 p-6">
+        <div>
+          <h2 className="font-semibold">Project tasks</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Open the task list or bounded status board for this project.
+          </p>
+        </div>
+        <Button asChild>
+          <Link href={`/projects/${id}/tasks`}>View tasks</Link>
+        </Button>
+      </Card>
       {message && (
         <p role="alert" className="rounded-lg border p-4 text-sm">
           {message}

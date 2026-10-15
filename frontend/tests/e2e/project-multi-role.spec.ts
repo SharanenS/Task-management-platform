@@ -75,6 +75,7 @@ test("manager, contributor, non-member, and final-manager boundaries", async ({
   const [manager, contributor, outsider] = identities;
   const projectKey = `MR-${marker.toUpperCase()}`;
   let projectId: string | undefined;
+  let taskId: string | undefined;
   const provision = async (identity: Identity, role: "MANAGER" | "MEMBER") => {
     const result = await gql(
       page,
@@ -149,6 +150,22 @@ test("manager, contributor, non-member, and final-manager boundaries", async ({
       "mutation A($id: ID!, $employee: ID!) { addProjectMember(projectId: $id, employeeId: $employee, role: CONTRIBUTOR) { id } }",
       { id: projectId, employee: contributor.employeeId },
     );
+    const task = await gql(
+      page,
+      "mutation T($id: ID!, $input: CreateTaskInput!) { createTask(projectId: $id, input: $input) { id assigneeEmployeeId version } }",
+      {
+        id: projectId,
+        input: {
+          title: "Multi-role task",
+          assigneeEmployeeId: contributor.employeeId,
+          priority: "HIGH",
+        },
+      },
+    );
+    taskId = task.data.createTask.id;
+    expect(task.data.createTask.assigneeEmployeeId).toBe(
+      contributor.employeeId,
+    );
     const protectedManager = await gql(
       page,
       "mutation R($id: ID!, $employee: ID!) { removeProjectMember(projectId: $id, employeeId: $employee) { id } }",
@@ -183,6 +200,36 @@ test("manager, contributor, non-member, and final-manager boundaries", async ({
         )
       ).errors[0].extensions.code,
     ).toBe("FORBIDDEN");
+    const transitioned = await gql(
+      page,
+      "mutation T($project: ID!, $task: ID!) { changeTaskStatus(projectId: $project, taskId: $task, status: IN_PROGRESS, expectedVersion: 1) { status version } }",
+      { project: projectId, task: taskId },
+    );
+    expect(transitioned.data.changeTaskStatus.status).toBe("IN_PROGRESS");
+    const comment = await gql(
+      page,
+      'mutation C($project: ID!, $task: ID!) { addTaskComment(projectId: $project, taskId: $task, body: "Contributor comment") { body } }',
+      { project: projectId, task: taskId },
+    );
+    expect(comment.data.addTaskComment.body).toBe("Contributor comment");
+    expect(
+      (
+        await gql(
+          page,
+          "mutation A($project: ID!, $task: ID!) { assignTask(projectId: $project, taskId: $task, assigneeEmployeeId: null, expectedVersion: 2) { id } }",
+          { project: projectId, task: taskId },
+        )
+      ).errors[0].extensions.code,
+    ).toBe("FORBIDDEN");
+    expect(
+      (
+        await gql(
+          page,
+          'mutation U($project: ID!, $task: ID!) { updateTask(projectId: $project, taskId: $task, input: {title: "Forged", description: null, priority: LOW, dueDate: null, expectedVersion: 2}) { id } }',
+          { project: projectId, task: taskId },
+        )
+      ).errors[0].extensions.code,
+    ).toBe("FORBIDDEN");
     await logout(page);
 
     await login(page, outsider.username, env.PHASE4_E2E_PASSWORD!);
@@ -195,6 +242,24 @@ test("manager, contributor, non-member, and final-manager boundaries", async ({
         })
       ).errors[0].extensions.code,
     ).toBe("FORBIDDEN");
+    expect(
+      (
+        await gql(
+          page,
+          "query T($project: ID!, $task: ID!) { task(projectId: $project, taskId: $task) { id } }",
+          { project: projectId, task: taskId },
+        )
+      ).errors[0].extensions.code,
+    ).toBe("FORBIDDEN");
+    expect(
+      (
+        await gql(
+          page,
+          'mutation C($project: ID!, $task: ID!) { addTaskComment(projectId: $project, taskId: $task, body: "Forged") { id } }',
+          { project: projectId, task: taskId },
+        )
+      ).errors[0].extensions.code,
+    ).toBe("FORBIDDEN");
     await logout(page);
 
     await login(page, manager.username, env.PHASE4_E2E_PASSWORD!);
@@ -203,10 +268,61 @@ test("manager, contributor, non-member, and final-manager boundaries", async ({
       "mutation S($id: ID!) { setProjectStatus(projectId: $id, status: ARCHIVED, expectedVersion: 3) { id } }",
       { id: projectId },
     );
+    const archivedTask = await gql(
+      page,
+      'mutation C($project: ID!, $task: ID!) { addTaskComment(projectId: $project, taskId: $task, body: "Archived") { id } }',
+      { project: projectId, task: taskId },
+    );
+    expect(archivedTask.errors[0].extensions.code).toBe("PROJECT_ARCHIVED");
     await gql(
       page,
       "mutation S($id: ID!) { setProjectStatus(projectId: $id, status: ACTIVE, expectedVersion: 4) { id } }",
       { id: projectId },
+    );
+    const resumed = await gql(
+      page,
+      "mutation T($project: ID!, $task: ID!) { changeTaskStatus(projectId: $project, taskId: $task, status: DONE, expectedVersion: 2) { status } }",
+      { project: projectId, task: taskId },
+    );
+    expect(resumed.data.changeTaskStatus.status).toBe("DONE");
+    const assignedRemoval = await gql(
+      page,
+      "mutation R($id: ID!, $employee: ID!) { removeProjectMember(projectId: $id, employeeId: $employee) { memberships { employeeId role } } }",
+      { id: projectId, employee: contributor.employeeId },
+    );
+    expect(assignedRemoval.errors).toEqual([
+      expect.objectContaining({
+        message:
+          "Reassign the employee's tasks before removing project membership.",
+        extensions: { code: "MEMBER_HAS_ASSIGNED_TASKS" },
+      }),
+    ]);
+    const stillMember = await gql(
+      page,
+      "query P($id: ID!) { project(id: $id) { memberships { employeeId role } } }",
+      { id: projectId },
+    );
+    expect(stillMember.data.project.memberships).toContainEqual({
+      employeeId: contributor.employeeId,
+      role: "CONTRIBUTOR",
+    });
+    await gql(
+      page,
+      "mutation A($project: ID!, $task: ID!) { assignTask(projectId: $project, taskId: $task, assigneeEmployeeId: null, expectedVersion: 3) { assigneeEmployeeId version } }",
+      { project: projectId, task: taskId },
+    );
+    const safeRemoval = await gql(
+      page,
+      "mutation R($id: ID!, $employee: ID!) { removeProjectMember(projectId: $id, employeeId: $employee) { memberships { employeeId role } } }",
+      { id: projectId, employee: contributor.employeeId },
+    );
+    expect(safeRemoval.data.removeProjectMember.memberships).toEqual([
+      { employeeId: manager.employeeId, role: "PROJECT_MANAGER" },
+    ]);
+    await gql(
+      page,
+      "mutation A($id: ID!, $employee: ID!) { addProjectMember(projectId: $id, employeeId: $employee, role: CONTRIBUTOR) { id } }",
+      { id: projectId, employee: contributor.employeeId },
     );
     await gql(
       page,

@@ -5,7 +5,14 @@ const config: CodegenConfig = {
   generates: {
     "src/graphql/generated/": {
       preset: "client",
-      config: { useTypeImports: true },
+      config: {
+        useTypeImports: true,
+        scalars: {
+          Date: "string",
+          DateTime: "string",
+          JSON: "Record<string, unknown>",
+        },
+      },
       presetConfig: { fragmentMasking: false },
     },
   },
