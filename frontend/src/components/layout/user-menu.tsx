@@ -1,12 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { ChevronDown, LogOut, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import type { EmployeeProfile } from "@/auth/types";
 
 export function UserMenu({ user }: { user: EmployeeProfile }) {
+  const hydrated = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false,
+  );
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const router = useRouter();
@@ -35,6 +40,7 @@ export function UserMenu({ user }: { user: EmployeeProfile }) {
     <div className="relative">
       <button
         type="button"
+        disabled={!hydrated}
         onClick={() => setOpen((value) => !value)}
         aria-label={`${user.displayName} ${user.role}`}
         aria-expanded={open}

@@ -1,9 +1,15 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models import ProjectRole, ProjectStatus
+from app.models import (
+    ProjectRole,
+    ProjectStatus,
+    TaskActivityType,
+    TaskPriority,
+    TaskStatus,
+)
 
 
 class ProjectCreateRequest(BaseModel):
@@ -71,5 +77,114 @@ class ProjectResponse(BaseModel):
 
 class ProjectPageResponse(BaseModel):
     items: list[ProjectResponse]
+    next_cursor: str | None
+    has_next_page: bool
+
+
+class TaskCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=8000)
+    priority: TaskPriority = TaskPriority.MEDIUM
+    assignee_employee_id: UUID | None = None
+    due_date: date | None = None
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def normalize_title(cls, value: str) -> str:
+        return " ".join(value.split())
+
+
+class TaskUpdateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=8000)
+    priority: TaskPriority
+    due_date: date | None = None
+    expected_version: int = Field(ge=1)
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def normalize_title(cls, value: str) -> str:
+        return " ".join(value.split())
+
+
+class TaskAssignmentRequest(BaseModel):
+    assignee_employee_id: UUID | None
+    expected_version: int = Field(ge=1)
+
+
+class TaskStatusRequest(BaseModel):
+    status: TaskStatus
+    expected_version: int = Field(ge=1)
+
+
+class TaskCommentCreateRequest(BaseModel):
+    body: str = Field(min_length=1, max_length=4000)
+
+    @field_validator("body", mode="before")
+    @classmethod
+    def normalize_body(cls, value: str) -> str:
+        return value.strip()
+
+
+class TaskResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    project_id: UUID
+    number: int
+    title: str
+    description: str | None
+    status: TaskStatus
+    priority: TaskPriority
+    assignee_employee_id: UUID | None
+    creator_employee_id: UUID
+    due_date: date | None
+    version: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class TaskPageResponse(BaseModel):
+    items: list[TaskResponse]
+    next_cursor: str | None
+    has_next_page: bool
+
+
+class TaskLaneResponse(BaseModel):
+    status: TaskStatus
+    items: list[TaskResponse]
+    has_more: bool
+
+
+class TaskBoardResponse(BaseModel):
+    lanes: list[TaskLaneResponse]
+
+
+class TaskCommentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    task_id: UUID
+    author_employee_id: UUID
+    body: str
+    created_at: datetime
+
+
+class TaskCommentPageResponse(BaseModel):
+    items: list[TaskCommentResponse]
+    next_cursor: str | None
+    has_next_page: bool
+
+
+class TaskActivityResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    task_id: UUID
+    actor_employee_id: UUID
+    activity_type: TaskActivityType
+    change_data: dict[str, str | int | None]
+    created_at: datetime
+
+
+class TaskActivityPageResponse(BaseModel):
+    items: list[TaskActivityResponse]
     next_cursor: str | None
     has_next_page: bool

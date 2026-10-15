@@ -43,6 +43,7 @@ test("Work Service persists through restart, sanitizes outage, and recovers", as
   const marker = Date.now().toString(36).toUpperCase();
   const key = `REC-${marker}`;
   let projectId: string | undefined;
+  let taskId: string | undefined;
   const queryProject = async () => {
     const response = await page.request.post("/graphql", {
       data: {
@@ -91,15 +92,50 @@ test("Work Service persists through restart, sanitizes outage, and recovers", as
     projectId = createdBody.data.createProject.id;
     expect(createdBody.data.createProject.memberships).toHaveLength(1);
 
+    const createdTask = await page.request.post("/graphql", {
+      data: {
+        query:
+          "mutation CreateTask($projectId: ID!, $input: CreateTaskInput!) { createTask(projectId: $projectId, input: $input) { id reference } }",
+        variables: { projectId, input: { title: `Recovery task ${marker}` } },
+      },
+    });
+    const createdTaskBody = await createdTask.json();
+    expect(createdTaskBody.errors).toBeUndefined();
+    taskId = createdTaskBody.data.createTask.id;
+    const comment = await page.request.post("/graphql", {
+      data: {
+        query:
+          "mutation Comment($projectId: ID!, $taskId: ID!, $body: String!) { addTaskComment(projectId: $projectId, taskId: $taskId, body: $body) { id } }",
+        variables: { projectId, taskId, body: "Persistence check" },
+      },
+    });
+    expect((await comment.json()).errors).toBeUndefined();
+
     await compose("restart", "work");
     await waitForWork();
     const persisted = await queryProject();
     expect(persisted.data.project.key).toBe(key);
     expect(persisted.data.project.memberships).toHaveLength(1);
+    const persistedTask = await page.request.post("/graphql", {
+      data: {
+        query:
+          "query Persisted($projectId: ID!, $taskId: ID!) { task(projectId: $projectId, taskId: $taskId) { id reference } taskComments(projectId: $projectId, taskId: $taskId) { nodes { body } } taskActivity(projectId: $projectId, taskId: $taskId) { nodes { activityType } } }",
+        variables: { projectId, taskId },
+      },
+    });
+    const persistedTaskBody = await persistedTask.json();
+    expect(persistedTaskBody.data.task.id).toBe(taskId);
+    expect(persistedTaskBody.data.taskComments.nodes[0].body).toBe(
+      "Persistence check",
+    );
+    expect(persistedTaskBody.data.taskActivity.nodes).toHaveLength(2);
 
     await compose("stop", "work");
     const unavailable = await page.request.post("/graphql", {
-      data: { query: "query { projects(first: 1) { nodes { id } } }" },
+      data: {
+        query:
+          'query { projectTasks(projectId: "00000000-0000-0000-0000-000000000000", first: 1, unassigned: false) { nodes { id } } }',
+      },
     });
     const unavailableBody = await unavailable.json();
     expect(unavailableBody.errors[0]).toEqual({

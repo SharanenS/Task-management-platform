@@ -9,11 +9,16 @@ import { createSession } from "@/auth/session";
 import type { AuthTransaction } from "@/auth/types";
 
 const CALLBACK_DIAGNOSTIC = {
+  TRANSACTION_MISSING: "TRANSACTION_MISSING",
+  TRANSACTION_ALREADY_CONSUMED: "TRANSACTION_ALREADY_CONSUMED",
+  STATE_VALIDATION_FAILED: "STATE_VALIDATION_FAILED",
   AUTHORIZATION_RESPONSE_INVALID: "AUTHORIZATION_RESPONSE_INVALID",
   ID_TOKEN_INVALID: "ID_TOKEN_INVALID",
   TOKEN_RESPONSE_INVALID: "TOKEN_RESPONSE_INVALID",
   UPSTREAM_RESPONSE_INVALID: "UPSTREAM_RESPONSE_INVALID",
   UPSTREAM_TIMEOUT: "UPSTREAM_TIMEOUT",
+  EMPLOYEE_PROFILE_LOOKUP_FAILED: "EMPLOYEE_PROFILE_LOOKUP_FAILED",
+  SESSION_CREATION_FAILED: "SESSION_CREATION_FAILED",
   UNKNOWN: "UNKNOWN",
 } as const;
 
@@ -98,45 +103,81 @@ export async function GET(request: NextRequest) {
   const store = await cookies();
   const transactionId = store.get(TRANSACTION_COOKIE)?.value;
   store.delete(TRANSACTION_COOKIE);
-  if (!transactionId)
+  if (!transactionId) {
+    console.error(
+      "OIDC callback failed.",
+      CALLBACK_DIAGNOSTIC.TRANSACTION_MISSING,
+    );
     return NextResponse.redirect(
       new URL("/sign-in?error=callback", authConfig.appBaseUrl),
     );
+  }
   const redis = await getRedis();
   const raw = await redis.getDel(`auth-transaction:${transactionId}`);
-  if (!raw)
+  if (!raw) {
+    console.error(
+      "OIDC callback failed.",
+      CALLBACK_DIAGNOSTIC.TRANSACTION_ALREADY_CONSUMED,
+    );
     return NextResponse.redirect(
       new URL("/sign-in?error=callback", authConfig.appBaseUrl),
     );
+  }
+  const callbackFailure = (category: CallbackDiagnostic) => {
+    console.error("OIDC callback failed.", category);
+    return NextResponse.redirect(
+      new URL("/sign-in?error=callback", authConfig.appBaseUrl),
+    );
+  };
   try {
     const transaction = JSON.parse(raw) as AuthTransaction;
     const callbackUrl = new URL(request.url);
     callbackUrl.protocol = authConfig.appBaseUrl.protocol;
     callbackUrl.host = authConfig.appBaseUrl.host;
-    const tokens = await oidc.authorizationCodeGrant(
-      getOidcConfiguration(),
-      callbackUrl,
-      {
-        pkceCodeVerifier: transaction.codeVerifier,
-        expectedState: transaction.state,
-        expectedNonce: transaction.nonce,
-        idTokenExpected: true,
-      },
-    );
-    if (!tokens.access_token) throw new Error("Access token missing");
-    const employee = await fetchEmployeeProfile(tokens.access_token);
-    await createSession(tokens, employee);
+    if (callbackUrl.searchParams.get("state") !== transaction.state)
+      return callbackFailure(CALLBACK_DIAGNOSTIC.STATE_VALIDATION_FAILED);
+    if (!callbackUrl.searchParams.get("code"))
+      return callbackFailure(
+        CALLBACK_DIAGNOSTIC.AUTHORIZATION_RESPONSE_INVALID,
+      );
+    let tokens;
+    try {
+      tokens = await oidc.authorizationCodeGrant(
+        getOidcConfiguration(),
+        callbackUrl,
+        {
+          pkceCodeVerifier: transaction.codeVerifier,
+          expectedState: transaction.state,
+          expectedNonce: transaction.nonce,
+          idTokenExpected: true,
+        },
+      );
+    } catch (error) {
+      return callbackFailure(callbackErrorCategory(error));
+    }
+    if (!tokens.access_token)
+      return callbackFailure(CALLBACK_DIAGNOSTIC.TOKEN_RESPONSE_INVALID);
+    let employee;
+    try {
+      employee = await fetchEmployeeProfile(tokens.access_token);
+    } catch (error) {
+      if (error instanceof ProfileAccessDeniedError)
+        return NextResponse.redirect(
+          new URL("/access-denied", authConfig.appBaseUrl),
+        );
+      return callbackFailure(
+        CALLBACK_DIAGNOSTIC.EMPLOYEE_PROFILE_LOOKUP_FAILED,
+      );
+    }
+    try {
+      await createSession(tokens, employee);
+    } catch {
+      return callbackFailure(CALLBACK_DIAGNOSTIC.SESSION_CREATION_FAILED);
+    }
     return NextResponse.redirect(
       new URL(transaction.returnTo, authConfig.appBaseUrl),
     );
-  } catch (error) {
-    if (error instanceof ProfileAccessDeniedError)
-      return NextResponse.redirect(
-        new URL("/access-denied", authConfig.appBaseUrl),
-      );
-    console.error("OIDC callback failed.", callbackErrorCategory(error));
-    return NextResponse.redirect(
-      new URL("/sign-in?error=callback", authConfig.appBaseUrl),
-    );
+  } catch {
+    return callbackFailure(CALLBACK_DIAGNOSTIC.UNKNOWN);
   }
 }

@@ -1,8 +1,18 @@
 import enum
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -19,6 +29,29 @@ class ProjectRole(enum.StrEnum):
     CONTRIBUTOR = "CONTRIBUTOR"
 
 
+class TaskStatus(enum.StrEnum):
+    TODO = "TODO"
+    IN_PROGRESS = "IN_PROGRESS"
+    BLOCKED = "BLOCKED"
+    DONE = "DONE"
+    CANCELLED = "CANCELLED"
+
+
+class TaskPriority(enum.StrEnum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    URGENT = "URGENT"
+
+
+class TaskActivityType(enum.StrEnum):
+    CREATED = "CREATED"
+    METADATA_UPDATED = "METADATA_UPDATED"
+    ASSIGNMENT_CHANGED = "ASSIGNMENT_CHANGED"
+    STATUS_CHANGED = "STATUS_CHANGED"
+    COMMENT_ADDED = "COMMENT_ADDED"
+
+
 class Project(Base):
     __tablename__ = "projects"
 
@@ -31,6 +64,7 @@ class Project(Base):
     )
     creator_employee_id: Mapped[uuid.UUID] = mapped_column(index=True)
     version: Mapped[int] = mapped_column(Integer, default=1)
+    next_task_number: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
@@ -40,6 +74,9 @@ class Project(Base):
         onupdate=lambda: datetime.now(UTC),
     )
     memberships: Mapped[list["ProjectMembership"]] = relationship(
+        cascade="all, delete-orphan", back_populates="project"
+    )
+    tasks: Mapped[list["Task"]] = relationship(
         cascade="all, delete-orphan", back_populates="project"
     )
 
@@ -58,3 +95,74 @@ class ProjectMembership(Base):
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     project: Mapped[Project] = relationship(back_populates="memberships")
+
+
+class Task(Base):
+    __tablename__ = "tasks"
+    __table_args__ = (UniqueConstraint("project_id", "number"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    number: Mapped[int] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[TaskStatus] = mapped_column(
+        Enum(TaskStatus, name="task_status"), default=TaskStatus.TODO, index=True
+    )
+    priority: Mapped[TaskPriority] = mapped_column(
+        Enum(TaskPriority, name="task_priority"), default=TaskPriority.MEDIUM, index=True
+    )
+    assignee_employee_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True, index=True)
+    creator_employee_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+    project: Mapped[Project] = relationship(back_populates="tasks")
+    comments: Mapped[list["TaskComment"]] = relationship(
+        cascade="all, delete-orphan", back_populates="task"
+    )
+    activities: Mapped[list["TaskActivity"]] = relationship(
+        cascade="all, delete-orphan", back_populates="task"
+    )
+
+
+class TaskComment(Base):
+    __tablename__ = "task_comments"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    task_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tasks.id", ondelete="CASCADE"), index=True
+    )
+    author_employee_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True
+    )
+    task: Mapped[Task] = relationship(back_populates="comments")
+
+
+class TaskActivity(Base):
+    __tablename__ = "task_activities"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    task_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tasks.id", ondelete="CASCADE"), index=True
+    )
+    actor_employee_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    activity_type: Mapped[TaskActivityType] = mapped_column(
+        Enum(TaskActivityType, name="task_activity_type"), index=True
+    )
+    change_data: Mapped[dict[str, str | int | None]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True
+    )
+    task: Mapped[Task] = relationship(back_populates="activities")

@@ -1,6 +1,6 @@
 # Project progress
 
-Last updated: 2026-10-14
+Last updated: 2026-10-15
 
 ## Phase 1 — Project Foundation and Frontend Design System
 
@@ -96,4 +96,39 @@ multi-role browser lifecycle. Basic automated accessibility evidence is not
 accessibility certification. Subjective visual and UX redesign remains deferred
 to Phases 12 and 15. These limitations do not block Phase 4 functional acceptance,
 which does not claim final visual quality, performance or load-testing
-certification, or accessibility certification. Phase 5 has not started.
+certification, or accessibility certification.
+
+## Phase 5 — Task Management
+
+Status: **Accepted**
+
+Delivered:
+
+- Project-scoped tasks with concurrency-safe human-readable references,
+  priorities, assignment, due dates, optimistic versions, and an explicit status
+  state machine.
+- Paginated task lists, bounded board lanes, comments, and append-only activity
+  written atomically with domain mutations.
+- ADMIN, project-manager, assigned-contributor, and non-member authorization at
+  the gateway and Work Service boundaries.
+- Responsive task list, board, create, detail, edit, assignment, status, comment,
+  and activity interfaces.
+- Forward-only Work migration, clean and upgrade migration verification, real
+  PostgreSQL contention tests, multi-role browser coverage, and persistence and
+  outage recovery verification.
+
+The owner accepted Phase 5 on 2026-10-15 after automated functional,
+authorization, security, lifecycle, concurrency, persistence, outage, recovery,
+responsive-overflow, and basic accessibility verification passed. The accepted
+limitations are forward-only task, comment, and activity pagination;
+independently bounded board lanes with `hasMore`; deterministic PostgreSQL
+concurrency verification rather than performance or load certification; and a
+desktop-only multi-role lifecycle, while the essential lifecycle runs at desktop,
+768 px, and 390 px. Comments remain append-only plain text. Due dates remain
+date-only, and reminders are outside Phase 5.
+
+These limitations do not block Phase 5 acceptance. Automated accessibility
+evidence is not accessibility certification. Subjective visual and UX redesign
+remains deferred to Phases 12 and 15. Acceptance does not claim final visual
+quality, performance or load-testing certification, accessibility certification,
+or cross-service distributed transaction guarantees. Phase 6 has not started.

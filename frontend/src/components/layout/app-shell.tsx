@@ -12,7 +12,6 @@ import {
   CircleHelp,
   FolderKanban,
   LayoutDashboard,
-  ListTodo,
   Menu,
   Palette,
   Users,
@@ -30,7 +29,6 @@ import { UserMenu } from "@/components/layout/user-menu";
 const navigation = [
   { label: "Overview", href: "/", icon: LayoutDashboard },
   { label: "Projects", href: "/projects", icon: FolderKanban },
-  { label: "My tasks", icon: ListTodo, phase: 5 },
   { label: "Employees", href: "/employees", icon: Users },
   { label: "Workflows", icon: Workflow, phase: 10 },
   { label: "Background jobs", icon: Zap, phase: 6 },

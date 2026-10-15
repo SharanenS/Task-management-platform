@@ -167,4 +167,72 @@ describe("project management", () => {
       expectedVersion: 1,
     });
   });
+
+  it("keeps an assigned member visible when removal is rejected", async () => {
+    const project = {
+      id: "project-1",
+      key: "OPS",
+      name: "Operations",
+      description: null,
+      status: "ACTIVE",
+      creatorEmployeeId: "manager-1",
+      version: 1,
+      createdAt: "2026-10-14T00:00:00Z",
+      updatedAt: "2026-10-14T00:00:00Z",
+      memberships: [
+        {
+          id: "membership-1",
+          employeeId: "manager-1",
+          role: "PROJECT_MANAGER",
+          displayName: "Project Manager",
+          email: "manager@example.test",
+          createdAt: "2026-10-14T00:00:00Z",
+        },
+        {
+          id: "membership-2",
+          employeeId: "contributor-1",
+          role: "CONTRIBUTOR",
+          displayName: "Assigned Contributor",
+          email: "contributor@example.test",
+          createdAt: "2026-10-14T00:00:00Z",
+        },
+      ],
+    };
+    const fetch = vi.fn().mockImplementation(async (_url, init) => {
+      const request = JSON.parse(String(init.body));
+      return {
+        ok: true,
+        json: async () =>
+          request.operationName === "RemoveProjectMember"
+            ? {
+                errors: [
+                  {
+                    message:
+                      "Reassign the employee's tasks before removing project membership.",
+                    extensions: { code: "MEMBER_HAS_ASSIGNED_TASKS" },
+                  },
+                ],
+              }
+            : { data: { project } },
+      };
+    });
+    vi.stubGlobal("fetch", fetch);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(
+      <ProjectDetail
+        id="project-1"
+        employeeId="manager-1"
+        applicationRole="MANAGER"
+      />,
+    );
+    await screen.findByText("Assigned Contributor");
+    const removeButtons = screen.getAllByRole("button", { name: "Remove" });
+    fireEvent.click(removeButtons[1]);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Reassign the employee's tasks before removing project membership.",
+    );
+    expect(screen.getByText("Assigned Contributor")).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    confirm.mockRestore();
+  });
 });
