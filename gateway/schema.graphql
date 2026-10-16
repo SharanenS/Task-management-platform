@@ -65,7 +65,45 @@ The `JSON` scalar type represents JSON values as specified by [ECMA-404](https:/
 """
 scalar JSON @specifiedBy(url: "https://ecma-international.org/wp-content/uploads/ECMA-404_2nd_edition_december_2017.pdf")
 
+type Job {
+  id: ID!
+  jobType: JobType!
+  status: JobStatus!
+  submitterEmployeeId: ID!
+  payload: ProjectTaskExportPayload!
+  version: Int!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  attempts: [JobAttempt!]!
+}
+
+type JobAttempt {
+  id: ID!
+  attemptNumber: Int!
+  status: JobStatus!
+  createdAt: DateTime!
+}
+
+type JobConnection {
+  nodes: [Job!]!
+  pageInfo: PageInfo!
+}
+
+enum JobStatus {
+  SUBMITTED
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum JobType {
+  PROJECT_TASK_EXPORT
+}
+
 type Mutation {
+  submitProjectTaskExport(input: SubmitProjectTaskExportInput!): Job!
   provisionEmployee(input: ProvisionEmployeeInput!): AdminEmployee!
   updateEmployeeRole(employeeId: ID!, role: ApplicationRole!): AdminEmployee!
   setEmployeeActive(employeeId: ID!, active: Boolean!): AdminEmployee!
@@ -126,6 +164,12 @@ enum ProjectStatus {
   ARCHIVED
 }
 
+type ProjectTaskExportPayload {
+  projectId: ID!
+  format: String!
+  includeCompleted: Boolean!
+}
+
 input ProvisionEmployeeInput {
   idempotencyKey: String!
   username: String!
@@ -144,6 +188,8 @@ enum ProvisioningStatus {
 type Query {
   systemInfo: SystemInfo!
   me: Employee!
+  jobs(first: Int! = 20, after: String = null, status: JobStatus = null, jobType: JobType = null): JobConnection!
+  job(id: ID!): Job!
   employees(first: Int! = 20, after: String = null, search: String = null, role: ApplicationRole = null, active: Boolean = null): EmployeeConnection!
   employee(id: ID!): AdminEmployee!
   projects(first: Int! = 20, after: String = null, search: String = null, status: ProjectStatus = null): ProjectConnection!
@@ -154,6 +200,12 @@ type Query {
   task(projectId: ID!, taskId: ID!): Task!
   taskComments(projectId: ID!, taskId: ID!, first: Int! = 20, after: String = null): TaskCommentConnection!
   taskActivity(projectId: ID!, taskId: ID!, first: Int! = 20, after: String = null): TaskActivityConnection!
+}
+
+input SubmitProjectTaskExportInput {
+  projectId: ID!
+  includeCompleted: Boolean! = true
+  idempotencyKey: String!
 }
 
 type SystemInfo {

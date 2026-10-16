@@ -28,6 +28,23 @@ from app.employee_client import (
     update_admin_employee_role,
     validate_eligible_employee,
 )
+from app.job_client import (
+    JobDomainError,
+    JobRecord,
+    JobUnavailableError,
+)
+from app.job_client import (
+    get_job as job_get_job,
+)
+from app.job_client import (
+    list_attempts as job_list_attempts,
+)
+from app.job_client import (
+    list_jobs as job_list_jobs,
+)
+from app.job_client import (
+    submit_job as job_submit_job,
+)
 from app.work_client import (
     WorkDomainError,
     WorkMembership,
@@ -149,6 +166,21 @@ class TaskActivityType(StrEnum):
     ASSIGNMENT_CHANGED = "ASSIGNMENT_CHANGED"
     STATUS_CHANGED = "STATUS_CHANGED"
     COMMENT_ADDED = "COMMENT_ADDED"
+
+
+@strawberry.enum
+class JobType(StrEnum):
+    PROJECT_TASK_EXPORT = "PROJECT_TASK_EXPORT"
+
+
+@strawberry.enum
+class JobStatus(StrEnum):
+    SUBMITTED = "SUBMITTED"
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
 
 
 @strawberry.type
@@ -298,6 +330,40 @@ class TaskActivityConnection:
     page_info: PageInfo
 
 
+@strawberry.type
+class ProjectTaskExportPayload:
+    project_id: strawberry.ID
+    format: str
+    include_completed: bool
+
+
+@strawberry.type
+class JobAttempt:
+    id: strawberry.ID
+    attempt_number: int
+    status: JobStatus
+    created_at: datetime
+
+
+@strawberry.type
+class Job:
+    id: strawberry.ID
+    job_type: JobType
+    status: JobStatus
+    submitter_employee_id: strawberry.ID
+    payload: ProjectTaskExportPayload
+    version: int
+    created_at: datetime
+    updated_at: datetime
+    attempts: list[JobAttempt]
+
+
+@strawberry.type
+class JobConnection:
+    nodes: list[Job]
+    page_info: PageInfo
+
+
 @strawberry.input
 class ProvisionEmployeeInput:
     idempotency_key: str
@@ -339,6 +405,13 @@ class UpdateTaskInput:
     priority: TaskPriority
     due_date: date | None
     expected_version: int
+
+
+@strawberry.input
+class SubmitProjectTaskExportInput:
+    project_id: strawberry.ID
+    include_completed: bool = True
+    idempotency_key: str
 
 
 def _admin_employee(profile: EmployeeAdminProfile) -> AdminEmployee:
@@ -450,6 +523,37 @@ async def _enriched_task(subject: str, actor: EmployeeProfile, value: WorkTask) 
     return (await _enriched_tasks(subject, project, [value]))[0]
 
 
+def _job_value(value: JobRecord, attempts: list[JobAttempt] | None = None) -> Job:
+    try:
+        project_id = value.payload["projectId"]
+        format_value = value.payload["format"]
+        include_completed = value.payload["includeCompleted"]
+        if (
+            not isinstance(project_id, str)
+            or format_value != "CSV"
+            or not isinstance(include_completed, bool)
+        ):
+            raise ValueError
+        payload = ProjectTaskExportPayload(
+            project_id=strawberry.ID(project_id),
+            format=format_value,
+            include_completed=include_completed,
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise JobUnavailableError from error
+    return Job(
+        id=strawberry.ID(value.id),
+        job_type=JobType(value.job_type),
+        status=JobStatus(value.status),
+        submitter_employee_id=strawberry.ID(value.submitter_employee_id),
+        payload=payload,
+        version=value.version,
+        created_at=datetime.fromisoformat(value.created_at),
+        updated_at=datetime.fromisoformat(value.updated_at),
+        attempts=attempts or [],
+    )
+
+
 async def _project_actor(info: Info) -> tuple[str, EmployeeProfile]:
     try:
         identity = token_validator.validate(info.context["authorization"])
@@ -480,6 +584,34 @@ def _raise_project_error(error: Exception) -> NoReturn:
         ) from error
     if isinstance(error, EmployeeDomainError):
         raise GraphQLError(error.message, extensions={"code": error.code}) from error
+    raise error
+
+
+def _raise_job_error(error: Exception) -> NoReturn:
+    if isinstance(error, JobDomainError):
+        messages = {
+            "IDEMPOTENCY_CONFLICT": "The idempotency key is already in use.",
+            "INVALID_CURSOR": "The job cursor is invalid.",
+            "INVALID_PAGE_SIZE": "The page size must be between 1 and 50.",
+            "JOB_NOT_FOUND": "The job was not found.",
+            "INVALID_INPUT": "The job input is invalid.",
+        }
+        message = messages.get(error.code)
+        if message is None:
+            raise GraphQLError(
+                "Job management is temporarily unavailable.",
+                extensions={"code": "SERVICE_UNAVAILABLE"},
+            ) from error
+        raise GraphQLError(message, extensions={"code": error.code}) from error
+    if isinstance(error, (JobUnavailableError, EmployeeUnavailableError, WorkUnavailableError)):
+        raise GraphQLError(
+            "Job management is temporarily unavailable.",
+            extensions={"code": "SERVICE_UNAVAILABLE"},
+        ) from error
+    if isinstance(error, WorkDomainError):
+        raise GraphQLError(
+            "The referenced project is unavailable.", extensions={"code": error.code}
+        ) from error
     raise error
 
 
@@ -555,6 +687,52 @@ class Query:
             email=profile.email,
             role=ApplicationRole(profile.role),
         )
+
+    @strawberry.field
+    async def jobs(
+        self,
+        info: Info,
+        first: int = 20,
+        after: str | None = None,
+        status: JobStatus | None = None,
+        job_type: JobType | None = None,
+    ) -> JobConnection:
+        _, actor = await _project_actor(info)
+        try:
+            page = await job_list_jobs(
+                actor,
+                first=first,
+                after=after,
+                status=status.value if status else None,
+                job_type=job_type.value if job_type else None,
+            )
+            return JobConnection(
+                nodes=[_job_value(value) for value in page.items],
+                page_info=PageInfo(has_next_page=page.has_next_page, end_cursor=page.next_cursor),
+            )
+        except (JobDomainError, JobUnavailableError, EmployeeUnavailableError) as error:
+            _raise_job_error(error)
+
+    @strawberry.field
+    async def job(self, info: Info, id: strawberry.ID) -> Job:
+        _, actor = await _project_actor(info)
+        try:
+            value = await job_get_job(actor, str(id))
+            attempts = await job_list_attempts(actor, str(id))
+            return _job_value(
+                value,
+                [
+                    JobAttempt(
+                        id=strawberry.ID(attempt.id),
+                        attempt_number=attempt.attempt_number,
+                        status=JobStatus(attempt.status),
+                        created_at=datetime.fromisoformat(attempt.created_at),
+                    )
+                    for attempt in attempts
+                ],
+            )
+        except (JobDomainError, JobUnavailableError, EmployeeUnavailableError) as error:
+            _raise_job_error(error)
 
     @strawberry.field
     async def employees(
@@ -818,6 +996,30 @@ class Query:
 
 @strawberry.type
 class Mutation:
+    @strawberry.mutation
+    async def submit_project_task_export(
+        self, info: Info, input: SubmitProjectTaskExportInput
+    ) -> Job:
+        _, actor = await _project_actor(info)
+        try:
+            await work_get_project(actor, str(input.project_id))
+            return _job_value(
+                await job_submit_job(
+                    actor,
+                    project_id=str(input.project_id),
+                    include_completed=input.include_completed,
+                    idempotency_key=input.idempotency_key,
+                )
+            )
+        except (
+            JobDomainError,
+            JobUnavailableError,
+            WorkDomainError,
+            WorkUnavailableError,
+            EmployeeUnavailableError,
+        ) as error:
+            _raise_job_error(error)
+
     @strawberry.mutation
     async def provision_employee(self, info: Info, input: ProvisionEmployeeInput) -> AdminEmployee:
         subject = await _admin_subject(info)

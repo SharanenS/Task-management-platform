@@ -31,7 +31,7 @@ const navigation = [
   { label: "Projects", href: "/projects", icon: FolderKanban },
   { label: "Employees", href: "/employees", icon: Users },
   { label: "Workflows", icon: Workflow, phase: 10 },
-  { label: "Background jobs", icon: Zap, phase: 6 },
+  { label: "Jobs", href: "/jobs", icon: Zap },
 ];
 const foundation = [
   { label: "System status", href: "/system", icon: Activity },
@@ -171,7 +171,9 @@ export function AppShell({
           ? "Employees"
           : pathname.startsWith("/projects")
             ? "Projects"
-            : "Overview";
+            : pathname.startsWith("/jobs")
+              ? "Jobs"
+              : "Overview";
   return (
     <div className="min-h-screen">
       <a

@@ -1,0 +1,57 @@
+query Jobs(
+  $first: Int!
+  $after: String
+  $status: JobStatus
+  $jobType: JobType
+) {
+  jobs(first: $first, after: $after, status: $status, jobType: $jobType) {
+    nodes {
+      id
+      jobType
+      status
+      submitterEmployeeId
+      payload {
+        projectId
+        format
+        includeCompleted
+      }
+      version
+      createdAt
+      updatedAt
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+
+query JobDetail($id: ID!) {
+  job(id: $id) {
+    id
+    jobType
+    status
+    submitterEmployeeId
+    payload {
+      projectId
+      format
+      includeCompleted
+    }
+    version
+    createdAt
+    updatedAt
+    attempts {
+      id
+      attemptNumber
+      status
+      createdAt
+    }
+  }
+}
+
+mutation SubmitProjectTaskExport($input: SubmitProjectTaskExportInput!) {
+  submitProjectTaskExport(input: $input) {
+    id
+    status
+  }
+}

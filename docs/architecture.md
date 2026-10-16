@@ -1,4 +1,4 @@
-# Architecture decisions — Phases 1–4
+# Architecture decisions — Phases 1–6
 
 ## Fixed boundaries
 
@@ -8,8 +8,31 @@ infrastructure endpoints are explicit HTTP exceptions. The gateway owns no domai
 data. Employee, Work Management, Workflow, and Job Execution remain independent
 bounded services, each with its own database and migrations when introduced.
 
-Employee Service and Work Service are implemented. Workflow, queues, and job
-execution remain outside Phase 4.
+Employee Service, Work Service, and Job Service are implemented. Workflow, queues,
+and job execution remain outside Phase 6.
+
+## Job management
+
+Job Service owns durable job submissions, typed normalized payloads, canonical
+fingerprints, idempotency keys, lifecycle state, and attempt history in its own
+PostgreSQL schema. Its internal endpoint is unexposed and uses a credential distinct
+from Employee and Work Service credentials. The Gateway remains the only public
+business API.
+
+Phase 6 supports only `PROJECT_TASK_EXPORT` with a project UUID, fixed `CSV`
+format, and `includeCompleted` boolean. The Gateway reloads the current Employee
+profile and validates current project access through Work Service before creating
+the job. Job Service trusts neither client submitter IDs nor roles; it independently
+enforces ownership and ADMIN visibility from validated internal actor context.
+Only stable Employee and project identifiers are stored. No distributed transaction
+across Employee, Work, and Job services is claimed.
+
+Idempotency uniqueness is scoped to submitter and key in PostgreSQL. Canonically
+identical retries return the existing job, while conflicting reuse returns a fixed
+`IDEMPOTENCY_CONFLICT`. All Phase 6 jobs begin as `SUBMITTED`. The future lifecycle
+defines queued, running, succeeded, failed, and cancelled states, but Phase 6 has
+no public transition, RabbitMQ, Celery, worker, dispatch, attempt, progress, or
+result behavior. Attempt history is durably modeled and remains empty.
 
 ## Project management
 
@@ -160,8 +183,8 @@ Public registration is disabled. `scripts/bootstrap-development.ps1` reads only
 the ignored local `.env`, creates or updates a development Keycloak user, obtains
 its stable subject, and invokes an internal Employee Service bootstrap command.
 
-Keycloak, Employee Service PostgreSQL, Work Service PostgreSQL, and Redis each use
-a distinct named volume.
+Keycloak, Employee Service PostgreSQL, Work Service PostgreSQL, Job Service
+PostgreSQL, and Redis each use a distinct named volume.
 Readiness checks verify database connectivity or service endpoints before dependent
 containers start. Host-published ports bind to loopback.
 
@@ -182,6 +205,10 @@ containers start. Host-published ports bind to loopback.
 | Forged internal project actor context | Unexposed Work endpoint, dedicated service credential, and validated gateway actor context |
 | Membership race or orphaned project   | PostgreSQL constraints, locked mutations, version checks, and final-manager protection     |
 | Work Service information leakage      | Sanitized gateway mapping and bounded internal client behavior                             |
+| Unauthorized job access               | Current Employee reload plus independent Job Service owner/ADMIN enforcement               |
+| Forged internal job actor context     | Unexposed Job endpoint, dedicated credential, and validated Gateway actor context          |
+| Duplicate or conflicting submission   | Canonical fingerprint plus actor-scoped PostgreSQL uniqueness                              |
+| Job or dependency information leakage | Fixed Gateway errors, bounded clients, and concealed inaccessible job identifiers          |
 
 ## Dependency choices
 
@@ -190,5 +217,5 @@ token processing while the application retains transaction storage, cookie polic
 session lifecycle, authorization, and error handling. The official Redis client
 supports durable shared sessions and atomic lock acquisition. PyJWT performs strict
 gateway JWT validation with cached JWKS lookup. SQLAlchemy, Alembic, and psycopg
-provide explicit Employee Service and Work Service ownership of their respective
-models, migrations, and PostgreSQL schemas.
+provide explicit Employee Service, Work Service, and Job Service ownership of their
+respective models, migrations, and PostgreSQL schemas.

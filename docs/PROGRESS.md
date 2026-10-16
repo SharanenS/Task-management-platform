@@ -1,6 +1,6 @@
 # Project progress
 
-Last updated: 2026-10-15
+Last updated: 2026-10-16
 
 ## Phase 1 — Project Foundation and Frontend Design System
 
@@ -131,4 +131,39 @@ These limitations do not block Phase 5 acceptance. Automated accessibility
 evidence is not accessibility certification. Subjective visual and UX redesign
 remains deferred to Phases 12 and 15. Acceptance does not claim final visual
 quality, performance or load-testing certification, accessibility certification,
-or cross-service distributed transaction guarantees. Phase 6 has not started.
+or cross-service distributed transaction guarantees.
+
+## Phase 6 — Job Management
+
+Status: **Accepted**
+
+Delivered:
+
+- Independent Job Service and PostgreSQL database with a forward-only migration.
+- Typed `PROJECT_TASK_EXPORT` payloads, durable `SUBMITTED` jobs, empty attempt
+  history, and actor-scoped database-enforced idempotency.
+- Current-profile reload at the Gateway, Work Service project-access validation,
+  and independent Job Service owner/ADMIN enforcement.
+- Job directory, filters, visited-cursor pagination, submission, detail, retryable
+  failures, and explicit Phase 7 execution boundary.
+- Exact development-only cleanup by job UUID with no public cleanup endpoint.
+
+RabbitMQ and Celery are not configured, no worker is running, and no dispatch,
+execution progress, attempt, or result is fabricated. No cross-service distributed
+transaction, outbox, or reliability guarantee is claimed. Phase 7 has not started.
+
+Owner acceptance completed on 2026-10-16 after automated verification of durable
+job submission and persistence, typed payload validation, actor-scoped
+idempotency, concurrent PostgreSQL behavior, owner and ADMIN authorization,
+project-access enforcement, pagination, empty attempt history, responsive
+behavior, Job Service and Job PostgreSQL outage recovery, and exact disposable
+resource cleanup.
+
+Accepted limitations are one `PROJECT_TASK_EXPORT` job type, CSV output,
+forward-only service pagination, browser-session visited-cursor previous
+navigation, deterministic concurrency testing rather than performance or load
+certification, and no cross-service distributed transaction guarantee. Automated
+accessibility evidence is not accessibility certification. Subjective visual and
+UX redesign remains deferred to Phases 12 and 15. The ambiguous pre-existing
+Employee Administration identity remains untouched. These limitations do not
+block Phase 6 acceptance.

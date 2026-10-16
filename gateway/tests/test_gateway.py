@@ -15,6 +15,7 @@ from app.employee_client import (
     EmployeeProfile,
     EmployeeUnavailableError,
 )
+from app.job_client import JobDomainError, JobPage, JobRecord, JobUnavailableError
 from app.main import app
 from app.schema import schema
 from app.work_client import (
@@ -590,6 +591,144 @@ def test_assigned_member_removal_error_is_mapped_without_internal_leakage(
             "extensions": {"code": "MEMBER_HAS_ASSIGNED_TASKS"},
         }
     ]
+
+
+def job_record() -> JobRecord:
+    return JobRecord(
+        id="job-id",
+        job_type="PROJECT_TASK_EXPORT",
+        status="SUBMITTED",
+        submitter_employee_id="actor",
+        related_project_id="project-id",
+        payload={"projectId": "project-id", "format": "CSV", "includeCompleted": True},
+        result_summary=None,
+        failure_classification=None,
+        version=1,
+        created_at="2026-10-16T00:00:00+00:00",
+        updated_at="2026-10-16T00:00:00+00:00",
+    )
+
+
+@pytest.mark.parametrize("role", ["MEMBER", "MANAGER", "ADMIN"])
+def test_jobs_reload_current_profile_and_return_typed_owned_data(
+    monkeypatch: pytest.MonkeyPatch, role: str
+) -> None:
+    allow_admin(monkeypatch, role)
+
+    async def directory(*_: object, **__: object) -> JobPage:
+        return JobPage([job_record()], None, False)
+
+    monkeypatch.setattr("app.schema.job_list_jobs", directory)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": "{ jobs(first: 10) { nodes { id jobType status payload { projectId format includeCompleted } attempts { id } } } }"
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["data"]["jobs"]["nodes"] == [
+        {
+            "id": "job-id",
+            "jobType": "PROJECT_TASK_EXPORT",
+            "status": "SUBMITTED",
+            "payload": {"projectId": "project-id", "format": "CSV", "includeCompleted": True},
+            "attempts": [],
+        }
+    ]
+
+
+def test_missing_profile_denies_job_access_before_job_service(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.schema.token_validator.validate", lambda _: Identity(subject="missing-subject")
+    )
+
+    async def missing(_: str) -> EmployeeProfile:
+        raise EmployeeForbiddenError
+
+    called = False
+
+    async def directory(*_: object, **__: object) -> JobPage:
+        nonlocal called
+        called = True
+        raise AssertionError
+
+    monkeypatch.setattr("app.schema.get_employee", missing)
+    monkeypatch.setattr("app.schema.job_list_jobs", directory)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": "{ jobs { nodes { id } } }"},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"][0]["extensions"]["code"] == "FORBIDDEN"
+    assert called is False
+
+
+def test_submit_job_validates_project_before_job_service(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch, "MEMBER")
+    sequence: list[str] = []
+
+    async def project(*_: object, **__: object) -> WorkProject:
+        sequence.append("work")
+        return work_project()
+
+    async def submit(*_: object, **__: object) -> JobRecord:
+        sequence.append("job")
+        return job_record()
+
+    monkeypatch.setattr("app.schema.work_get_project", project)
+    monkeypatch.setattr("app.schema.job_submit_job", submit)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": 'mutation { submitProjectTaskExport(input: {projectId: "project-id", includeCompleted: true, idempotencyKey: "phase6-gateway-key-0001"}) { id status attempts { id } } }'
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["data"]["submitProjectTaskExport"] == {
+        "id": "job-id",
+        "status": "SUBMITTED",
+        "attempts": [],
+    }
+    assert sequence == ["work", "job"]
+
+
+@pytest.mark.parametrize(
+    ("error", "code", "message"),
+    [
+        (
+            JobDomainError("IDEMPOTENCY_CONFLICT", "private database detail"),
+            "IDEMPOTENCY_CONFLICT",
+            "The idempotency key is already in use.",
+        ),
+        (
+            JobUnavailableError(),
+            "SERVICE_UNAVAILABLE",
+            "Job management is temporarily unavailable.",
+        ),
+    ],
+)
+def test_job_errors_are_fixed_and_sanitized(
+    monkeypatch: pytest.MonkeyPatch, error: Exception, code: str, message: str
+) -> None:
+    allow_admin(monkeypatch)
+
+    async def directory(*_: object, **__: object) -> JobPage:
+        raise error
+
+    monkeypatch.setattr("app.schema.job_list_jobs", directory)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": "{ jobs { nodes { id } } }"},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"] == [{"message": message, "extensions": {"code": code}}]
+    assert "private database detail" not in str(result)
     serialized = str(result)
     assert "http://" not in serialized
     assert "private" not in serialized.lower()

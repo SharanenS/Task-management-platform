@@ -1,7 +1,7 @@
 # Enterprise Task Platform
 
 A GraphQL-first enterprise work platform, developed in verified full-stack slices.
-Phases 1–5 are accepted. Phase 6 has not started.
+Phases 1–6 are accepted. Phase 7 has not started.
 
 Phase 2 adds a protected Taskspace shell, Keycloak Authorization Code Flow with
 PKCE, Redis-backed server sessions, an Employee Service with its own PostgreSQL
@@ -46,6 +46,22 @@ Acceptance does not claim final visual quality, accessibility certification,
 performance or load-testing certification, or cross-service distributed
 transaction guarantees. Subjective visual and UX redesign remains deferred to
 Phases 12 and 15.
+
+Phase 6 adds durable `PROJECT_TASK_EXPORT` submissions, actor-scoped idempotency,
+owner and administrator visibility, an empty attempt-history foundation, and job
+directory, submission, and detail pages. Job Service owns its PostgreSQL schema
+and is reachable only through the public GraphQL Gateway. Every Phase 6 job remains
+truthfully `SUBMITTED`; RabbitMQ, Celery, workers, dispatch, and execution are not
+configured. Phase 7 has not started.
+
+The owner accepted Phase 6 on 2026-10-16 after automated verification of durable
+submission and persistence, typed payload validation, actor-scoped idempotency,
+concurrent PostgreSQL behavior, authorization, project access, pagination, empty
+attempt history, responsive behavior, service and database recovery, and exact
+disposable-resource cleanup. The accepted limitations and complete results are
+recorded in the Phase 6 verification report. Acceptance does not claim RabbitMQ,
+Celery, workers, dispatch, execution retry, cancellation, fabricated queue or
+execution state, a transactional outbox, or a delivery guarantee.
 
 ## Run with Docker
 
