@@ -1,4 +1,4 @@
-# Dependency review — 2026-10-14
+# Dependency review — 2026-10-16
 
 The Phase 1 npm audit reported 12 high-severity development dependency entries stemming
 from [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
@@ -28,11 +28,15 @@ service-specific lock files.
 Node 24 LTS is required by the current toolchain. `.nvmrc`, the npm engine
 constraint, and Docker images agree on that major version. Direct npm dependencies
 and transitive resolutions are locked. Python dependencies are pinned in
-`gateway/requirements.lock`, `services/employee/requirements.lock`, and
-`services/work/requirements.lock`; these locks include verification tooling and
+`gateway/requirements.lock`, `services/employee/requirements.lock`,
+`services/work/requirements.lock`, and `services/job/requirements.lock`; these locks include verification tooling and
 are also used by local containers. `services/work/requirements.in` records its
 direct dependencies; the lock contains the independently resolved pinned versions.
 Work Service uses the same reviewed FastAPI, SQLAlchemy, Alembic, psycopg,
 Pydantic, and Uvicorn package families as Employee Service, so Phase 4 introduces
 no new Python package family. Production image slimming and separate production
 dependency locks are deferred to deployment work.
+
+Job Service uses the same reviewed FastAPI, SQLAlchemy, Alembic, psycopg,
+Pydantic, and Uvicorn package families. Phase 6 introduces no new Python package
+family.

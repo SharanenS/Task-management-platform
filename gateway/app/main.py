@@ -44,6 +44,8 @@ class SafeGraphQLRouter(GraphQLRouter):
                     "FINAL_ADMIN",
                     "RECONCILIATION_REQUIRED",
                     "INVALID_CURSOR",
+                    "INVALID_PAGE_SIZE",
+                    "JOB_NOT_FOUND",
                     "PROJECT_KEY_CONFLICT",
                     "MEMBERSHIP_CONFLICT",
                     "VERSION_CONFLICT",

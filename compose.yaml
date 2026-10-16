@@ -50,6 +50,23 @@ services:
       retries: 12
     restart: unless-stopped
 
+  job-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: job
+      POSTGRES_USER: job
+      POSTGRES_PASSWORD: ${JOB_DB_PASSWORD:?Set JOB_DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${JOB_DB_PORT:-5437}:5432"
+    volumes:
+      - job_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U job -d job"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
   session-store:
     image: redis:8.4-alpine
     command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
@@ -131,6 +148,25 @@ services:
     init: true
     restart: unless-stopped
 
+  job:
+    build:
+      context: ./services/job
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://job:${JOB_DB_PASSWORD}@job-db:5432/job
+      INTERNAL_SERVICE_KEY: ${JOB_INTERNAL_SERVICE_KEY:?Set JOB_INTERNAL_SERVICE_KEY in .env}
+    depends_on:
+      job-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8040/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    init: true
+    restart: unless-stopped
+
   gateway:
     build:
       context: ./gateway
@@ -142,8 +178,10 @@ services:
       OIDC_AUDIENCE: taskspace-web
       EMPLOYEE_SERVICE_URL: http://employee:8020
       WORK_SERVICE_URL: http://work:8030
+      JOB_SERVICE_URL: http://job:8040
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
       WORK_INTERNAL_SERVICE_KEY: ${WORK_INTERNAL_SERVICE_KEY:?Set WORK_INTERNAL_SERVICE_KEY in .env}
+      JOB_INTERNAL_SERVICE_KEY: ${JOB_INTERNAL_SERVICE_KEY:?Set JOB_INTERNAL_SERVICE_KEY in .env}
     ports:
       - "127.0.0.1:${GATEWAY_PORT:-8010}:8000"
     depends_on:
@@ -152,6 +190,8 @@ services:
       employee:
         condition: service_healthy
       work:
+        condition: service_healthy
+      job:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
@@ -197,3 +237,4 @@ volumes:
   employee_data:
   session_data:
   work_data:
+  job_data:
