@@ -36,6 +36,7 @@ class JobRecord:
     version: int
     created_at: str
     updated_at: str
+    publication: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,26 @@ class JobAttemptRecord:
     failure_code: str | None
     retryable: bool
     safe_summary: str | None
+
+
+@dataclass(frozen=True)
+class PublicationRecord:
+    id: str
+    job_id: str
+    status: str
+    attempt_count: int
+    available_at: str
+    lease_expires_at: str | None
+    published_at: str | None
+    last_failure_classification: str | None
+    reconciliation_required: bool
+
+
+@dataclass(frozen=True)
+class PublicationPage:
+    items: list[PublicationRecord]
+    next_cursor: str | None
+    has_next_page: bool
 
 
 def _job(data: dict[str, Any]) -> JobRecord:
@@ -80,6 +101,7 @@ def _job(data: dict[str, Any]) -> JobRecord:
             data["version"],
             data["created_at"],
             data["updated_at"],
+            data.get("publication"),
         )
     except (KeyError, TypeError, ValueError) as error:
         raise JobUnavailableError from error
@@ -208,3 +230,39 @@ async def dispatch_job(actor: EmployeeProfile, *, job_id: str, expected_version:
             json={"expected_version": expected_version},
         )
     )
+
+
+async def list_publications(
+    actor: EmployeeProfile, *, first: int, after: str | None, status: str | None
+) -> PublicationPage:
+    data = await _request(
+        "GET",
+        "/internal/publications",
+        actor,
+        params={
+            "first": first,
+            **({"after": after} if after else {}),
+            **({"status": status} if status else {}),
+        },
+    )
+    try:
+        return PublicationPage(
+            [
+                PublicationRecord(
+                    item["id"],
+                    item["job_id"],
+                    item["status"],
+                    item["attempt_count"],
+                    item["available_at"],
+                    item.get("lease_expires_at"),
+                    item.get("published_at"),
+                    item.get("last_failure_classification"),
+                    item["reconciliation_required"],
+                )
+                for item in data["items"]
+            ],
+            data.get("next_cursor"),
+            data["has_next_page"],
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise JobUnavailableError from error

@@ -1,7 +1,7 @@
 # Enterprise Task Platform
 
 A GraphQL-first enterprise work platform, developed in verified full-stack slices.
-Phases 1–7 are accepted. Phase 8 and Phase 9 have not started.
+Phases 1–8 are accepted. Phase 9 has not started.
 
 Phase 2 adds a protected Taskspace shell, Keycloak Authorization Code Flow with
 PKCE, Redis-backed server sessions, an Employee Service with its own PostgreSQL
@@ -81,8 +81,30 @@ accepted limitations and complete results are recorded in the Phase 7 verificati
 report. Acceptance does not claim outbox reliability, guaranteed publication,
 execution recovery, fencing, stale-worker safety, performance or load-testing
 certification, accessibility certification, or final visual quality. Subjective
-visual and UX redesign remains deferred to Phases 12 and 15. Phase 8 transactional
-outbox work and Phase 9 distributed recovery have not started.
+visual and UX redesign remains deferred to Phases 12 and 15. At Phase 7
+acceptance, Phase 8 and Phase 9 had not started.
+
+Phase 8 replaces request-path broker publication with a transactional outbox. A
+manual dispatch atomically commits the `QUEUED` transition and one durable event;
+the independent `job-publisher` claims events with PostgreSQL leases, publishes
+the UUID-only message with confirmation, and retries fixed classified failures.
+Job detail separates execution from publication state, and administrators receive
+global publication diagnostics. Eligible committed events have at-least-once
+publication under the retry model; exactly-once delivery is not claimed. Phase 8
+was accepted by the owner on 2026-10-20 after automated functional,
+authorization, security, persistence, concurrency, migration, outage, recovery,
+responsive-overflow, and basic accessibility verification. Phase 9 has not
+started.
+
+Accepted Phase 8 limitations remain explicit: publication is at least once, not
+exactly once, and duplicate publication remains possible while worker idempotency
+prevents duplicate logical execution. Publisher leases govern publication only.
+Publisher health covers process liveness and PostgreSQL availability, not
+RabbitMQ or a durable heartbeat. There is no multi-replica publisher deployment
+or load certification. A worker crash after execution claim can still leave a job
+`RUNNING`; execution leases, fencing, stale-worker protection, the recovery
+daemon, and administrative execution retry belong to Phase 9. Subjective visual
+and UX redesign remains deferred to Phases 12 and 15.
 
 ## Run with Docker
 
@@ -219,4 +241,4 @@ changes, run `gateway/export_schema.py` and `npm run codegen`, then review both.
 | `docs/`                    | Architecture, dependency, progress, and verification records    |
 
 See [architecture](docs/architecture.md), [dependency review](docs/dependency-review.md),
-and [Phase 7 verification](docs/phase-7-verification.md).
+and [Phase 8 verification](docs/phase-8-verification.md).

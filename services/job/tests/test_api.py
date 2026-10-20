@@ -1,7 +1,6 @@
 import uuid
 from collections.abc import Generator
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -73,9 +72,7 @@ def test_submit_list_detail_and_empty_attempts() -> None:
     )
 
 
-def test_dispatch_endpoint_enforces_owner_version_and_state(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_dispatch_endpoint_enforces_owner_version_and_state() -> None:
     api = client()
     actor_headers = headers()
     submitted = api.post(
@@ -92,11 +89,6 @@ def test_dispatch_endpoint_enforces_owner_version_and_state(
         },
     ).json()
 
-    class Publisher:
-        def publish(self, _job_id: uuid.UUID) -> None:
-            return None
-
-    monkeypatch.setattr("app.main.publisher", lambda: Publisher())
     denied = api.post(
         f"/internal/jobs/{submitted['id']}/dispatch",
         headers=headers(),

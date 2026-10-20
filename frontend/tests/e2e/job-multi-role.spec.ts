@@ -19,6 +19,7 @@ const enabled =
 type Identity = {
   username: string;
   email: string;
+  role: "MEMBER" | "MANAGER";
   employeeId?: string;
   subject?: string;
 };
@@ -83,11 +84,14 @@ test("member ownership, non-owner concealment, and ADMIN override", async ({
   );
   test.setTimeout(240_000);
   const marker = Date.now().toString(36).toLowerCase();
-  const identities: Identity[] = ["owner", "outsider"].map((kind) => ({
-    username: `j6-${kind}-${marker}`,
-    email: `j6-${kind}-${marker}@example.test`,
-  }));
-  const [owner, outsider] = identities;
+  const identities: Identity[] = ["owner", "outsider", "manager"].map(
+    (kind) => ({
+      username: `j6-${kind}-${marker}`,
+      email: `j6-${kind}-${marker}@example.test`,
+      role: kind === "manager" ? "MANAGER" : "MEMBER",
+    }),
+  );
+  const [owner, outsider, manager] = identities;
   const projectKey = `JA-${marker.toUpperCase()}`;
   const idempotencyKey = `phase6-multi-role-${marker}`;
   let projectId: string | undefined;
@@ -113,7 +117,7 @@ test("member ownership, non-owner concealment, and ADMIN override", async ({
             username: identity.username,
             email: identity.email,
             displayName: identity.username.replaceAll("-", " "),
-            role: "MEMBER",
+            role: identity.role,
             active: true,
             temporaryPassword: env.PHASE4_E2E_TEMP_PASSWORD,
           },
@@ -300,6 +304,59 @@ test("member ownership, non-owner concealment, and ADMIN override", async ({
     ]);
     await admin.page.goto(`/jobs/${jobId}`);
     await expect(admin.page.getByText("Export result")).toBeVisible();
+
+    const adminPublications = await gql(
+      admin.page,
+      "query P($status: PublicationStatus) { jobPublications(first: 1, status: $status) { nodes { id status attemptCount lastFailureClassification reconciliationRequired } pageInfo { hasNextPage endCursor } } }",
+      { status: "PUBLISHED" },
+    );
+    expect(adminPublications.errors).toBeUndefined();
+    expect(adminPublications.data.jobPublications.nodes).toHaveLength(1);
+    expect(adminPublications.data.jobPublications.nodes[0].status).toBe(
+      "PUBLISHED",
+    );
+    expect(adminPublications.data.jobPublications.pageInfo).toHaveProperty(
+      "hasNextPage",
+    );
+    expect(JSON.stringify(adminPublications)).not.toMatch(
+      /leaseToken|amqp|rabbitmq|password|authorization|employee:8020|job:8030/i,
+    );
+    await admin.page.goto("/jobs/publications");
+    await expect(
+      admin.page.getByRole("heading", { name: "Publication diagnostics" }),
+    ).toBeVisible();
+    await admin.page
+      .getByRole("combobox", { name: /^Status/ })
+      .selectOption("PUBLISHED");
+    await expect(
+      admin.page.locator("strong").filter({ hasText: "PUBLISHED" }).first(),
+    ).toBeVisible();
+
+    await ownerSession.page.goto("/jobs/publications");
+    await expect(ownerSession.page).toHaveURL(/\/access-denied$/);
+    const memberDiagnostics = await gql(
+      ownerSession.page,
+      "query { jobPublications(first: 1) { nodes { id } } }",
+    );
+    expect(memberDiagnostics.errors[0].extensions.code).toBe("FORBIDDEN");
+    const ownerPublication = await gql(
+      ownerSession.page,
+      "query J($id: ID!) { job(id: $id) { id publication { status } } }",
+      { id: jobId },
+    );
+    expect(ownerPublication.data.job.publication.status).toBe("PUBLISHED");
+
+    const managerSession = await authenticatedPage(
+      browser,
+      manager.username,
+      env.PHASE4_E2E_PASSWORD!,
+    );
+    contexts.push(managerSession.context);
+    const managerDiagnostics = await gql(
+      managerSession.page,
+      "query { jobPublications(first: 1) { nodes { id } } }",
+    );
+    expect(managerDiagnostics.errors[0].extensions.code).toBe("FORBIDDEN");
 
     const permanent = await gql(ownerSession.page, operation, {
       input: {

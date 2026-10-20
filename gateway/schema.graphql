@@ -83,6 +83,7 @@ type Job {
   createdAt: DateTime!
   updatedAt: DateTime!
   attempts: [JobAttempt!]!
+  publication: JobPublication
 }
 
 type JobAttempt {
@@ -106,6 +107,17 @@ enum JobAttemptStatus {
 type JobConnection {
   nodes: [Job!]!
   pageInfo: PageInfo!
+}
+
+type JobPublication {
+  id: ID!
+  status: PublicationStatus!
+  attemptCount: Int!
+  nextRetryAt: DateTime
+  leaseExpiresAt: DateTime
+  publishedAt: DateTime
+  lastFailureClassification: String
+  reconciliationRequired: Boolean!
 }
 
 enum JobStatus {
@@ -205,10 +217,24 @@ enum ProvisioningStatus {
   RECONCILIATION_REQUIRED
 }
 
+type PublicationConnection {
+  nodes: [JobPublication!]!
+  pageInfo: PageInfo!
+}
+
+enum PublicationStatus {
+  PENDING
+  IN_FLIGHT
+  PUBLISHED
+  FAILED
+  RECONCILIATION_REQUIRED
+}
+
 type Query {
   systemInfo: SystemInfo!
   me: Employee!
   jobs(first: Int! = 20, after: String = null, status: JobStatus = null, jobType: JobType = null): JobConnection!
+  jobPublications(first: Int! = 20, after: String = null, status: PublicationStatus = null): PublicationConnection!
   job(id: ID!): Job!
   employees(first: Int! = 20, after: String = null, search: String = null, role: ApplicationRole = null, active: Boolean = null): EmployeeConnection!
   employee(id: ID!): AdminEmployee!

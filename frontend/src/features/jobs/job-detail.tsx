@@ -42,7 +42,14 @@ export function JobDetail({ id }: { id: string }) {
     return () => clearTimeout(timer);
   }, [load]);
   useEffect(() => {
-    if (!data || !["QUEUED", "RUNNING"].includes(data.status)) return;
+    if (
+      !data ||
+      (!["QUEUED", "RUNNING"].includes(data.status) &&
+        !["PENDING", "IN_FLIGHT", "FAILED"].includes(
+          data.publication?.status ?? "",
+        ))
+    )
+      return;
     const timer = window.setInterval(() => void load(true), 2_000);
     return () => clearInterval(timer);
   }, [data, load]);
@@ -151,6 +158,21 @@ export function JobDetail({ id }: { id: string }) {
         </Card>
       ) : null}
       <Card className="p-6">
+        <h2 className="font-semibold">Publication</h2>
+        <p className="mt-3 text-sm">
+          {data.publication
+            ? data.publication.status === "FAILED"
+              ? "Retry scheduled"
+              : data.publication.status.replaceAll("_", " ")
+            : "Not requested"}
+        </p>
+        {data.publication ? (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Publication attempts: {data.publication.attemptCount}
+          </p>
+        ) : null}
+      </Card>
+      <Card className="p-6">
         <h2 className="font-semibold">Submitted payload</h2>
         <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
           <div>
@@ -221,8 +243,8 @@ export function JobDetail({ id }: { id: string }) {
         </Card>
       ) : null}
       <p className="text-sm text-muted-foreground">
-        Dispatch uses direct broker publication. A rare failure between database
-        commit and broker confirmation can require a manual retry.
+        Dispatch durably records publication intent. Publication and execution
+        continue automatically when dependencies recover.
       </p>
     </div>
   );

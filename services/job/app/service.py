@@ -1,16 +1,24 @@
 import base64
 import hashlib
 import json
+import secrets
 from dataclasses import dataclass
-from datetime import UTC, datetime
-from typing import Protocol
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import AttemptStatus, Job, JobAttempt, JobStatus, JobType
+from app.models import (
+    AttemptStatus,
+    Job,
+    JobAttempt,
+    JobStatus,
+    JobType,
+    OutboxEvent,
+    PublicationStatus,
+)
 from app.schemas import JobSubmissionRequest
 
 MAX_PAYLOAD_BYTES = 1024
@@ -37,22 +45,19 @@ class Page:
     has_next_page: bool
 
 
+@dataclass(frozen=True)
+class PublicationPage:
+    items: list[OutboxEvent]
+    next_cursor: str | None
+    has_next_page: bool
+
+
 class JobError(Exception):
     def __init__(self, code: str, message: str, status_code: int = 400):
         super().__init__(message)
         self.code = code
         self.message = message
         self.status_code = status_code
-
-
-class Publisher(Protocol):
-    def publish(self, job_id: UUID) -> None: ...
-
-
-class PublishFailure(Exception):
-    def __init__(self, *, ambiguous: bool = False) -> None:
-        super().__init__("Job publication failed.")
-        self.ambiguous = ambiguous
 
 
 def normalize_request(body: JobSubmissionRequest) -> tuple[dict[str, object], str]:
@@ -166,6 +171,46 @@ def list_jobs(
     return Page(items, _cursor(items[-1]) if has_next_page else None, has_next_page)
 
 
+def list_publications(
+    session: Session,
+    actor: Actor,
+    *,
+    first: int = 20,
+    after: str | None = None,
+    status: PublicationStatus | None = None,
+) -> PublicationPage:
+    if actor.application_role != "ADMIN":
+        raise JobError("FORBIDDEN", "Administrator access is required.", 403)
+    if first < 1 or first > 50:
+        raise JobError("INVALID_PAGE_SIZE", "The page size must be between 1 and 50.")
+    statement = select(OutboxEvent)
+    if status:
+        statement = statement.where(OutboxEvent.status == status)
+    if after:
+        created_at, event_id = _decode_cursor(after)
+        statement = statement.where(
+            or_(
+                OutboxEvent.created_at < created_at,
+                and_(OutboxEvent.created_at == created_at, OutboxEvent.id < event_id),
+            )
+        )
+    items = list(
+        session.scalars(
+            statement.order_by(OutboxEvent.created_at.desc(), OutboxEvent.id.desc()).limit(
+                first + 1
+            )
+        )
+    )
+    has_next_page = len(items) > first
+    items = items[:first]
+    cursor = None
+    if has_next_page:
+        last = items[-1]
+        raw = json.dumps([last.created_at.isoformat(), str(last.id)], separators=(",", ":"))
+        cursor = base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
+    return PublicationPage(items, cursor, has_next_page)
+
+
 def get_job(session: Session, actor: Actor, job_id: UUID) -> Job:
     job = session.get(Job, job_id)
     if job is None or (
@@ -191,7 +236,7 @@ def dispatch_job(
     actor: Actor,
     job_id: UUID,
     expected_version: int,
-    publisher: Publisher,
+    _obsolete_publisher: object | None = None,
 ) -> Job:
     job = session.scalar(select(Job).where(Job.id == job_id).with_for_update())
     if job is None or (
@@ -206,22 +251,97 @@ def dispatch_job(
         )
     job.status = JobStatus.QUEUED
     job.version += 1
-    queued_version = job.version
-    session.commit()
-    session.refresh(job)
+    session.add(
+        OutboxEvent(
+            job_id=job.id,
+            event_type="EXECUTE_JOB",
+            schema_version=1,
+            status=PublicationStatus.PENDING,
+        )
+    )
     try:
-        publisher.publish(job.id)
-    except PublishFailure as error:
-        if not error.ambiguous:
-            current = session.scalar(select(Job).where(Job.id == job.id).with_for_update())
-            if current and current.status == JobStatus.QUEUED and current.version == queued_version:
-                current.status = JobStatus.SUBMITTED
-                current.version += 1
-                session.commit()
+        session.commit()
+    except IntegrityError:
+        session.rollback()
         raise JobError(
-            "BROKER_UNAVAILABLE", "Job dispatch is temporarily unavailable.", 503
+            "JOB_NOT_DISPATCHABLE", "The job cannot be dispatched in its current state.", 409
         ) from None
+    session.refresh(job)
     return job
+
+
+def claim_publications(
+    session: Session, *, batch_size: int = 20, lease_seconds: int = 30, now: datetime | None = None
+) -> list[OutboxEvent]:
+    current = now or datetime.now(UTC)
+    eligible = or_(
+        and_(
+            OutboxEvent.status.in_([PublicationStatus.PENDING, PublicationStatus.FAILED]),
+            OutboxEvent.available_at <= current,
+        ),
+        and_(
+            OutboxEvent.status == PublicationStatus.IN_FLIGHT,
+            OutboxEvent.lease_expires_at <= current,
+        ),
+    )
+    events = list(
+        session.scalars(
+            select(OutboxEvent)
+            .where(eligible)
+            .order_by(OutboxEvent.created_at, OutboxEvent.id)
+            .limit(min(max(batch_size, 1), 100))
+            .with_for_update(skip_locked=True)
+        )
+    )
+    for event in events:
+        event.status = PublicationStatus.IN_FLIGHT
+        event.lease_token = secrets.token_hex(24)
+        event.lease_expires_at = current + timedelta(seconds=lease_seconds)
+        event.attempt_count += 1
+    session.commit()
+    return events
+
+
+def settle_publication_success(session: Session, event_id: UUID, lease_token: str) -> bool:
+    event = session.scalar(select(OutboxEvent).where(OutboxEvent.id == event_id).with_for_update())
+    if (
+        not event
+        or event.status != PublicationStatus.IN_FLIGHT
+        or not secrets.compare_digest(event.lease_token or "", lease_token)
+    ):
+        session.rollback()
+        return False
+    event.status = PublicationStatus.PUBLISHED
+    event.published_at = datetime.now(UTC)
+    event.lease_token = None
+    event.lease_expires_at = None
+    event.last_failure_classification = None
+    session.commit()
+    return True
+
+
+def settle_publication_failure(
+    session: Session, event_id: UUID, lease_token: str, classification: str
+) -> bool:
+    allowed = {"CONNECTION_FAILED", "CONFIRMATION_REJECTED", "CONFIRMATION_AMBIGUOUS"}
+    fixed = classification if classification in allowed else "PUBLICATION_FAILED"
+    event = session.scalar(select(OutboxEvent).where(OutboxEvent.id == event_id).with_for_update())
+    if (
+        not event
+        or event.status != PublicationStatus.IN_FLIGHT
+        or not secrets.compare_digest(event.lease_token or "", lease_token)
+    ):
+        session.rollback()
+        return False
+    event.status = PublicationStatus.FAILED
+    event.available_at = datetime.now(UTC) + timedelta(
+        seconds=min(2 ** min(event.attempt_count, 6), 60)
+    )
+    event.last_failure_classification = fixed
+    event.lease_token = None
+    event.lease_expires_at = None
+    session.commit()
+    return True
 
 
 def claim_job(session: Session, job_id: UUID) -> JobAttempt | None:

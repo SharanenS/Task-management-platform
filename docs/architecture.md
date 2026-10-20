@@ -1,4 +1,4 @@
-# Architecture decisions — Phases 1–7
+# Architecture decisions — Phases 1–8
 
 ## Fixed boundaries
 
@@ -8,8 +8,9 @@ infrastructure endpoints are explicit HTTP exceptions. The gateway owns no domai
 data. Employee, Work Management, Workflow, and Job Execution remain independent
 bounded services, each with its own database and migrations when introduced.
 
-Employee Service, Work Service, and Job Service are implemented. Phase 7 adds the
-first RabbitMQ/Celery execution slice; workflow automation remains outside scope.
+Employee Service, Work Service, and Job Service are implemented. Phase 8 adds a
+transactional publication outbox and independent publisher to the RabbitMQ/Celery
+execution slice; workflow automation remains outside scope.
 
 ## Job management
 
@@ -29,9 +30,10 @@ across Employee, Work, and Job services is claimed.
 
 Idempotency uniqueness is scoped to submitter and key in PostgreSQL. Canonically
 identical retries return the existing job, while conflicting reuse returns a fixed
-`IDEMPOTENCY_CONFLICT`. All jobs begin as `SUBMITTED`. Phase 7 dispatch locks the
-job, checks its expected version, commits `QUEUED`, and publishes only its UUID
-through an isolated Job Service publisher. RabbitMQ uses a durable direct exchange
+`IDEMPOTENCY_CONFLICT`. All jobs begin as `SUBMITTED`. Phase 8 dispatch locks the
+job, checks its expected version, and atomically commits `QUEUED` with one unique
+outbox event. A separate Job Service publisher leases eligible events and publishes
+only the job UUID. RabbitMQ uses a durable direct exchange
 and queue, persistent JSON messages, a single allowlisted routing key, and
 publisher confirms. One Celery worker consumes only that queue with late
 acknowledgement, worker-loss rejection, prefetch one, bounded concurrency, and
@@ -45,11 +47,12 @@ truncation marker, and completion time. Permanent failure stores only a fixed
 classification. Allowlisted dependency failures receive at most two bounded
 Celery retries, each represented by durable attempt state.
 
-Direct publication is temporary. A process crash after the `QUEUED` commit and
-before publication can leave an unpublished job. A lost confirmation can make the
-publication result ambiguous and produce duplicate delivery. Idempotent claim
-prevents duplicate execution but does not guarantee publication. Phase 8 will
-replace this path with a transactional outbox. A worker crash after claim can
+Publisher confirmation can remain ambiguous and produce duplicate delivery.
+Expired publication leases are reclaimed, and lease-token settlement prevents a
+stale publisher from overwriting a newer claim. Idempotent worker claim prevents
+duplicate logical execution. Phase 8 guarantees at-least-once publication
+for eligible committed outbox events under its retry model; duplicate publication
+remains possible. A worker crash after claim can
 leave the job `RUNNING`; Phase 7 has no lease, fencing token, stale-worker guard,
 or recovery daemon. Those controls remain Phase 9 work.
 

@@ -50,6 +50,9 @@ test.describe("Docker-backed job management", () => {
       await expect(page).toHaveURL(/\/jobs\/[0-9a-f-]+$/);
       jobIds.push(page.url().split("/").at(-1)!);
       await expect(page.getByText("SUBMITTED", { exact: true })).toBeVisible();
+      await expect(
+        page.getByText("Not requested", { exact: true }),
+      ).toBeVisible();
       await expect(page.getByText("Format").locator("..")).toContainText("CSV");
       await expect(page.getByText("No execution attempts yet.")).toBeVisible();
       await page.getByRole("button", { name: "Dispatch job" }).click();
@@ -58,6 +61,7 @@ test.describe("Docker-backed job management", () => {
       await expect(page.getByText("SUCCEEDED", { exact: true })).toBeVisible({
         timeout: 30_000,
       });
+      await expect(page.getByText("PUBLISHED", { exact: true })).toBeVisible();
       await expect(page.getByText("Export result")).toBeVisible();
       await expect(
         page.getByRole("button", { name: "Download CSV" }),
