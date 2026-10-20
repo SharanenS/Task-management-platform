@@ -26,7 +26,7 @@ test.describe("Docker-backed job management", () => {
   test.skip(!enabled, "Set RUN_JOB_E2E=1 and development credentials.");
   test.describe.configure({ mode: "serial" });
 
-  test("administrator submits and inspects durable jobs without execution", async ({
+  test("administrator submits, dispatches, and downloads a durable export", async ({
     page,
   }) => {
     test.setTimeout(150_000);
@@ -51,28 +51,47 @@ test.describe("Docker-backed job management", () => {
       jobIds.push(page.url().split("/").at(-1)!);
       await expect(page.getByText("SUBMITTED", { exact: true })).toBeVisible();
       await expect(page.getByText("Format").locator("..")).toContainText("CSV");
+      await expect(page.getByText("No execution attempts yet.")).toBeVisible();
+      await page.getByRole("button", { name: "Dispatch job" }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await page.getByRole("button", { name: "Confirm dispatch" }).click();
+      await expect(page.getByText("SUCCEEDED", { exact: true })).toBeVisible({
+        timeout: 30_000,
+      });
+      await expect(page.getByText("Export result")).toBeVisible();
       await expect(
-        page.getByText(
-          "No execution attempts yet. Worker execution is introduced in Phase 7.",
-        ),
+        page.getByRole("button", { name: "Download CSV" }),
       ).toBeVisible();
-      await expect(
-        page.getByText(/Dispatch, retry, cancellation/),
-      ).toBeVisible();
+      await expect(page.getByText(/Attempt 1: SUCCEEDED/)).toBeVisible();
       await page.reload();
-      await expect(page.getByText("SUBMITTED", { exact: true })).toBeVisible();
+      await expect(page.getByText("SUCCEEDED", { exact: true })).toBeVisible();
       expect(
         await page.evaluate(() =>
           Object.keys(localStorage).concat(Object.keys(sessionStorage)),
         ),
       ).toEqual([]);
       expect(
-        await page.evaluate(
-          () =>
+        await page.evaluate(() => ({
+          noDocumentOverflow:
             document.documentElement.scrollWidth <=
-            document.documentElement.clientWidth,
-        ),
-      ).toBe(true);
+            document.documentElement.clientWidth + 1,
+          offenders: Array.from(
+            document.querySelectorAll<HTMLElement>("body *"),
+          )
+            .filter(
+              (element) =>
+                element.getBoundingClientRect().right > window.innerWidth + 1 ||
+                element.getBoundingClientRect().left < -1,
+            )
+            .map((element) => ({
+              tag: element.tagName,
+              role: element.getAttribute("role"),
+              text: element.textContent?.trim().slice(0, 60),
+              left: Math.round(element.getBoundingClientRect().left),
+              right: Math.round(element.getBoundingClientRect().right),
+            })),
+        })),
+      ).toEqual({ noDocumentOverflow: true, offenders: [] });
 
       const idempotencyKey = `phase6-e2e-${marker.toLowerCase()}`;
       const operation =

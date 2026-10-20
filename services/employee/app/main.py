@@ -42,6 +42,11 @@ def require_internal_service(x_internal_service_key: str = Header(default="")) -
         raise HTTPException(status_code=403, detail="Forbidden")
 
 
+def require_job_worker(x_job_worker_service_key: str = Header(default="")) -> None:
+    if not hmac.compare_digest(x_job_worker_service_key, settings.job_worker_service_key):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
 def actor_subject(x_actor_subject: str = Header(default="")) -> str:
     if not x_actor_subject:
         raise HTTPException(status_code=403, detail="Forbidden")
@@ -82,6 +87,17 @@ def liveness() -> dict[str, str]:
 def readiness(session: SessionDependency) -> dict[str, str]:
     session.execute(text("SELECT 1"))
     return {"status": "ready"}
+
+
+@app.get(
+    "/internal/execution/employees/{employee_id}",
+    dependencies=[Depends(require_job_worker)],
+)
+def execution_employee(employee_id: UUID, session: SessionDependency) -> dict[str, str | bool]:
+    employee = session.get(Employee, employee_id)
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Employee not available")
+    return {"id": str(employee.id), "role": employee.role.value, "active": employee.active}
 
 
 @app.get(

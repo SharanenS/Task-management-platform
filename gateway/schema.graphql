@@ -71,6 +71,14 @@ type Job {
   status: JobStatus!
   submitterEmployeeId: ID!
   payload: ProjectTaskExportPayload!
+  resultSummary: String
+  resultContent: String
+  resultContentType: String
+  resultChecksum: String
+  resultRowCount: Int
+  resultTruncated: Boolean
+  failureClassification: String
+  completedAt: DateTime
   version: Int!
   createdAt: DateTime!
   updatedAt: DateTime!
@@ -80,8 +88,19 @@ type Job {
 type JobAttempt {
   id: ID!
   attemptNumber: Int!
-  status: JobStatus!
-  createdAt: DateTime!
+  status: JobAttemptStatus!
+  startedAt: DateTime!
+  finishedAt: DateTime
+  failureCode: String
+  retryable: Boolean!
+  safeSummary: String
+}
+
+enum JobAttemptStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+  RETRY_SCHEDULED
 }
 
 type JobConnection {
@@ -103,6 +122,7 @@ enum JobType {
 }
 
 type Mutation {
+  dispatchJob(jobId: ID!, expectedVersion: Int!): Job!
   submitProjectTaskExport(input: SubmitProjectTaskExportInput!): Job!
   provisionEmployee(input: ProvisionEmployeeInput!): AdminEmployee!
   updateEmployeeRole(employeeId: ID!, role: ApplicationRole!): AdminEmployee!

@@ -1,5 +1,6 @@
 # ruff: noqa: E501
 import asyncio
+from dataclasses import replace
 from pathlib import Path
 
 import httpx
@@ -602,7 +603,13 @@ def job_record() -> JobRecord:
         related_project_id="project-id",
         payload={"projectId": "project-id", "format": "CSV", "includeCompleted": True},
         result_summary=None,
+        result_content=None,
+        result_content_type=None,
+        result_checksum=None,
+        result_row_count=None,
+        result_truncated=None,
         failure_classification=None,
+        completed_at=None,
         version=1,
         created_at="2026-10-16T00:00:00+00:00",
         updated_at="2026-10-16T00:00:00+00:00",
@@ -695,6 +702,72 @@ def test_submit_job_validates_project_before_job_service(monkeypatch: pytest.Mon
         "attempts": [],
     }
     assert sequence == ["work", "job"]
+
+
+def test_dispatch_job_revalidates_project_before_publish(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch, "MEMBER")
+    sequence: list[str] = []
+
+    async def current(*_: object, **__: object) -> JobRecord:
+        sequence.append("job-read")
+        return job_record()
+
+    async def project(*_: object, **__: object) -> WorkProject:
+        sequence.append("work")
+        return work_project()
+
+    async def dispatch(*_: object, **__: object) -> JobRecord:
+        sequence.append("dispatch")
+        value = job_record()
+        return replace(value, status="QUEUED", version=2)
+
+    monkeypatch.setattr("app.schema.job_get_job", current)
+    monkeypatch.setattr("app.schema.work_get_project", project)
+    monkeypatch.setattr("app.schema.job_dispatch_job", dispatch)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": 'mutation { dispatchJob(jobId: "job-id", expectedVersion: 1) { id status version } }'
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["data"]["dispatchJob"] == {"id": "job-id", "status": "QUEUED", "version": 2}
+    assert sequence == ["job-read", "work", "dispatch"]
+
+
+@pytest.mark.parametrize(
+    ("domain_code", "message"),
+    [
+        ("VERSION_CONFLICT", "The job changed before it could be dispatched."),
+        ("JOB_NOT_DISPATCHABLE", "The job cannot be dispatched in its current state."),
+        ("BROKER_UNAVAILABLE", "Job dispatch is temporarily unavailable."),
+    ],
+)
+def test_dispatch_job_errors_are_fixed(
+    monkeypatch: pytest.MonkeyPatch, domain_code: str, message: str
+) -> None:
+    allow_admin(monkeypatch)
+
+    async def current(*_: object, **__: object) -> JobRecord:
+        return job_record()
+
+    async def project(*_: object, **__: object) -> WorkProject:
+        return work_project()
+
+    async def dispatch(*_: object, **__: object) -> JobRecord:
+        raise JobDomainError(domain_code, "sensitive upstream detail")
+
+    monkeypatch.setattr("app.schema.job_get_job", current)
+    monkeypatch.setattr("app.schema.work_get_project", project)
+    monkeypatch.setattr("app.schema.job_dispatch_job", dispatch)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": 'mutation { dispatchJob(jobId: "job-id", expectedVersion: 1) { id } }'},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"] == [{"message": message, "extensions": {"code": domain_code}}]
 
 
 @pytest.mark.parametrize(

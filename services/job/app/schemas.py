@@ -23,6 +23,10 @@ class JobSubmissionRequest(StrictModel):
     idempotency_key: str = Field(min_length=16, max_length=100, pattern=r"^[A-Za-z0-9._:-]+$")
 
 
+class JobDispatchRequest(StrictModel):
+    expected_version: int = Field(ge=1)
+
+
 class JobResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
@@ -32,7 +36,13 @@ class JobResponse(BaseModel):
     related_project_id: UUID | None
     payload: dict[str, object]
     result_summary: str | None
+    result_content: str | None
+    result_content_type: str | None
+    result_checksum: str | None
+    result_row_count: int | None
+    result_truncated: bool | None
     failure_classification: str | None
+    completed_at: datetime | None
     version: int
     created_at: datetime
     updated_at: datetime
@@ -48,8 +58,12 @@ class JobAttemptResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     attempt_number: int
-    status: JobStatus
-    created_at: datetime
+    status: str
+    started_at: datetime
+    finished_at: datetime | None
+    failure_code: str | None
+    retryable: bool
+    safe_summary: str | None
 
 
 class JobAttemptPageResponse(BaseModel):

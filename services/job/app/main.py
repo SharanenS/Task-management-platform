@@ -9,14 +9,16 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db import get_session
 from app.models import JobStatus, JobType
+from app.publisher import publisher
 from app.schemas import (
     JobAttemptPageResponse,
     JobAttemptResponse,
+    JobDispatchRequest,
     JobPageResponse,
     JobResponse,
     JobSubmissionRequest,
 )
-from app.service import Actor, JobError, get_job, list_attempts, list_jobs, submit_job
+from app.service import Actor, JobError, dispatch_job, get_job, list_attempts, list_jobs, submit_job
 
 app = FastAPI(title="Job Service", docs_url=None, redoc_url=None, openapi_url=None)
 SessionDependency = Annotated[Session, Depends(get_session)]
@@ -123,5 +125,24 @@ def submit(
 ) -> JobResponse:
     try:
         return JobResponse.model_validate(submit_job(session, actor, body))
+    except JobError as error:
+        raise failure(error) from error
+
+
+@app.post(
+    "/internal/jobs/{job_id}/dispatch",
+    response_model=JobResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def dispatch(
+    job_id: UUID,
+    body: JobDispatchRequest,
+    session: SessionDependency,
+    actor: ActorDependency,
+) -> JobResponse:
+    try:
+        return JobResponse.model_validate(
+            dispatch_job(session, actor, job_id, body.expected_version, publisher())
+        )
     except JobError as error:
         raise failure(error) from error

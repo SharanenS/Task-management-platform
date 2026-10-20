@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     app_env: Literal["development", "test", "production"] = "development"
     database_url: str = "postgresql+psycopg://work:work@localhost:5436/work"
     internal_service_key: str = "development-only-placeholder"
+    job_worker_service_key: str = "development-job-worker-placeholder"
 
 
 settings = Settings()

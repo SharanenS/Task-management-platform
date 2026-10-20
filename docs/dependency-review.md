@@ -1,4 +1,4 @@
-# Dependency review — 2026-10-16
+# Dependency review — 2026-10-20
 
 The Phase 1 npm audit reported 12 high-severity development dependency entries stemming
 from [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
@@ -11,8 +11,9 @@ The full development audit still reported 12 high-severity entries through `brac
 in GraphQL Code Generator and Next.js ESLint dependency paths. npm offered only a
 forced, breaking downgrade of GraphQL Code Generator, so the finding remains
 documented with the repository-controlled input constraint above.
-The gateway, Employee Service, and Work Service Python locks reported no known
-vulnerabilities when checked with `pip-audit` 2.10.1.
+The Gateway, Employee Service, Work Service, and Job Service Python locks reported
+no known vulnerabilities when every pinned package was checked with `pip-audit`
+2.10.1. This includes the locked Celery transport dependency chain.
 
 Phase 2 adds `openid-client` 6.8.8 and `redis` 6.3.0. `openid-client` was selected
 for standards-compliant Authorization Code, PKCE, ID-token, and refresh processing;
@@ -40,3 +41,11 @@ dependency locks are deferred to deployment work.
 Job Service uses the same reviewed FastAPI, SQLAlchemy, Alembic, psycopg,
 Pydantic, and Uvicorn package families. Phase 6 introduces no new Python package
 family.
+
+Phase 7 adds Celery 5.6.3, Kombu 5.6.2, AMQP 5.4.1, and HTTPX 0.28.1 to the Job
+Service lock. Celery and Kombu provide the dedicated JSON-only worker and durable
+RabbitMQ routing; HTTPX provides bounded internal Employee and Work requests.
+RabbitMQ 3.13.7 is pinned to the locally verified immutable image digest
+`sha256:606d8c0d6b3c18d1da9afc53bc7cdb2a8d5486df91b5a9830e9e07626c9ae281` without
+publishing broker or management ports. The management interface remains
+unreachable from the host.

@@ -81,6 +81,22 @@ services:
       retries: 12
     restart: unless-stopped
 
+  rabbitmq:
+    image: rabbitmq@sha256:606d8c0d6b3c18d1da9afc53bc7cdb2a8d5486df91b5a9830e9e07626c9ae281
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:?Set RABBITMQ_USERNAME in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-jobs}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.5
     command: ["start-dev", "--import-realm", "--health-enabled=true", "--hostname=http://localhost:8080", "--hostname-backchannel-dynamic=true"]
@@ -113,6 +129,7 @@ services:
       APP_ENV: ${APP_ENV:-development}
       DATABASE_URL: postgresql+psycopg://employee:${EMPLOYEE_DB_PASSWORD}@employee-db:5432/employee
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
+      JOB_WORKER_SERVICE_KEY: ${JOB_WORKER_EMPLOYEE_SERVICE_KEY:?Set JOB_WORKER_EMPLOYEE_SERVICE_KEY in .env}
       KEYCLOAK_ADMIN_BASE_URL: http://keycloak:8080
       KEYCLOAK_REALM: taskspace
       KEYCLOAK_ADMIN_CLIENT_ID: taskspace-employee-admin
@@ -136,6 +153,7 @@ services:
       APP_ENV: ${APP_ENV:-development}
       DATABASE_URL: postgresql+psycopg://work:${WORK_DB_PASSWORD}@work-db:5432/work
       INTERNAL_SERVICE_KEY: ${WORK_INTERNAL_SERVICE_KEY:?Set WORK_INTERNAL_SERVICE_KEY in .env}
+      JOB_WORKER_SERVICE_KEY: ${JOB_WORKER_WORK_SERVICE_KEY:?Set JOB_WORKER_WORK_SERVICE_KEY in .env}
     depends_on:
       work-db:
         condition: service_healthy
@@ -155,8 +173,11 @@ services:
       APP_ENV: ${APP_ENV:-development}
       DATABASE_URL: postgresql+psycopg://job:${JOB_DB_PASSWORD}@job-db:5432/job
       INTERNAL_SERVICE_KEY: ${JOB_INTERNAL_SERVICE_KEY:?Set JOB_INTERNAL_SERVICE_KEY in .env}
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
     depends_on:
       job-db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8040/health/ready', timeout=3)"]
@@ -164,6 +185,36 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
+    init: true
+    restart: unless-stopped
+
+  job-worker:
+    build:
+      context: ./services/job
+    command: ["celery", "-A", "app.celery_app:celery_app", "worker", "--loglevel=INFO", "--queues=job.execution", "--hostname=job-worker@%h"]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://job:${JOB_DB_PASSWORD}@job-db:5432/job
+      EMPLOYEE_SERVICE_URL: http://employee:8020
+      WORK_SERVICE_URL: http://work:8030
+      WORKER_EMPLOYEE_SERVICE_KEY: ${JOB_WORKER_EMPLOYEE_SERVICE_KEY:?Set JOB_WORKER_EMPLOYEE_SERVICE_KEY in .env}
+      WORKER_WORK_SERVICE_KEY: ${JOB_WORKER_WORK_SERVICE_KEY:?Set JOB_WORKER_WORK_SERVICE_KEY in .env}
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+    depends_on:
+      job-db:
+        condition: service_healthy
+      employee:
+        condition: service_healthy
+      work:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.celery_app:celery_app inspect ping -d job-worker@$$HOSTNAME --timeout 5 | grep -q pong"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
     init: true
     restart: unless-stopped
 
@@ -238,3 +289,4 @@ volumes:
   session_data:
   work_data:
   job_data:
+  rabbitmq_data:

@@ -26,7 +26,13 @@ class JobRecord:
     related_project_id: str | None
     payload: dict[str, object]
     result_summary: str | None
+    result_content: str | None
+    result_content_type: str | None
+    result_checksum: str | None
+    result_row_count: int | None
+    result_truncated: bool | None
     failure_classification: str | None
+    completed_at: str | None
     version: int
     created_at: str
     updated_at: str
@@ -44,7 +50,11 @@ class JobAttemptRecord:
     id: str
     attempt_number: int
     status: str
-    created_at: str
+    started_at: str
+    finished_at: str | None
+    failure_code: str | None
+    retryable: bool
+    safe_summary: str | None
 
 
 def _job(data: dict[str, Any]) -> JobRecord:
@@ -60,7 +70,13 @@ def _job(data: dict[str, Any]) -> JobRecord:
             data.get("related_project_id"),
             payload,
             data.get("result_summary"),
+            data.get("result_content"),
+            data.get("result_content_type"),
+            data.get("result_checksum"),
+            data.get("result_row_count"),
+            data.get("result_truncated"),
             data.get("failure_classification"),
+            data.get("completed_at"),
             data["version"],
             data["created_at"],
             data["updated_at"],
@@ -146,7 +162,16 @@ async def list_attempts(actor: EmployeeProfile, job_id: str) -> list[JobAttemptR
     data = await _request("GET", f"/internal/jobs/{job_id}/attempts", actor)
     try:
         return [
-            JobAttemptRecord(item["id"], item["attempt_number"], item["status"], item["created_at"])
+            JobAttemptRecord(
+                item["id"],
+                item["attempt_number"],
+                item["status"],
+                item["started_at"],
+                item.get("finished_at"),
+                item.get("failure_code"),
+                item["retryable"],
+                item.get("safe_summary"),
+            )
             for item in data["items"]
         ]
     except (KeyError, TypeError, ValueError) as error:
@@ -170,5 +195,16 @@ async def submit_job(
                 },
                 "idempotency_key": idempotency_key,
             },
+        )
+    )
+
+
+async def dispatch_job(actor: EmployeeProfile, *, job_id: str, expected_version: int) -> JobRecord:
+    return _job(
+        await _request(
+            "POST",
+            f"/internal/jobs/{job_id}/dispatch",
+            actor,
+            json={"expected_version": expected_version},
         )
     )

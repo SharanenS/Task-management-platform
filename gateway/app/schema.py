@@ -34,6 +34,9 @@ from app.job_client import (
     JobUnavailableError,
 )
 from app.job_client import (
+    dispatch_job as job_dispatch_job,
+)
+from app.job_client import (
     get_job as job_get_job,
 )
 from app.job_client import (
@@ -181,6 +184,14 @@ class JobStatus(StrEnum):
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
+
+
+@strawberry.enum
+class JobAttemptStatus(StrEnum):
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    RETRY_SCHEDULED = "RETRY_SCHEDULED"
 
 
 @strawberry.type
@@ -341,8 +352,12 @@ class ProjectTaskExportPayload:
 class JobAttempt:
     id: strawberry.ID
     attempt_number: int
-    status: JobStatus
-    created_at: datetime
+    status: JobAttemptStatus
+    started_at: datetime
+    finished_at: datetime | None
+    failure_code: str | None
+    retryable: bool
+    safe_summary: str | None
 
 
 @strawberry.type
@@ -352,6 +367,14 @@ class Job:
     status: JobStatus
     submitter_employee_id: strawberry.ID
     payload: ProjectTaskExportPayload
+    result_summary: str | None
+    result_content: str | None
+    result_content_type: str | None
+    result_checksum: str | None
+    result_row_count: int | None
+    result_truncated: bool | None
+    failure_classification: str | None
+    completed_at: datetime | None
     version: int
     created_at: datetime
     updated_at: datetime
@@ -547,6 +570,14 @@ def _job_value(value: JobRecord, attempts: list[JobAttempt] | None = None) -> Jo
         status=JobStatus(value.status),
         submitter_employee_id=strawberry.ID(value.submitter_employee_id),
         payload=payload,
+        result_summary=value.result_summary,
+        result_content=value.result_content,
+        result_content_type=value.result_content_type,
+        result_checksum=value.result_checksum,
+        result_row_count=value.result_row_count,
+        result_truncated=value.result_truncated,
+        failure_classification=value.failure_classification,
+        completed_at=datetime.fromisoformat(value.completed_at) if value.completed_at else None,
         version=value.version,
         created_at=datetime.fromisoformat(value.created_at),
         updated_at=datetime.fromisoformat(value.updated_at),
@@ -595,6 +626,9 @@ def _raise_job_error(error: Exception) -> NoReturn:
             "INVALID_PAGE_SIZE": "The page size must be between 1 and 50.",
             "JOB_NOT_FOUND": "The job was not found.",
             "INVALID_INPUT": "The job input is invalid.",
+            "VERSION_CONFLICT": "The job changed before it could be dispatched.",
+            "JOB_NOT_DISPATCHABLE": "The job cannot be dispatched in its current state.",
+            "BROKER_UNAVAILABLE": "Job dispatch is temporarily unavailable.",
         }
         message = messages.get(error.code)
         if message is None:
@@ -725,8 +759,16 @@ class Query:
                     JobAttempt(
                         id=strawberry.ID(attempt.id),
                         attempt_number=attempt.attempt_number,
-                        status=JobStatus(attempt.status),
-                        created_at=datetime.fromisoformat(attempt.created_at),
+                        status=JobAttemptStatus(attempt.status),
+                        started_at=datetime.fromisoformat(attempt.started_at),
+                        finished_at=(
+                            datetime.fromisoformat(attempt.finished_at)
+                            if attempt.finished_at
+                            else None
+                        ),
+                        failure_code=attempt.failure_code,
+                        retryable=attempt.retryable,
+                        safe_summary=attempt.safe_summary,
                     )
                     for attempt in attempts
                 ],
@@ -996,6 +1038,26 @@ class Query:
 
 @strawberry.type
 class Mutation:
+    @strawberry.mutation
+    async def dispatch_job(self, info: Info, job_id: strawberry.ID, expected_version: int) -> Job:
+        _, actor = await _project_actor(info)
+        try:
+            current = await job_get_job(actor, str(job_id))
+            if current.related_project_id is None:
+                raise JobDomainError("INVALID_INPUT", "The job has no project.")
+            await work_get_project(actor, current.related_project_id)
+            return _job_value(
+                await job_dispatch_job(actor, job_id=str(job_id), expected_version=expected_version)
+            )
+        except (
+            JobDomainError,
+            JobUnavailableError,
+            WorkDomainError,
+            WorkUnavailableError,
+            EmployeeUnavailableError,
+        ) as error:
+            _raise_job_error(error)
+
     @strawberry.mutation
     async def submit_project_task_export(
         self, info: Info, input: SubmitProjectTaskExportInput

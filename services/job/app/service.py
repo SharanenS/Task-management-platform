@@ -2,14 +2,15 @@ import base64
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
+from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Job, JobAttempt, JobStatus, JobType
+from app.models import AttemptStatus, Job, JobAttempt, JobStatus, JobType
 from app.schemas import JobSubmissionRequest
 
 MAX_PAYLOAD_BYTES = 1024
@@ -42,6 +43,16 @@ class JobError(Exception):
         self.code = code
         self.message = message
         self.status_code = status_code
+
+
+class Publisher(Protocol):
+    def publish(self, job_id: UUID) -> None: ...
+
+
+class PublishFailure(Exception):
+    def __init__(self, *, ambiguous: bool = False) -> None:
+        super().__init__("Job publication failed.")
+        self.ambiguous = ambiguous
 
 
 def normalize_request(body: JobSubmissionRequest) -> tuple[dict[str, object], str]:
@@ -173,3 +184,138 @@ def list_attempts(session: Session, actor: Actor, job_id: UUID) -> list[JobAttem
             .order_by(JobAttempt.attempt_number, JobAttempt.id)
         )
     )
+
+
+def dispatch_job(
+    session: Session,
+    actor: Actor,
+    job_id: UUID,
+    expected_version: int,
+    publisher: Publisher,
+) -> Job:
+    job = session.scalar(select(Job).where(Job.id == job_id).with_for_update())
+    if job is None or (
+        actor.application_role != "ADMIN" and job.submitter_employee_id != actor.employee_id
+    ):
+        raise JobError("JOB_NOT_FOUND", "The job was not found.", 404)
+    if job.version != expected_version:
+        raise JobError("VERSION_CONFLICT", "The job changed before it could be dispatched.", 409)
+    if job.status != JobStatus.SUBMITTED:
+        raise JobError(
+            "JOB_NOT_DISPATCHABLE", "The job cannot be dispatched in its current state.", 409
+        )
+    job.status = JobStatus.QUEUED
+    job.version += 1
+    queued_version = job.version
+    session.commit()
+    session.refresh(job)
+    try:
+        publisher.publish(job.id)
+    except PublishFailure as error:
+        if not error.ambiguous:
+            current = session.scalar(select(Job).where(Job.id == job.id).with_for_update())
+            if current and current.status == JobStatus.QUEUED and current.version == queued_version:
+                current.status = JobStatus.SUBMITTED
+                current.version += 1
+                session.commit()
+        raise JobError(
+            "BROKER_UNAVAILABLE", "Job dispatch is temporarily unavailable.", 503
+        ) from None
+    return job
+
+
+def claim_job(session: Session, job_id: UUID) -> JobAttempt | None:
+    job = session.scalar(select(Job).where(Job.id == job_id).with_for_update())
+    if job is None or job.status != JobStatus.QUEUED:
+        return None
+    attempt_number = len(job.attempts) + 1
+    attempt = JobAttempt(
+        job_id=job.id,
+        attempt_number=attempt_number,
+        status=AttemptStatus.RUNNING,
+        retryable=False,
+    )
+    job.status = JobStatus.RUNNING
+    job.version += 1
+    session.add(attempt)
+    session.commit()
+    session.refresh(attempt)
+    return attempt
+
+
+def settle_success(
+    session: Session,
+    job_id: UUID,
+    attempt_id: UUID,
+    *,
+    content: str,
+    content_type: str,
+    checksum: str,
+    row_count: int,
+    truncated: bool,
+) -> None:
+    job = session.scalar(select(Job).where(Job.id == job_id).with_for_update())
+    attempt = session.scalar(
+        select(JobAttempt)
+        .where(JobAttempt.id == attempt_id, JobAttempt.job_id == job_id)
+        .with_for_update()
+    )
+    if (
+        not job
+        or not attempt
+        or job.status != JobStatus.RUNNING
+        or attempt.status != AttemptStatus.RUNNING
+    ):
+        raise JobError("STALE_SETTLEMENT", "The execution attempt is no longer active.", 409)
+    now = datetime.now(UTC)
+    attempt.status = AttemptStatus.SUCCEEDED
+    attempt.finished_at = now
+    job.status = JobStatus.SUCCEEDED
+    job.result_content = content
+    job.result_content_type = content_type
+    job.result_checksum = checksum
+    job.result_row_count = row_count
+    job.result_truncated = truncated
+    job.result_summary = f"Exported {row_count} task rows."
+    job.completed_at = now
+    job.version += 1
+    session.commit()
+
+
+def settle_failure(
+    session: Session,
+    job_id: UUID,
+    attempt_id: UUID,
+    *,
+    code: str,
+    retryable: bool,
+    retry_exhausted: bool = False,
+) -> None:
+    job = session.scalar(select(Job).where(Job.id == job_id).with_for_update())
+    attempt = session.scalar(
+        select(JobAttempt)
+        .where(JobAttempt.id == attempt_id, JobAttempt.job_id == job_id)
+        .with_for_update()
+    )
+    if (
+        not job
+        or not attempt
+        or job.status != JobStatus.RUNNING
+        or attempt.status != AttemptStatus.RUNNING
+    ):
+        raise JobError("STALE_SETTLEMENT", "The execution attempt is no longer active.", 409)
+    attempt.finished_at = datetime.now(UTC)
+    attempt.failure_code = code
+    attempt.retryable = retryable
+    if retryable and not retry_exhausted:
+        attempt.status = AttemptStatus.RETRY_SCHEDULED
+        attempt.safe_summary = "Execution will be retried."
+        job.status = JobStatus.QUEUED
+    else:
+        attempt.status = AttemptStatus.FAILED
+        attempt.safe_summary = "Execution failed."
+        job.status = JobStatus.FAILED
+        job.failure_classification = code
+        job.completed_at = datetime.now(UTC)
+    job.version += 1
+    session.commit()
