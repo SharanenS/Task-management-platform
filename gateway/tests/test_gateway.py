@@ -16,7 +16,14 @@ from app.employee_client import (
     EmployeeProfile,
     EmployeeUnavailableError,
 )
-from app.job_client import JobDomainError, JobPage, JobRecord, JobUnavailableError
+from app.job_client import (
+    JobDomainError,
+    JobPage,
+    JobRecord,
+    JobUnavailableError,
+    PublicationPage,
+    PublicationRecord,
+)
 from app.main import app
 from app.schema import schema
 from app.work_client import (
@@ -614,6 +621,103 @@ def job_record() -> JobRecord:
         created_at="2026-10-16T00:00:00+00:00",
         updated_at="2026-10-16T00:00:00+00:00",
     )
+
+
+def publication_record(status: str = "FAILED") -> PublicationRecord:
+    return PublicationRecord(
+        id="event-id",
+        job_id="job-id",
+        status=status,
+        attempt_count=2,
+        available_at="2026-10-20T00:00:05+00:00",
+        lease_expires_at=("2026-10-20T00:00:10+00:00" if status == "IN_FLIGHT" else None),
+        published_at=("2026-10-20T00:00:04+00:00" if status == "PUBLISHED" else None),
+        last_failure_classification=("CONNECTION_FAILED" if status == "FAILED" else None),
+        reconciliation_required=status == "RECONCILIATION_REQUIRED",
+    )
+
+
+@pytest.mark.parametrize("role", ["MEMBER", "MANAGER"])
+def test_publication_diagnostics_reject_non_admin_before_job_call(
+    monkeypatch: pytest.MonkeyPatch, role: str
+) -> None:
+    allow_admin(monkeypatch, role)
+    called = False
+
+    async def directory(*_: object, **__: object) -> PublicationPage:
+        nonlocal called
+        called = True
+        return PublicationPage([], None, False)
+
+    monkeypatch.setattr("app.schema.job_list_publications", directory)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": "{ jobPublications { nodes { id } } }"},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"][0]["extensions"]["code"] == "FORBIDDEN"
+    assert not called
+
+
+@pytest.mark.parametrize(
+    "status", ["PENDING", "IN_FLIGHT", "FAILED", "PUBLISHED", "RECONCILIATION_REQUIRED"]
+)
+def test_admin_publication_diagnostics_are_typed_and_sanitized(
+    monkeypatch: pytest.MonkeyPatch, status: str
+) -> None:
+    allow_admin(monkeypatch)
+
+    async def directory(*_: object, **__: object) -> PublicationPage:
+        return PublicationPage([publication_record(status)], "opaque-next", True)
+
+    monkeypatch.setattr("app.schema.job_list_publications", directory)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": "{ jobPublications(first: 10) { nodes { id status attemptCount nextRetryAt leaseExpiresAt publishedAt lastFailureClassification reconciliationRequired } pageInfo { hasNextPage endCursor } } }"
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    serialized = str(result)
+    assert result["data"]["jobPublications"]["nodes"][0]["status"] == status
+    assert result["data"]["jobPublications"]["pageInfo"]["endCursor"] == "opaque-next"
+    assert "leaseToken" not in serialized and "amqp://" not in serialized
+
+
+def test_owned_job_exposes_publication_without_lease_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch, "MEMBER")
+    value = replace(
+        job_record(),
+        publication={
+            "id": "event-id",
+            "status": "FAILED",
+            "attempt_count": 2,
+            "available_at": "2026-10-20T00:00:05+00:00",
+            "lease_expires_at": None,
+            "published_at": None,
+            "last_failure_classification": "CONNECTION_FAILED",
+            "reconciliation_required": False,
+            "lease_token": "must-never-appear",
+        },
+    )
+
+    async def current(*_: object, **__: object) -> JobRecord:
+        return value
+
+    monkeypatch.setattr("app.schema.job_get_job", current)
+    monkeypatch.setattr("app.schema.job_list_attempts", lambda *_: asyncio.sleep(0, result=[]))
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": '{ job(id: "job-id") { publication { status attemptCount nextRetryAt } } }'
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["data"]["job"]["publication"]["status"] == "FAILED"
+    assert "must-never-appear" not in str(result)
 
 
 @pytest.mark.parametrize("role", ["MEMBER", "MANAGER", "ADMIN"])

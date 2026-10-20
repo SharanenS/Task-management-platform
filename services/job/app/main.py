@@ -8,8 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_session
-from app.models import JobStatus, JobType
-from app.publisher import publisher
+from app.models import JobStatus, JobType, PublicationStatus
 from app.schemas import (
     JobAttemptPageResponse,
     JobAttemptResponse,
@@ -17,8 +16,19 @@ from app.schemas import (
     JobPageResponse,
     JobResponse,
     JobSubmissionRequest,
+    PublicationPageResponse,
+    PublicationResponse,
 )
-from app.service import Actor, JobError, dispatch_job, get_job, list_attempts, list_jobs, submit_job
+from app.service import (
+    Actor,
+    JobError,
+    dispatch_job,
+    get_job,
+    list_attempts,
+    list_jobs,
+    list_publications,
+    submit_job,
+)
 
 app = FastAPI(title="Job Service", docs_url=None, redoc_url=None, openapi_url=None)
 SessionDependency = Annotated[Session, Depends(get_session)]
@@ -87,6 +97,29 @@ def directory(
 
 
 @app.get(
+    "/internal/publications",
+    response_model=PublicationPageResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def publications(
+    session: SessionDependency,
+    actor: ActorDependency,
+    first: int = Query(default=20, ge=1, le=50),
+    after: str | None = None,
+    status: PublicationStatus | None = None,
+) -> PublicationPageResponse:
+    try:
+        page = list_publications(session, actor, first=first, after=after, status=status)
+        return PublicationPageResponse(
+            items=[PublicationResponse.model_validate(item) for item in page.items],
+            next_cursor=page.next_cursor,
+            has_next_page=page.has_next_page,
+        )
+    except JobError as error:
+        raise failure(error) from error
+
+
+@app.get(
     "/internal/jobs/{job_id}",
     response_model=JobResponse,
     dependencies=[Depends(require_internal_service)],
@@ -142,7 +175,7 @@ def dispatch(
 ) -> JobResponse:
     try:
         return JobResponse.model_validate(
-            dispatch_job(session, actor, job_id, body.expected_version, publisher())
+            dispatch_job(session, actor, job_id, body.expected_version)
         )
     except JobError as error:
         raise failure(error) from error

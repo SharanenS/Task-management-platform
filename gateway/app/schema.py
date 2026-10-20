@@ -45,6 +45,7 @@ from app.job_client import (
 from app.job_client import (
     list_jobs as job_list_jobs,
 )
+from app.job_client import list_publications as job_list_publications
 from app.job_client import (
     submit_job as job_submit_job,
 )
@@ -192,6 +193,15 @@ class JobAttemptStatus(StrEnum):
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
     RETRY_SCHEDULED = "RETRY_SCHEDULED"
+
+
+@strawberry.enum
+class PublicationStatus(StrEnum):
+    PENDING = "PENDING"
+    IN_FLIGHT = "IN_FLIGHT"
+    PUBLISHED = "PUBLISHED"
+    FAILED = "FAILED"
+    RECONCILIATION_REQUIRED = "RECONCILIATION_REQUIRED"
 
 
 @strawberry.type
@@ -361,6 +371,18 @@ class JobAttempt:
 
 
 @strawberry.type
+class JobPublication:
+    id: strawberry.ID
+    status: PublicationStatus
+    attempt_count: int
+    next_retry_at: datetime | None
+    lease_expires_at: datetime | None
+    published_at: datetime | None
+    last_failure_classification: str | None
+    reconciliation_required: bool
+
+
+@strawberry.type
 class Job:
     id: strawberry.ID
     job_type: JobType
@@ -379,11 +401,18 @@ class Job:
     created_at: datetime
     updated_at: datetime
     attempts: list[JobAttempt]
+    publication: JobPublication | None
 
 
 @strawberry.type
 class JobConnection:
     nodes: list[Job]
+    page_info: PageInfo
+
+
+@strawberry.type
+class PublicationConnection:
+    nodes: list[JobPublication]
     page_info: PageInfo
 
 
@@ -564,6 +593,25 @@ def _job_value(value: JobRecord, attempts: list[JobAttempt] | None = None) -> Jo
         )
     except (KeyError, TypeError, ValueError) as error:
         raise JobUnavailableError from error
+    publication = None
+    if value.publication:
+        item = value.publication
+        publication = JobPublication(
+            id=strawberry.ID(str(item["id"])),
+            status=PublicationStatus(str(item["status"])),
+            attempt_count=int(item["attempt_count"]),
+            next_retry_at=datetime.fromisoformat(str(item["available_at"]))
+            if item.get("available_at")
+            else None,
+            lease_expires_at=datetime.fromisoformat(str(item["lease_expires_at"]))
+            if item.get("lease_expires_at")
+            else None,
+            published_at=datetime.fromisoformat(str(item["published_at"]))
+            if item.get("published_at")
+            else None,
+            last_failure_classification=item.get("last_failure_classification"),
+            reconciliation_required=bool(item.get("reconciliation_required")),
+        )
     return Job(
         id=strawberry.ID(value.id),
         job_type=JobType(value.job_type),
@@ -582,6 +630,7 @@ def _job_value(value: JobRecord, attempts: list[JobAttempt] | None = None) -> Jo
         created_at=datetime.fromisoformat(value.created_at),
         updated_at=datetime.fromisoformat(value.updated_at),
         attempts=attempts or [],
+        publication=publication,
     )
 
 
@@ -742,6 +791,51 @@ class Query:
             )
             return JobConnection(
                 nodes=[_job_value(value) for value in page.items],
+                page_info=PageInfo(has_next_page=page.has_next_page, end_cursor=page.next_cursor),
+            )
+        except (JobDomainError, JobUnavailableError, EmployeeUnavailableError) as error:
+            _raise_job_error(error)
+
+    @strawberry.field
+    async def job_publications(
+        self,
+        info: Info,
+        first: int = 20,
+        after: str | None = None,
+        status: PublicationStatus | None = None,
+    ) -> PublicationConnection:
+        _, actor = await _project_actor(info)
+        if actor.role != "ADMIN":
+            raise GraphQLError(
+                "Administrator access is required.", extensions={"code": "FORBIDDEN"}
+            )
+        try:
+            page = await job_list_publications(
+                actor,
+                first=first,
+                after=after,
+                status=status.value if status else None,
+            )
+            return PublicationConnection(
+                nodes=[
+                    JobPublication(
+                        id=strawberry.ID(item.id),
+                        status=PublicationStatus(item.status),
+                        attempt_count=item.attempt_count,
+                        next_retry_at=datetime.fromisoformat(item.available_at),
+                        lease_expires_at=(
+                            datetime.fromisoformat(item.lease_expires_at)
+                            if item.lease_expires_at
+                            else None
+                        ),
+                        published_at=(
+                            datetime.fromisoformat(item.published_at) if item.published_at else None
+                        ),
+                        last_failure_classification=item.last_failure_classification,
+                        reconciliation_required=item.reconciliation_required,
+                    )
+                    for item in page.items
+                ],
                 page_info=PageInfo(has_next_page=page.has_next_page, end_cursor=page.next_cursor),
             )
         except (JobDomainError, JobUnavailableError, EmployeeUnavailableError) as error:

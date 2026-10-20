@@ -177,10 +177,30 @@ services:
     depends_on:
       job-db:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8040/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    init: true
+    restart: unless-stopped
+
+  job-publisher:
+    build:
+      context: ./services/job
+    command: ["python", "-m", "app.publisher_process"]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://job:${JOB_DB_PASSWORD}@job-db:5432/job
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+    depends_on:
+      job-db:
+        condition: service_healthy
+      job:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"from app.publisher_process import health; health()\" && test -d /proc/1"]
       interval: 10s
       timeout: 5s
       retries: 10

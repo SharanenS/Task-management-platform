@@ -32,6 +32,12 @@ const navigation = [
   { label: "Employees", href: "/employees", icon: Users },
   { label: "Workflows", icon: Workflow, phase: 10 },
   { label: "Jobs", href: "/jobs", icon: Zap },
+  {
+    label: "Publications",
+    href: "/jobs/publications",
+    icon: Activity,
+    adminOnly: true,
+  },
 ];
 const foundation = [
   { label: "System status", href: "/system", icon: Activity },
@@ -79,8 +85,9 @@ function Sidebar({
         <div className="mt-2 space-y-1">
           {navigation
             .filter(
-              ({ label }) =>
-                label !== "Employees" || canViewEmployeeNavigation(user.role),
+              ({ label, adminOnly }) =>
+                (!adminOnly || user.role === "ADMIN") &&
+                (label !== "Employees" || canViewEmployeeNavigation(user.role)),
             )
             .map(({ label, href, icon: Icon, phase }) =>
               href ? (

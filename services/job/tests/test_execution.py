@@ -13,13 +13,12 @@ from app.execution import (
     render_csv,
     safe_cell,
 )
-from app.models import AttemptStatus, Job, JobStatus
-from app.publisher import QUEUE_NAME, ROUTING_KEY, TASK_NAME, CeleryPublisher
+from app.models import AttemptStatus, Job, JobStatus, OutboxEvent, PublicationStatus
+from app.publisher import QUEUE_NAME, ROUTING_KEY, TASK_NAME, CeleryPublisher, PublishFailure
 from app.schemas import JobSubmissionRequest
 from app.service import (
     Actor,
     JobError,
-    PublishFailure,
     claim_job,
     dispatch_job,
     settle_failure,
@@ -53,23 +52,22 @@ def submitted(session: Session) -> tuple[Actor, Job]:
 
 
 class Publisher:
-    def __init__(self, failure: PublishFailure | None = None) -> None:
-        self.failure = failure
+    def __init__(self) -> None:
         self.identifiers: list[uuid.UUID] = []
 
     def publish(self, job_id: uuid.UUID) -> None:
         self.identifiers.append(job_id)
-        if self.failure:
-            raise self.failure
 
 
-def test_dispatch_publishes_only_identifier_and_queues(session: Session) -> None:
+def test_dispatch_creates_outbox_without_calling_publisher(session: Session) -> None:
     actor, job = submitted(session)
     publisher = Publisher()
     queued = dispatch_job(session, actor, job.id, job.version, publisher)
     assert queued.status == JobStatus.QUEUED
     assert queued.version == 2
-    assert publisher.identifiers == [job.id]
+    assert publisher.identifiers == []
+    event = session.query(OutboxEvent).one()
+    assert event.job_id == job.id and event.status == PublicationStatus.PENDING
 
 
 def test_dispatch_requires_owner_or_admin_and_exact_version(session: Session) -> None:
@@ -80,25 +78,6 @@ def test_dispatch_requires_owner_or_admin_and_exact_version(session: Session) ->
     with pytest.raises(JobError) as stale:
         dispatch_job(session, actor, job.id, 999, Publisher())
     assert stale.value.code == "VERSION_CONFLICT"
-
-
-def test_unambiguous_publish_failure_compensates_to_submitted(session: Session) -> None:
-    actor, job = submitted(session)
-    with pytest.raises(JobError) as raised:
-        dispatch_job(
-            session, actor, job.id, job.version, Publisher(PublishFailure(ambiguous=False))
-        )
-    session.refresh(job)
-    assert raised.value.code == "BROKER_UNAVAILABLE"
-    assert job.status == JobStatus.SUBMITTED
-
-
-def test_ambiguous_publish_failure_leaves_queued_for_manual_resolution(session: Session) -> None:
-    actor, job = submitted(session)
-    with pytest.raises(JobError):
-        dispatch_job(session, actor, job.id, job.version, Publisher(PublishFailure(ambiguous=True)))
-    session.refresh(job)
-    assert job.status == JobStatus.QUEUED
 
 
 def test_claim_is_idempotent_for_duplicate_delivery(session: Session) -> None:

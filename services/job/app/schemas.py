@@ -2,9 +2,26 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from app.models import JobStatus, JobType
+from app.models import JobStatus, JobType, PublicationStatus
+
+
+class PublicationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    job_id: UUID
+    status: PublicationStatus
+    attempt_count: int
+    available_at: datetime
+    lease_expires_at: datetime | None
+    published_at: datetime | None
+    last_failure_classification: str | None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def reconciliation_required(self) -> bool:
+        return self.status == PublicationStatus.RECONCILIATION_REQUIRED
 
 
 class StrictModel(BaseModel):
@@ -46,10 +63,17 @@ class JobResponse(BaseModel):
     version: int
     created_at: datetime
     updated_at: datetime
+    publication: PublicationResponse | None
 
 
 class JobPageResponse(BaseModel):
     items: list[JobResponse]
+    next_cursor: str | None
+    has_next_page: bool
+
+
+class PublicationPageResponse(BaseModel):
+    items: list[PublicationResponse]
     next_cursor: str | None
     has_next_page: bool
 

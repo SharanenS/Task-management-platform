@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -38,6 +39,14 @@ class AttemptStatus(enum.StrEnum):
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
     RETRY_SCHEDULED = "RETRY_SCHEDULED"
+
+
+class PublicationStatus(enum.StrEnum):
+    PENDING = "PENDING"
+    IN_FLIGHT = "IN_FLIGHT"
+    PUBLISHED = "PUBLISHED"
+    FAILED = "FAILED"
+    RECONCILIATION_REQUIRED = "RECONCILIATION_REQUIRED"
 
 
 class Job(Base):
@@ -74,6 +83,51 @@ class Job(Base):
     attempts: Mapped[list["JobAttempt"]] = relationship(
         cascade="all, delete-orphan", back_populates="job"
     )
+    publication: Mapped["OutboxEvent | None"] = relationship(
+        cascade="all, delete-orphan", back_populates="job", uselist=False
+    )
+
+
+class OutboxEvent(Base):
+    __tablename__ = "job_publication_outbox"
+    __table_args__ = (
+        UniqueConstraint("job_id", "event_type", name="uq_job_publication_event"),
+        Index(
+            "ix_job_publication_claim",
+            "status",
+            "available_at",
+            "lease_expires_at",
+            "created_at",
+            "id",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
+    event_type: Mapped[str] = mapped_column(String(50), default="EXECUTE_JOB")
+    schema_version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[PublicationStatus] = mapped_column(
+        Enum(PublicationStatus, name="publication_status")
+    )
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    lease_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_failure_classification: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    job: Mapped[Job] = relationship(back_populates="publication")
 
 
 class JobAttempt(Base):

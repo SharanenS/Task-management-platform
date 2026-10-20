@@ -1,8 +1,8 @@
-# Project progress
+﻿# Project progress
 
 Last updated: 2026-10-20
 
-## Phase 1 — Project Foundation and Frontend Design System
+## Phase 1 â€” Project Foundation and Frontend Design System
 
 Status: **Accepted**
 
@@ -15,7 +15,7 @@ Delivered:
   query complexity, sanitized failures, and generated client types.
 - Docker, automated, browser, accessibility, outage, and recovery verification.
 
-## Phase 2 — Authentication and Real Application Shell
+## Phase 2 â€” Authentication and Real Application Shell
 
 Status: **Accepted**
 
@@ -38,7 +38,7 @@ manual checks passed. The final development dependency audit records 12
 high-severity `braces` findings in repository-controlled code-generation and lint
 tooling; the production dependency audit reports zero vulnerabilities.
 
-## Phase 3 — Employee Administration
+## Phase 3 â€” Employee Administration
 
 Status: **Accepted**
 
@@ -67,7 +67,7 @@ provisioning-during-Keycloak-outage journey. Ambiguous null-linked idempotency
 records remain untouched because their ownership cannot be proven safely. These
 limitations do not block Phase 3 functional acceptance.
 
-## Phase 4 — Project Management
+## Phase 4 â€” Project Management
 
 Status: **Accepted**
 
@@ -98,7 +98,7 @@ to Phases 12 and 15. These limitations do not block Phase 4 functional acceptanc
 which does not claim final visual quality, performance or load-testing
 certification, or accessibility certification.
 
-## Phase 5 — Task Management
+## Phase 5 â€” Task Management
 
 Status: **Accepted**
 
@@ -133,7 +133,7 @@ remains deferred to Phases 12 and 15. Acceptance does not claim final visual
 quality, performance or load-testing certification, accessibility certification,
 or cross-service distributed transaction guarantees.
 
-## Phase 6 — Job Management
+## Phase 6 â€” Job Management
 
 Status: **Accepted**
 
@@ -168,7 +168,7 @@ UX redesign remains deferred to Phases 12 and 15. The ambiguous pre-existing
 Employee Administration identity remains untouched. These limitations do not
 block Phase 6 acceptance.
 
-## Phase 7 – RabbitMQ and Celery Job Execution
+## Phase 7 â€“ RabbitMQ and Celery Job Execution
 
 Status: **Accepted**
 
@@ -209,3 +209,41 @@ and subjective visual and UX redesign remains deferred to Phases 12 and 15. Phas
 transactional outbox work and Phase 9 distributed recovery have not started.
 Acceptance does not claim outbox reliability, guaranteed publication, execution
 recovery, fencing, or stale-worker safety.
+
+## Phase 8 â€” Transactional Outbox and Reliable Job Publication
+
+Status: **Accepted**
+
+Delivered:
+
+- Atomic dispatch state transition and unique durable publication event.
+- Independent `job-publisher` process with PostgreSQL claims, leases, publisher
+  confirmation, bounded retries, and abandoned-claim recovery.
+- Typed owner-visible publication state and ADMIN-only publication diagnostics.
+- Explicit legacy reconciliation state for ambiguous pre-Phase-8 queued jobs.
+
+Owner acceptance completed on 2026-10-20 after automated functional,
+authorization, security, persistence, concurrency, migration, outage, recovery,
+responsive-overflow, and basic accessibility verification. The accepted evidence
+is Job Service **48 passed with 12 intentional PostgreSQL-only skips**; Job
+PostgreSQL **12 passed**; Work PostgreSQL **5 passed**; Gateway **94 passed**;
+Employee Service **40 passed**; Work Service **48 passed with 5 intentional
+PostgreSQL-only skips**; frontend **50 passed in 11 files**; non-outage Phase 1–8
+browser collection **27 passed, 18 intentional skips, 0 failed**; corrected serial
+outage/recovery collection **13 passed, 0 failed**; Phase 8 lifecycle **3 passed**
+across desktop, 768 px, and 390 px; real ADMIN diagnostics **1 passed**;
+duplicate-publication and broker/worker recovery **1 passed**; and publisher and
+Job PostgreSQL recovery **1 passed**. Migration head is `20261020_04`, and all 14
+containers were healthy.
+
+Accepted limitations are at-least-once publication without an exactly-once claim;
+possible duplicate publication with worker idempotency preventing duplicate
+logical execution; publication-only publisher leases; publisher health limited to
+process liveness and PostgreSQL availability rather than RabbitMQ or a durable
+heartbeat; no multi-replica publisher deployment or load certification; and a
+possible retained `RUNNING` job after a worker crash following execution claim.
+Subjective visual and UX redesign remains deferred to Phases 12 and 15. These
+limitations do not block Phase 8 acceptance.
+
+Phase 9 execution leases, fencing, stale-worker protection, recovery, and
+administrative execution retry have not started.

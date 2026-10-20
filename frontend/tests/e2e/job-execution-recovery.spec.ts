@@ -69,7 +69,7 @@ test("worker and broker outages preserve durable execution and recover", async (
   const dispatch =
     "mutation D($id: ID!, $version: Int!) { dispatchJob(jobId: $id, expectedVersion: $version) { id status version } }";
   const status =
-    "query J($id: ID!) { job(id: $id) { id status version attempts { status } } }";
+    "query J($id: ID!) { job(id: $id) { id status version publication { status attemptCount nextRetryAt } attempts { status } } }";
   try {
     const project = await gql(
       "mutation C($input: CreateProjectInput!) { createProject(input: $input) { id } }",
@@ -99,7 +99,7 @@ test("worker and broker outages preserve durable execution and recover", async (
       "job",
       "python",
       "-c",
-      "import sys; from uuid import UUID; from app.publisher import publisher; publisher().publish(UUID(sys.argv[1])); publisher().publish(UUID(sys.argv[1]))",
+      "import sys; from uuid import UUID; from sqlalchemy import select; from app.db import SessionLocal; from app.models import OutboxEvent; from app.publisher import publisher; job_id=UUID(sys.argv[1]); session=SessionLocal(); event=session.scalar(select(OutboxEvent).where(OutboxEvent.job_id == job_id)); session.close(); assert event is not None; publisher().publish(job_id, event.id); publisher().publish(job_id, event.id)",
       workerId,
     );
     await compose("start", "job-worker");
@@ -110,6 +110,7 @@ test("worker and broker outages preserve durable execution and recover", async (
       })
       .toBe("SUCCEEDED");
     const duplicateResult = (await gql(status, { id: workerId })).data.job;
+    expect(duplicateResult.publication.status).toBe("PUBLISHED");
     expect(duplicateResult.attempts).toEqual([{ status: "SUCCEEDED" }]);
 
     const brokerJob = await gql(submit, {
@@ -126,29 +127,29 @@ test("worker and broker outages preserve durable execution and recover", async (
       id: brokerId,
       version: brokerJob.data.submitProjectTaskExport.version,
     });
-    expect(unavailable.errors[0]).toEqual({
-      message: "Job dispatch is temporarily unavailable.",
-      extensions: { code: "BROKER_UNAVAILABLE" },
-    });
+    expect(unavailable.errors).toBeUndefined();
+    expect(unavailable.data.dispatchJob.status).toBe("QUEUED");
     expect(JSON.stringify(unavailable)).not.toMatch(
       /rabbitmq|amqp|password|Traceback|OperationalError/i,
     );
     const retained = (await gql(status, { id: brokerId })).data.job;
-    expect(retained.status).toBe("SUBMITTED");
+    expect(retained.status).toBe("QUEUED");
+    expect(["PENDING", "FAILED", "IN_FLIGHT"]).toContain(
+      retained.publication.status,
+    );
+    expect(retained.attempts).toEqual([]);
     await compose("start", "rabbitmq");
     await waitForHealthy("rabbitmq");
     await compose("restart", "job-worker");
     await waitForHealthy("job-worker");
-    const recovered = await gql(dispatch, {
-      id: brokerId,
-      version: retained.version,
-    });
-    expect(recovered.errors).toBeUndefined();
     await expect
       .poll(async () => (await gql(status, { id: brokerId })).data.job.status, {
         timeout: 60_000,
       })
       .toBe("SUCCEEDED");
+    const brokerRecovered = (await gql(status, { id: brokerId })).data.job;
+    expect(brokerRecovered.publication.status).toBe("PUBLISHED");
+    expect(brokerRecovered.attempts).toEqual([{ status: "SUCCEEDED" }]);
   } finally {
     await compose("start", "rabbitmq", "job-worker");
     await waitForHealthy("rabbitmq");

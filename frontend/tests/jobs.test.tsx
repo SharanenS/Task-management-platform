@@ -162,7 +162,10 @@ describe("job management", () => {
     render(<JobDetail id="job-1" />);
     expect(await screen.findByText("Project task export")).toBeInTheDocument();
     expect(screen.getByText("No execution attempts yet.")).toBeInTheDocument();
-    expect(screen.getByText(/direct broker publication/)).toBeInTheDocument();
+    expect(screen.getByText("Not requested")).toBeInTheDocument();
+    expect(
+      screen.getByText(/durably records publication intent/),
+    ).toBeInTheDocument();
   });
 
   it("confirms dispatch, prevents duplicate submission, and refreshes status", async () => {

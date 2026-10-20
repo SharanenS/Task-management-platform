@@ -48,6 +48,16 @@ query JobDetail($id: ID!) {
     completedAt
     createdAt
     updatedAt
+    publication {
+      id
+      status
+      attemptCount
+      nextRetryAt
+      leaseExpiresAt
+      publishedAt
+      lastFailureClassification
+      reconciliationRequired
+    }
     attempts {
       id
       attemptNumber
@@ -66,6 +76,14 @@ mutation DispatchJob($jobId: ID!, $expectedVersion: Int!) {
     id
     status
     version
+    publication {
+      status
+      attemptCount
+      nextRetryAt
+      publishedAt
+      lastFailureClassification
+      reconciliationRequired
+    }
   }
 }
 
@@ -73,5 +91,28 @@ mutation SubmitProjectTaskExport($input: SubmitProjectTaskExportInput!) {
   submitProjectTaskExport(input: $input) {
     id
     status
+  }
+}
+
+query JobPublications(
+  $first: Int!
+  $after: String
+  $status: PublicationStatus
+) {
+  jobPublications(first: $first, after: $after, status: $status) {
+    nodes {
+      id
+      status
+      attemptCount
+      nextRetryAt
+      leaseExpiresAt
+      publishedAt
+      lastFailureClassification
+      reconciliationRequired
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
   }
 }

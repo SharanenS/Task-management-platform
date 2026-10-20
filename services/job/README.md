@@ -4,11 +4,13 @@ Job Service owns durable job submissions, typed payload validation, actor-scoped
 idempotency, execution state, attempt history, and bounded results in its own
 PostgreSQL database.
 
-Phase 7 supports `PROJECT_TASK_EXPORT`. Manual dispatch requires a `SUBMITTED` job
-at the expected version and publishes only its UUID to the durable
-`job.execution` RabbitMQ queue with routing key `job.execute`. The publisher is an
-isolated temporary adapter so Phase 8 can replace direct publication with an
-outbox without changing the GraphQL contract.
+Phase 8 supports durable publication of `PROJECT_TASK_EXPORT`. Manual dispatch
+requires a `SUBMITTED` job at the expected version and atomically stores its
+`QUEUED` transition with one outbox event. The independent publisher sends only
+its UUID to the durable
+`job.execution` RabbitMQ queue with routing key `job.execute`. A dedicated
+Job Service publisher claims the transactional outbox and uses the low-level
+RabbitMQ adapter.
 
 The Celery worker accepts JSON only, has no result backend, and uses late
 acknowledgement, worker-loss rejection, prefetch one, concurrency two, two bounded
@@ -22,11 +24,10 @@ CSV output uses six allowlisted fields, a 500-row limit, a 256,000-byte limit,
 UTF-8, standard CSV quoting, SHA-256 metadata, and formula-prefix neutralization.
 CSV content and upstream error details are never logged.
 
-Direct publication has a known commit-to-publish crash window, and a lost
-publisher confirmation can make delivery ambiguous. Idempotent claim handles
-duplicate delivery but does not guarantee publication. A worker crash after claim
-can leave a job running. Phase 8 outbox work and Phase 9 lease, fencing, and
-recovery work have not started.
+Eligible committed outbox events receive at-least-once publication under bounded
+automatic retry. Exactly-once delivery is not claimed; idempotent worker claim
+handles duplicate delivery. A worker crash after claim can leave a job running.
+Phase 9 execution leases, fencing, and recovery have not started.
 
 The internal HTTP API and execution dependencies use separate credentials and are
 not published on the host. The GraphQL Gateway remains the only public business
