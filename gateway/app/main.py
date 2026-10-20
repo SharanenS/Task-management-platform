@@ -46,6 +46,8 @@ class SafeGraphQLRouter(GraphQLRouter):
                     "INVALID_CURSOR",
                     "INVALID_PAGE_SIZE",
                     "JOB_NOT_FOUND",
+                    "JOB_NOT_DISPATCHABLE",
+                    "BROKER_UNAVAILABLE",
                     "PROJECT_KEY_CONFLICT",
                     "MEMBERSHIP_CONFLICT",
                     "VERSION_CONFLICT",

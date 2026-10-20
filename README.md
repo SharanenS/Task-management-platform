@@ -1,7 +1,7 @@
 # Enterprise Task Platform
 
 A GraphQL-first enterprise work platform, developed in verified full-stack slices.
-Phases 1–6 are accepted. Phase 7 has not started.
+Phases 1–7 are accepted. Phase 8 and Phase 9 have not started.
 
 Phase 2 adds a protected Taskspace shell, Keycloak Authorization Code Flow with
 PKCE, Redis-backed server sessions, an Employee Service with its own PostgreSQL
@@ -52,7 +52,7 @@ owner and administrator visibility, an empty attempt-history foundation, and job
 directory, submission, and detail pages. Job Service owns its PostgreSQL schema
 and is reachable only through the public GraphQL Gateway. Every Phase 6 job remains
 truthfully `SUBMITTED`; RabbitMQ, Celery, workers, dispatch, and execution are not
-configured. Phase 7 has not started.
+configured. At Phase 6 acceptance, Phase 7 had not started.
 
 The owner accepted Phase 6 on 2026-10-16 after automated verification of durable
 submission and persistence, typed payload validation, actor-scoped idempotency,
@@ -62,6 +62,27 @@ disposable-resource cleanup. The accepted limitations and complete results are
 recorded in the Phase 6 verification report. Acceptance does not claim RabbitMQ,
 Celery, workers, dispatch, execution retry, cancellation, fabricated queue or
 execution state, a transactional outbox, or a delivery guarantee.
+
+Phase 7 adds manual dispatch, RabbitMQ, a Job Service-owned Celery worker, durable
+execution attempts, bounded transient retries, and persisted CSV results. The
+worker reloads the submitting Employee profile and revalidates project access
+through Work Service before exporting an allowlisted, formula-safe task view.
+Direct publication is a temporary adapter: a crash between the database commit
+and broker publication can leave a `QUEUED` job unpublished, and an ambiguous
+publisher confirmation can cause duplicate delivery. Duplicate delivery is
+claimed idempotently, but guaranteed publication is not claimed. A worker crash
+after claim can leave a job `RUNNING`. The Phase 8 outbox and Phase 9 lease,
+fencing, and recovery work have not started.
+
+The owner accepted Phase 7 on 2026-10-20 after automated functional,
+authorization, security, execution-lifecycle, concurrency, persistence, retry,
+outage, recovery, responsive-overflow, and basic accessibility verification. The
+accepted limitations and complete results are recorded in the Phase 7 verification
+report. Acceptance does not claim outbox reliability, guaranteed publication,
+execution recovery, fencing, stale-worker safety, performance or load-testing
+certification, accessibility certification, or final visual quality. Subjective
+visual and UX redesign remains deferred to Phases 12 and 15. Phase 8 transactional
+outbox work and Phase 9 distributed recovery have not started.
 
 ## Run with Docker
 
@@ -89,11 +110,13 @@ Local endpoints:
 - Gateway health: http://localhost:8010/health/live and `/health/ready`
 - Employee PostgreSQL: loopback port 5435
 - Work PostgreSQL: loopback port 5436
+- Job PostgreSQL: loopback port 5437
 - Session Redis: loopback port 6380
 
-Keycloak, Employee Service PostgreSQL, Work Service PostgreSQL, and Redis each use
-a distinct named volume. Do not use `docker compose down --volumes` when the data
-should be retained.
+Keycloak, Employee Service PostgreSQL, Work Service PostgreSQL, Job Service
+PostgreSQL, RabbitMQ, and Redis each use a distinct named volume. RabbitMQ is
+internal-only; no broker or management port is published to the host. Do not use
+`docker compose down --volumes` when the data should be retained.
 
 ## Authentication boundary
 
@@ -175,6 +198,11 @@ The Phase 5 task lifecycle is opt-in through `RUN_TASK_E2E=1`. It runs at deskto
 multi-role and Work recovery journeys also verify contributor/non-member task
 authorization and task, comment, and activity persistence.
 
+The Phase 7 job lifecycle is opt-in through `RUN_JOB_E2E=1`. The owner/non-owner
+journey uses `RUN_JOB_MULTI_ROLE_E2E=1`. The serial worker and RabbitMQ recovery
+journey uses `RUN_JOB_EXECUTION_OUTAGE_E2E=1`; it verifies exact service targets,
+duplicate delivery, service restoration, and exact test-owned cleanup.
+
 Generated GraphQL TypeScript is committed for reproducible builds. After schema
 changes, run `gateway/export_schema.py` and `npm run codegen`, then review both.
 
@@ -186,8 +214,9 @@ changes, run `gateway/export_schema.py` and `npm run codegen`, then review both.
 | `gateway/`                 | Public GraphQL schema, JWT validation, service composition      |
 | `services/employee/`       | Employee profiles, roles, access status, migrations             |
 | `services/work/`           | Projects, memberships, lifecycle, and owned migrations          |
+| `services/job/`            | Durable jobs, execution attempts, worker, results, migrations   |
 | `infrastructure/keycloak/` | Reproducible realm and public-client configuration              |
 | `docs/`                    | Architecture, dependency, progress, and verification records    |
 
 See [architecture](docs/architecture.md), [dependency review](docs/dependency-review.md),
-and [Phase 5 verification](docs/phase-5-verification.md).
+and [Phase 7 verification](docs/phase-7-verification.md).

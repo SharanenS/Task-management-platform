@@ -1,6 +1,6 @@
 # Project progress
 
-Last updated: 2026-10-16
+Last updated: 2026-10-20
 
 ## Phase 1 — Project Foundation and Frontend Design System
 
@@ -148,9 +148,9 @@ Delivered:
   failures, and explicit Phase 7 execution boundary.
 - Exact development-only cleanup by job UUID with no public cleanup endpoint.
 
-RabbitMQ and Celery are not configured, no worker is running, and no dispatch,
-execution progress, attempt, or result is fabricated. No cross-service distributed
-transaction, outbox, or reliability guarantee is claimed. Phase 7 has not started.
+At Phase 6 acceptance, RabbitMQ and Celery were not configured and no dispatch,
+execution progress, attempt, or result was fabricated. Phase 7 now implements
+that execution boundary without changing the accepted Phase 6 evidence.
 
 Owner acceptance completed on 2026-10-16 after automated verification of durable
 job submission and persistence, typed payload validation, actor-scoped
@@ -167,3 +167,45 @@ accessibility evidence is not accessibility certification. Subjective visual and
 UX redesign remains deferred to Phases 12 and 15. The ambiguous pre-existing
 Employee Administration identity remains untouched. These limitations do not
 block Phase 6 acceptance.
+
+## Phase 7 – RabbitMQ and Celery Job Execution
+
+Status: **Accepted**
+
+Delivered:
+
+- Internal RabbitMQ with dedicated credentials, durable routing, persistent JSON
+  messages, publisher confirms, health checks, and no host-published broker port.
+- One Job Service-owned Celery worker with a dedicated queue, JSON-only task
+  allowlist, late acknowledgement, worker-loss rejection, bounded prefetch,
+  concurrency, retries, and execution timeouts.
+- Expected-version manual dispatch, owner/ADMIN enforcement, current Employee and
+  project-access revalidation, and a temporary isolated direct publisher adapter.
+- Atomic claim and settlement, durable attempt history, fixed failure categories,
+  bounded CSV result storage, UTF-8 CSV quoting, and spreadsheet-formula defense.
+- Job detail polling, manual refresh, dispatch confirmation, attempt timeline,
+  inert CSV presentation, fixed-name download, and responsive overflow coverage.
+- Real worker and RabbitMQ outage/recovery, duplicate-delivery, multi-role, and
+  three-viewport lifecycle verification with exact current-run cleanup.
+
+Direct publication does not provide an outbox guarantee. A crash after the
+`QUEUED` commit and before publication can leave an unpublished job, and a lost
+confirmation can result in duplicate delivery. Idempotent claim prevents duplicate
+execution after delivery, but does not guarantee publication. A worker crash after
+claim can leave a job `RUNNING`. Phase 8 outbox work and Phase 9 lease, fencing,
+and recovery work have not started. Subjective visual redesign remains deferred to
+Phases 12 and 15.
+
+The owner accepted Phase 7 on 2026-10-20 after automated functional,
+authorization, security, execution-lifecycle, concurrency, persistence, retry,
+outage, recovery, responsive-overflow, and basic accessibility verification. The
+accepted limitations are the temporary direct publisher and its commit-to-publish
+and ambiguous-confirmation windows; possible duplicate delivery without guaranteed
+publication; a possible retained `RUNNING` job after worker failure; no execution
+lease, fencing token, recovery daemon, or stale-worker protection; PostgreSQL result
+storage; and deterministic concurrency evidence rather than load or performance
+certification. Automated accessibility evidence is not accessibility certification,
+and subjective visual and UX redesign remains deferred to Phases 12 and 15. Phase 8
+transactional outbox work and Phase 9 distributed recovery have not started.
+Acceptance does not claim outbox reliability, guaranteed publication, execution
+recovery, fencing, or stale-worker safety.

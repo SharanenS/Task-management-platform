@@ -6,6 +6,7 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://employee:employee@localhost:5432/employee"
     internal_service_key: str = "development-only-placeholder"
+    job_worker_service_key: str = "development-job-worker-placeholder"
     app_env: str = "development"
     keycloak_admin_base_url: str = "http://localhost:8080"
     keycloak_realm: str = "taskspace"

@@ -52,10 +52,10 @@ async function logout(page: Page) {
 
 test("ADMIN provisions, governs, and safely deactivates a disposable employee", async ({
   page,
-}) => {
+}, info) => {
   test.skip(
-    !enabled,
-    "Set RUN_EMPLOYEE_ADMIN_E2E=1 and disposable credentials.",
+    !enabled || info.project.name !== "desktop",
+    "Opt-in disposable Employee lifecycle runs on desktop; responsive coverage is separate.",
   );
   test.setTimeout(180_000);
   const marker = Date.now().toString(36).toLowerCase();

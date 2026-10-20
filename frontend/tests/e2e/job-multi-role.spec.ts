@@ -34,6 +34,17 @@ function docker(args: string[]) {
   return result.stdout;
 }
 
+function container(args: string[]) {
+  const result = spawnSync("docker", args, {
+    encoding: "utf8",
+    windowsHide: true,
+    env,
+  });
+  if (result.status !== 0)
+    throw new Error("Disposable container command failed.");
+  return result.stdout;
+}
+
 async function gql(page: Page, query: string, variables: object = {}) {
   return (
     await page.request.post("/graphql", { data: { query, variables } })
@@ -80,6 +91,7 @@ test("member ownership, non-owner concealment, and ADMIN override", async ({
   const projectKey = `JA-${marker.toUpperCase()}`;
   const idempotencyKey = `phase6-multi-role-${marker}`;
   let projectId: string | undefined;
+  const jobIds: string[] = [];
   let jobId: string | undefined;
   let primarySubject: string | undefined;
   const contexts: Array<{ close(): Promise<void> }> = [];
@@ -151,10 +163,13 @@ test("member ownership, non-owner concealment, and ADMIN override", async ({
     });
     expect(submitted.errors).toBeUndefined();
     jobId = submitted.data.submitProjectTaskExport.id;
+    jobIds.push(jobId!);
     expect(submitted.data.submitProjectTaskExport).toMatchObject({
       status: "SUBMITTED",
       attempts: [],
     });
+    const dispatchOperation =
+      "mutation D($id: ID!, $version: Int!) { dispatchJob(jobId: $id, expectedVersion: $version) { id status } }";
     const ownerList = await gql(
       ownerSession.page,
       "query { jobs(first: 50) { nodes { id } } }",
@@ -197,6 +212,14 @@ test("member ownership, non-owner concealment, and ADMIN override", async ({
       message: "The job was not found.",
       extensions: { code: "JOB_NOT_FOUND" },
     });
+    const deniedDispatch = await gql(outsiderSession.page, dispatchOperation, {
+      id: jobId,
+      version: 1,
+    });
+    expect(deniedDispatch.errors[0]).toEqual({
+      message: "The job was not found.",
+      extensions: { code: "JOB_NOT_FOUND" },
+    });
     expect(
       await outsiderSession.page.evaluate(() =>
         Object.keys(localStorage).concat(Object.keys(sessionStorage)),
@@ -213,11 +236,137 @@ test("member ownership, non-owner concealment, and ADMIN override", async ({
       status: "SUBMITTED",
       attempts: [],
     });
+    docker(["stop", "job-worker"]);
+    const dispatched = await gql(ownerSession.page, dispatchOperation, {
+      id: jobId,
+      version: 1,
+    });
+    expect(dispatched.errors).toBeUndefined();
+    docker(["stop", "work"]);
+    container(["start", "enterprise-task-platform-phase2-job-worker-1"]);
+    await expect
+      .poll(
+        async () =>
+          (
+            await gql(
+              ownerSession.page,
+              "query J($id: ID!) { job(id: $id) { attempts { attemptNumber status failureCode retryable safeSummary } } }",
+              { id: jobId },
+            )
+          ).data.job.attempts,
+        { timeout: 30_000 },
+      )
+      .toContainEqual({
+        attemptNumber: 1,
+        status: "RETRY_SCHEDULED",
+        failureCode: "DEPENDENCY_UNAVAILABLE",
+        retryable: true,
+        safeSummary: "Execution will be retried.",
+      });
+    docker(["stop", "job-worker"]);
+    docker(["up", "-d", "--wait", "work"]);
+    container(["start", "enterprise-task-platform-phase2-job-worker-1"]);
+    await expect
+      .poll(
+        async () =>
+          (
+            await gql(
+              ownerSession.page,
+              "query J($id: ID!) { job(id: $id) { status } }",
+              { id: jobId },
+            )
+          ).data.job.status,
+        { timeout: 60_000 },
+      )
+      .toBe("SUCCEEDED");
+    const retried = await gql(
+      ownerSession.page,
+      "query J($id: ID!) { job(id: $id) { attempts { attemptNumber status failureCode retryable } } }",
+      { id: jobId },
+    );
+    expect(retried.data.job.attempts).toEqual([
+      {
+        attemptNumber: 1,
+        status: "RETRY_SCHEDULED",
+        failureCode: "DEPENDENCY_UNAVAILABLE",
+        retryable: true,
+      },
+      {
+        attemptNumber: 2,
+        status: "SUCCEEDED",
+        failureCode: null,
+        retryable: false,
+      },
+    ]);
     await admin.page.goto(`/jobs/${jobId}`);
-    await expect(
-      admin.page.getByText(/Dispatch, retry, cancellation/),
-    ).toBeVisible();
+    await expect(admin.page.getByText("Export result")).toBeVisible();
+
+    const permanent = await gql(ownerSession.page, operation, {
+      input: {
+        projectId,
+        includeCompleted: false,
+        idempotencyKey: `${idempotencyKey}-permanent`,
+      },
+    });
+    expect(permanent.errors).toBeUndefined();
+    const permanentJobId = permanent.data.submitProjectTaskExport.id;
+    jobIds.push(permanentJobId);
+    docker(["stop", "job-worker"]);
+    const permanentDispatch = await gql(ownerSession.page, dispatchOperation, {
+      id: permanentJobId,
+      version: 1,
+    });
+    expect(permanentDispatch.errors).toBeUndefined();
+    const deactivated = await gql(
+      admin.page,
+      "mutation A($id: ID!) { setEmployeeActive(employeeId: $id, active: false) { id active } }",
+      { id: owner.employeeId },
+    );
+    expect(deactivated.data.setEmployeeActive.active).toBe(false);
+    docker(["start", "job-worker"]);
+    await expect
+      .poll(
+        async () =>
+          (
+            await gql(
+              admin.page,
+              "query J($id: ID!) { job(id: $id) { status } }",
+              { id: permanentJobId },
+            )
+          ).data.job.status,
+        { timeout: 30_000 },
+      )
+      .toBe("FAILED");
+    const deniedExecution = await gql(
+      admin.page,
+      "query J($id: ID!) { job(id: $id) { status resultContent failureClassification attempts { attemptNumber status failureCode retryable safeSummary } } }",
+      { id: permanentJobId },
+    );
+    expect(deniedExecution.data.job).toEqual({
+      status: "FAILED",
+      resultContent: null,
+      failureClassification: "SUBMITTER_INACTIVE",
+      attempts: [
+        {
+          attemptNumber: 1,
+          status: "FAILED",
+          failureCode: "SUBMITTER_INACTIVE",
+          retryable: false,
+          safeSummary: "Execution failed.",
+        },
+      ],
+    });
+    expect(JSON.stringify(deniedExecution)).not.toMatch(
+      /employee:8020|Traceback|password|authorization/i,
+    );
+    const reactivated = await gql(
+      admin.page,
+      "mutation A($id: ID!) { setEmployeeActive(employeeId: $id, active: true) { id active } }",
+      { id: owner.employeeId },
+    );
+    expect(reactivated.data.setEmployeeActive.active).toBe(true);
   } finally {
+    docker(["start", "work", "job-worker"]);
     for (const context of contexts.reverse()) await context.close();
     await docker([
       "exec",
@@ -252,7 +401,7 @@ test("member ownership, non-owner concealment, and ADMIN override", async ({
     if (primary.length !== 1)
       throw new Error("Primary identity lookup failed.");
     primarySubject = primary[0].id;
-    if (jobId)
+    for (const cleanupJobId of jobIds)
       docker([
         "exec",
         "-T",
@@ -260,7 +409,7 @@ test("member ownership, non-owner concealment, and ADMIN override", async ({
         "python",
         "-m",
         "app.development_cleanup",
-        jobId,
+        cleanupJobId,
       ]);
     if (projectId)
       docker([

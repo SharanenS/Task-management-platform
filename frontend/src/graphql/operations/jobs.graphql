@@ -38,14 +38,34 @@ query JobDetail($id: ID!) {
       includeCompleted
     }
     version
+    resultSummary
+    resultContent
+    resultContentType
+    resultChecksum
+    resultRowCount
+    resultTruncated
+    failureClassification
+    completedAt
     createdAt
     updatedAt
     attempts {
       id
       attemptNumber
       status
-      createdAt
+      startedAt
+      finishedAt
+      failureCode
+      retryable
+      safeSummary
     }
+  }
+}
+
+mutation DispatchJob($jobId: ID!, $expectedVersion: Int!) {
+  dispatchJob(jobId: $jobId, expectedVersion: $expectedVersion) {
+    id
+    status
+    version
   }
 }
 

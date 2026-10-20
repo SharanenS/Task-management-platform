@@ -1,4 +1,4 @@
-# Architecture decisions — Phases 1–6
+# Architecture decisions — Phases 1–7
 
 ## Fixed boundaries
 
@@ -8,8 +8,8 @@ infrastructure endpoints are explicit HTTP exceptions. The gateway owns no domai
 data. Employee, Work Management, Workflow, and Job Execution remain independent
 bounded services, each with its own database and migrations when introduced.
 
-Employee Service, Work Service, and Job Service are implemented. Workflow, queues,
-and job execution remain outside Phase 6.
+Employee Service, Work Service, and Job Service are implemented. Phase 7 adds the
+first RabbitMQ/Celery execution slice; workflow automation remains outside scope.
 
 ## Job management
 
@@ -29,10 +29,37 @@ across Employee, Work, and Job services is claimed.
 
 Idempotency uniqueness is scoped to submitter and key in PostgreSQL. Canonically
 identical retries return the existing job, while conflicting reuse returns a fixed
-`IDEMPOTENCY_CONFLICT`. All Phase 6 jobs begin as `SUBMITTED`. The future lifecycle
-defines queued, running, succeeded, failed, and cancelled states, but Phase 6 has
-no public transition, RabbitMQ, Celery, worker, dispatch, attempt, progress, or
-result behavior. Attempt history is durably modeled and remains empty.
+`IDEMPOTENCY_CONFLICT`. All jobs begin as `SUBMITTED`. Phase 7 dispatch locks the
+job, checks its expected version, commits `QUEUED`, and publishes only its UUID
+through an isolated Job Service publisher. RabbitMQ uses a durable direct exchange
+and queue, persistent JSON messages, a single allowlisted routing key, and
+publisher confirms. One Celery worker consumes only that queue with late
+acknowledgement, worker-loss rejection, prefetch one, bounded concurrency, and
+bounded time limits. Job PostgreSQL, rather than a Celery result backend, remains
+authoritative.
+
+Claim locks a `QUEUED` job and atomically creates one `RUNNING` attempt. Duplicate
+deliveries become safe no-ops after a winner claims the job. Success atomically
+stores a bounded UTF-8 CSV result, row count, content type, SHA-256 checksum,
+truncation marker, and completion time. Permanent failure stores only a fixed
+classification. Allowlisted dependency failures receive at most two bounded
+Celery retries, each represented by durable attempt state.
+
+Direct publication is temporary. A process crash after the `QUEUED` commit and
+before publication can leave an unpublished job. A lost confirmation can make the
+publication result ambiguous and produce duplicate delivery. Idempotent claim
+prevents duplicate execution but does not guarantee publication. Phase 8 will
+replace this path with a transactional outbox. A worker crash after claim can
+leave the job `RUNNING`; Phase 7 has no lease, fencing token, stale-worker guard,
+or recovery daemon. Those controls remain Phase 9 work.
+
+For `PROJECT_TASK_EXPORT`, the worker reloads the submitter by stable Employee UUID,
+requires an active profile, uses the current application role, and asks Work
+Service to revalidate current project access. The worker never reads the Work
+database directly. Exports are limited to 500 rows and 256,000 encoded bytes and
+contain only reference, title, status, priority, assignee display name, and due
+date. A real CSV writer handles quoting and UTF-8. Formula-like cell prefixes are
+neutralized before persistence, and CSV content is never logged.
 
 ## Project management
 
@@ -184,7 +211,7 @@ the ignored local `.env`, creates or updates a development Keycloak user, obtain
 its stable subject, and invokes an internal Employee Service bootstrap command.
 
 Keycloak, Employee Service PostgreSQL, Work Service PostgreSQL, Job Service
-PostgreSQL, and Redis each use a distinct named volume.
+PostgreSQL, RabbitMQ, and Redis each use a distinct named volume.
 Readiness checks verify database connectivity or service endpoints before dependent
 containers start. Host-published ports bind to loopback.
 
@@ -209,6 +236,10 @@ containers start. Host-published ports bind to loopback.
 | Forged internal job actor context     | Unexposed Job endpoint, dedicated credential, and validated Gateway actor context          |
 | Duplicate or conflicting submission   | Canonical fingerprint plus actor-scoped PostgreSQL uniqueness                              |
 | Job or dependency information leakage | Fixed Gateway errors, bounded clients, and concealed inaccessible job identifiers          |
+| Forged or stale execution context     | UUID-only messages; worker reloads Job, Employee, role, and project access                 |
+| Duplicate broker delivery             | Atomic `QUEUED` claim creates one attempt; other deliveries become safe no-ops             |
+| Spreadsheet formula execution         | Fixed CSV field allowlist, CSV quoting, and dangerous-prefix neutralization                |
+| Broker or worker information leakage  | Fixed classifications, bounded calls, and no payload, CSV, token, or traceback logging     |
 
 ## Dependency choices
 
@@ -219,3 +250,6 @@ supports durable shared sessions and atomic lock acquisition. PyJWT performs str
 gateway JWT validation with cached JWKS lookup. SQLAlchemy, Alembic, and psycopg
 provide explicit Employee Service, Work Service, and Job Service ownership of their
 respective models, migrations, and PostgreSQL schemas.
+Celery supplies bounded local worker execution and Kombu supplies durable AMQP
+routing and publisher confirmation. RabbitMQ is internal-only in Compose. The
+local transport is not production TLS. No Celery result backend is configured.

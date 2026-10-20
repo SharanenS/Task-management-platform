@@ -1,6 +1,7 @@
 import uuid
 from collections.abc import Generator
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -70,3 +71,48 @@ def test_submit_list_detail_and_empty_attempts() -> None:
     assert (
         api.get(f"/internal/jobs/{job['id']}/attempts", headers=actor_headers).json()["items"] == []
     )
+
+
+def test_dispatch_endpoint_enforces_owner_version_and_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = client()
+    actor_headers = headers()
+    submitted = api.post(
+        "/internal/jobs",
+        headers=actor_headers,
+        json={
+            "job_type": "PROJECT_TASK_EXPORT",
+            "payload": {
+                "project_id": str(uuid.uuid4()),
+                "format": "CSV",
+                "include_completed": True,
+            },
+            "idempotency_key": "phase7-api-dispatch-0001",
+        },
+    ).json()
+
+    class Publisher:
+        def publish(self, _job_id: uuid.UUID) -> None:
+            return None
+
+    monkeypatch.setattr("app.main.publisher", lambda: Publisher())
+    denied = api.post(
+        f"/internal/jobs/{submitted['id']}/dispatch",
+        headers=headers(),
+        json={"expected_version": submitted["version"]},
+    )
+    assert denied.status_code == 404 and denied.json()["detail"]["code"] == "JOB_NOT_FOUND"
+    queued = api.post(
+        f"/internal/jobs/{submitted['id']}/dispatch",
+        headers=actor_headers,
+        json={"expected_version": submitted["version"]},
+    )
+    assert queued.status_code == 200 and queued.json()["status"] == "QUEUED"
+    repeated = api.post(
+        f"/internal/jobs/{submitted['id']}/dispatch",
+        headers=actor_headers,
+        json={"expected_version": queued.json()["version"]},
+    )
+    assert repeated.status_code == 409
+    assert repeated.json()["detail"]["code"] == "JOB_NOT_DISPATCHABLE"

@@ -3,12 +3,12 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_session
-from app.models import ProjectStatus, TaskPriority, TaskStatus
+from app.models import ProjectStatus, Task, TaskPriority, TaskStatus
 from app.schemas import (
     MembershipCreateRequest,
     MembershipRoleRequest,
@@ -63,6 +63,11 @@ def require_internal_service(x_internal_service_key: str = Header(default="")) -
         raise HTTPException(status_code=403, detail="Forbidden")
 
 
+def require_job_worker(x_job_worker_service_key: str = Header(default="")) -> None:
+    if not hmac.compare_digest(x_job_worker_service_key, settings.job_worker_service_key):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
 def actor_context(
     x_actor_employee_id: str = Header(default=""),
     x_actor_application_role: str = Header(default=""),
@@ -94,6 +99,44 @@ def liveness() -> dict[str, str]:
 def readiness(session: SessionDependency) -> dict[str, str]:
     session.execute(text("SELECT 1"))
     return {"status": "ready"}
+
+
+@app.get(
+    "/internal/execution/projects/{project_id}/tasks",
+    dependencies=[Depends(require_job_worker)],
+)
+def execution_tasks(
+    project_id: UUID,
+    session: SessionDependency,
+    actor: ActorDependency,
+    include_completed: bool = True,
+    limit: int = Query(default=500, ge=1, le=500),
+) -> dict[str, object]:
+    try:
+        project = get_project(session, actor, project_id)
+    except WorkError as error:
+        raise failure(error) from error
+    statement = select(Task).where(Task.project_id == project.id)
+    if not include_completed:
+        statement = statement.where(Task.status != TaskStatus.DONE)
+    tasks = list(session.scalars(statement.order_by(Task.number).limit(limit + 1)))
+    truncated = len(tasks) > limit
+    tasks = tasks[:limit]
+    return {
+        "projectKey": project.key,
+        "truncated": truncated,
+        "items": [
+            {
+                "reference": f"{project.key}-{task.number}",
+                "title": task.title,
+                "status": task.status.value,
+                "priority": task.priority.value,
+                "assigneeDisplayName": "",
+                "dueDate": task.due_date.isoformat() if task.due_date else "",
+            }
+            for task in tasks
+        ],
+    }
 
 
 @app.get(
