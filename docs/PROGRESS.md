@@ -1,6 +1,6 @@
 ﻿# Project progress
 
-Last updated: 2026-10-20
+Last updated: 2026-10-27
 
 ## Phase 1 â€” Project Foundation and Frontend Design System
 
@@ -247,3 +247,32 @@ limitations do not block Phase 8 acceptance.
 
 Phase 9 execution leases, fencing, stale-worker protection, recovery, and
 administrative execution retry have not started.
+
+## Phase 9 — Distributed Reliability and Recovery
+
+Status: **Accepted**
+
+Delivered:
+
+- Durable execution leases, bounded heartbeats, monotonic fencing, and stale-owner
+  rejection for every settlement path.
+- Independent `job-recovery` process with bounded PostgreSQL polling,
+  `FOR UPDATE SKIP LOCKED`, stable ordering, and transactional retry publication.
+- Three-attempt automatic retry policy plus one separately bounded ADMIN retry,
+  with one outbox event per execution generation.
+- Safe GraphQL attempt history and recovery state, current-profile authorization,
+  and ADMIN-only retry controls with confirmation and duplicate-click protection.
+- Forward-only Job migration `20261020_05` and a 15-service Compose stack.
+
+The final automated results are recorded in `docs/phase-9-verification.md`.
+The owner accepted Phase 9 on 2026-10-27 after automated functional,
+authorization, security, retry, exhaustion, concurrency, persistence, outage,
+recovery, cleanup, responsive-overflow, and basic accessibility verification.
+Phase 9 preserves at-least-once publication and execution semantics; it does not
+claim exactly-once behavior, load or performance certification, or a cross-service
+distributed transaction. Automatic retries are bounded, and ADMIN manual retry is
+allowed only through the verified safe state transition. The generic missing or
+inactive-profile scenario remains intentionally skipped when its credentials
+identify the protected administrator; the ownership-proven disposable journey
+passed separately. Subjective visual and UX refinement remains deferred to Phases
+12 and 15. Phase 10 has not started.

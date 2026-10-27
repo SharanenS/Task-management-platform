@@ -15,6 +15,7 @@ from app.schemas import (
     JobDispatchRequest,
     JobPageResponse,
     JobResponse,
+    JobRetryRequest,
     JobSubmissionRequest,
     PublicationPageResponse,
     PublicationResponse,
@@ -22,6 +23,7 @@ from app.schemas import (
 from app.service import (
     Actor,
     JobError,
+    admin_retry_job,
     dispatch_job,
     get_job,
     list_attempts,
@@ -176,6 +178,25 @@ def dispatch(
     try:
         return JobResponse.model_validate(
             dispatch_job(session, actor, job_id, body.expected_version)
+        )
+    except JobError as error:
+        raise failure(error) from error
+
+
+@app.post(
+    "/internal/jobs/{job_id}/retry",
+    response_model=JobResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def retry(
+    job_id: UUID,
+    body: JobRetryRequest,
+    session: SessionDependency,
+    actor: ActorDependency,
+) -> JobResponse:
+    try:
+        return JobResponse.model_validate(
+            admin_retry_job(session, actor, job_id, body.expected_version)
         )
     except JobError as error:
         raise failure(error) from error

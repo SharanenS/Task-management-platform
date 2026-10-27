@@ -1,7 +1,7 @@
 # Enterprise Task Platform
 
 A GraphQL-first enterprise work platform, developed in verified full-stack slices.
-Phases 1–8 are accepted. Phase 9 has not started.
+Phases 1–9 are accepted. Phase 10 has not started.
 
 Phase 2 adds a protected Taskspace shell, Keycloak Authorization Code Flow with
 PKCE, Redis-backed server sessions, an Employee Service with its own PostgreSQL
@@ -105,6 +105,28 @@ or load certification. A worker crash after execution claim can still leave a jo
 `RUNNING`; execution leases, fencing, stale-worker protection, the recovery
 daemon, and administrative execution retry belong to Phase 9. Subjective visual
 and UX redesign remains deferred to Phases 12 and 15.
+
+Phase 9 adds durable execution leases, periodic heartbeats, monotonically fenced
+attempt ownership, bounded automatic retries, generation-scoped outbox events,
+and an independent `job-recovery` process. Expired attempts are abandoned before
+one replacement generation is scheduled through the transactional outbox. Stale
+workers cannot settle newer execution state. Administrators receive one separately
+bounded retry for eligible terminal failures; the Gateway and Job Service both
+enforce current active ADMIN authorization. Job detail presents safe attempt and
+recovery history without exposing lease tokens or fencing values.
+
+The owner accepted Phase 9 on 2026-10-27 after automated functional,
+authorization, security, retry, exhaustion, concurrency, persistence, outage,
+recovery, cleanup, responsive-overflow, and basic accessibility verification.
+Delivery and execution remain at least once; exactly-once behavior is not claimed.
+Automatic retries are bounded, and ADMIN manual retry is allowed only through the
+verified safe state transition. Deterministic concurrency evidence is not
+performance or load certification, and no cross-service distributed transaction is
+claimed. The generic missing or inactive-profile scenario remains intentionally
+skipped when its configured credentials identify the protected administrator; the
+ownership-proven disposable inactive-profile journey passed separately. Subjective
+visual and UX refinement remains deferred to Phases 12 and 15. Phase 10 has not
+started.
 
 ## Run with Docker
 
@@ -224,6 +246,8 @@ The Phase 7 job lifecycle is opt-in through `RUN_JOB_E2E=1`. The owner/non-owner
 journey uses `RUN_JOB_MULTI_ROLE_E2E=1`. The serial worker and RabbitMQ recovery
 journey uses `RUN_JOB_EXECUTION_OUTAGE_E2E=1`; it verifies exact service targets,
 duplicate delivery, service restoration, and exact test-owned cleanup.
+The Phase 9 expired-execution recovery journey uses `RUN_JOB_RECOVERY_E2E=1` and
+runs serially with exact recovery-process and worker restoration.
 
 Generated GraphQL TypeScript is committed for reproducible builds. After schema
 changes, run `gateway/export_schema.py` and `npm run codegen`, then review both.
@@ -241,4 +265,5 @@ changes, run `gateway/export_schema.py` and `npm run codegen`, then review both.
 | `docs/`                    | Architecture, dependency, progress, and verification records    |
 
 See [architecture](docs/architecture.md), [dependency review](docs/dependency-review.md),
-and [Phase 8 verification](docs/phase-8-verification.md).
+[Phase 8 verification](docs/phase-8-verification.md), and
+[Phase 9 verification](docs/phase-9-verification.md).

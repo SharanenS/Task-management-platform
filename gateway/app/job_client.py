@@ -37,6 +37,9 @@ class JobRecord:
     created_at: str
     updated_at: str
     publication: dict[str, Any] | None = None
+    execution_generation: int = 0
+    retry_exhausted: bool = False
+    manual_retry_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -56,6 +59,12 @@ class JobAttemptRecord:
     failure_code: str | None
     retryable: bool
     safe_summary: str | None
+    lease_acquired_at: str | None = None
+    lease_expires_at: str | None = None
+    last_heartbeat_at: str | None = None
+    abandoned_at: str | None = None
+    retry_scheduled_at: str | None = None
+    recovered_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -102,6 +111,9 @@ def _job(data: dict[str, Any]) -> JobRecord:
             data["created_at"],
             data["updated_at"],
             data.get("publication"),
+            data.get("execution_generation", 0),
+            data.get("retry_exhausted", False),
+            data.get("manual_retry_count", 0),
         )
     except (KeyError, TypeError, ValueError) as error:
         raise JobUnavailableError from error
@@ -193,6 +205,12 @@ async def list_attempts(actor: EmployeeProfile, job_id: str) -> list[JobAttemptR
                 item.get("failure_code"),
                 item["retryable"],
                 item.get("safe_summary"),
+                item.get("lease_acquired_at"),
+                item.get("lease_expires_at"),
+                item.get("last_heartbeat_at"),
+                item.get("abandoned_at"),
+                item.get("retry_scheduled_at"),
+                item.get("recovered_at"),
             )
             for item in data["items"]
         ]
@@ -226,6 +244,17 @@ async def dispatch_job(actor: EmployeeProfile, *, job_id: str, expected_version:
         await _request(
             "POST",
             f"/internal/jobs/{job_id}/dispatch",
+            actor,
+            json={"expected_version": expected_version},
+        )
+    )
+
+
+async def retry_job(actor: EmployeeProfile, *, job_id: str, expected_version: int) -> JobRecord:
+    return _job(
+        await _request(
+            "POST",
+            f"/internal/jobs/{job_id}/retry",
             actor,
             json={"expected_version": expected_version},
         )

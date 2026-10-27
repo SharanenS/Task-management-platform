@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -30,6 +30,9 @@ TRANSITIONS: dict[JobStatus, frozenset[JobStatus]] = {
     JobStatus.FAILED: frozenset(),
     JobStatus.CANCELLED: frozenset(),
 }
+EXECUTION_LEASE_SECONDS = 30
+MAX_AUTOMATIC_ATTEMPTS = 3
+MAX_MANUAL_RETRIES = 1
 
 
 @dataclass(frozen=True)
@@ -250,12 +253,14 @@ def dispatch_job(
             "JOB_NOT_DISPATCHABLE", "The job cannot be dispatched in its current state.", 409
         )
     job.status = JobStatus.QUEUED
+    job.execution_generation = 1
     job.version += 1
     session.add(
         OutboxEvent(
             job_id=job.id,
             event_type="EXECUTE_JOB",
             schema_version=1,
+            execution_generation=1,
             status=PublicationStatus.PENDING,
         )
     )
@@ -344,16 +349,50 @@ def settle_publication_failure(
     return True
 
 
-def claim_job(session: Session, job_id: UUID) -> JobAttempt | None:
+def claim_job(
+    session: Session,
+    job_id: UUID,
+    *,
+    now: datetime | None = None,
+    lease_seconds: int = EXECUTION_LEASE_SECONDS,
+) -> JobAttempt | None:
+    current = now or datetime.now(UTC)
     job = session.scalar(select(Job).where(Job.id == job_id).with_for_update())
     if job is None or job.status != JobStatus.QUEUED:
         return None
-    attempt_number = len(job.attempts) + 1
+    attempt_number = (
+        int(
+            session.scalar(
+                select(func.coalesce(func.max(JobAttempt.attempt_number), 0)).where(
+                    JobAttempt.job_id == job.id
+                )
+            )
+            or 0
+        )
+        + 1
+    )
+    fence = (
+        int(
+            session.scalar(
+                select(func.coalesce(func.max(JobAttempt.execution_fence), 0)).where(
+                    JobAttempt.job_id == job.id
+                )
+            )
+            or 0
+        )
+        + 1
+    )
     attempt = JobAttempt(
         job_id=job.id,
         attempt_number=attempt_number,
         status=AttemptStatus.RUNNING,
         retryable=False,
+        execution_generation=job.execution_generation,
+        execution_fence=fence,
+        execution_lease_token=secrets.token_hex(24),
+        lease_acquired_at=current,
+        lease_expires_at=current + timedelta(seconds=lease_seconds),
+        last_heartbeat_at=current,
     )
     job.status = JobStatus.RUNNING
     job.version += 1
@@ -361,6 +400,48 @@ def claim_job(session: Session, job_id: UUID) -> JobAttempt | None:
     session.commit()
     session.refresh(attempt)
     return attempt
+
+
+def heartbeat_execution(
+    session: Session,
+    attempt_id: UUID,
+    lease_token: str,
+    execution_fence: int,
+    *,
+    now: datetime | None = None,
+    lease_seconds: int = EXECUTION_LEASE_SECONDS,
+) -> bool:
+    current = now or datetime.now(UTC)
+    attempt = session.scalar(
+        select(JobAttempt)
+        .where(
+            JobAttempt.id == attempt_id,
+            JobAttempt.status == AttemptStatus.RUNNING,
+            JobAttempt.execution_lease_token == lease_token,
+            JobAttempt.execution_fence == execution_fence,
+            JobAttempt.lease_expires_at > current,
+        )
+        .with_for_update()
+    )
+    if attempt is None:
+        session.rollback()
+        return False
+    attempt.last_heartbeat_at = current
+    attempt.lease_expires_at = current + timedelta(seconds=lease_seconds)
+    session.commit()
+    return True
+
+
+def _owns_execution(
+    attempt: JobAttempt, lease_token: str | None, execution_fence: int | None
+) -> bool:
+    return bool(
+        lease_token
+        and execution_fence is not None
+        and attempt.execution_lease_token
+        and secrets.compare_digest(attempt.execution_lease_token, lease_token)
+        and attempt.execution_fence == execution_fence
+    )
 
 
 def settle_success(
@@ -373,6 +454,8 @@ def settle_success(
     checksum: str,
     row_count: int,
     truncated: bool,
+    lease_token: str | None = None,
+    execution_fence: int | None = None,
 ) -> None:
     job = session.scalar(select(Job).where(Job.id == job_id).with_for_update())
     attempt = session.scalar(
@@ -385,11 +468,14 @@ def settle_success(
         or not attempt
         or job.status != JobStatus.RUNNING
         or attempt.status != AttemptStatus.RUNNING
+        or not _owns_execution(attempt, lease_token, execution_fence)
     ):
         raise JobError("STALE_SETTLEMENT", "The execution attempt is no longer active.", 409)
     now = datetime.now(UTC)
     attempt.status = AttemptStatus.SUCCEEDED
     attempt.finished_at = now
+    attempt.execution_lease_token = None
+    attempt.lease_expires_at = None
     job.status = JobStatus.SUCCEEDED
     job.result_content = content
     job.result_content_type = content_type
@@ -410,6 +496,9 @@ def settle_failure(
     code: str,
     retryable: bool,
     retry_exhausted: bool = False,
+    lease_token: str | None = None,
+    execution_fence: int | None = None,
+    now: datetime | None = None,
 ) -> None:
     job = session.scalar(select(Job).where(Job.id == job_id).with_for_update())
     attempt = session.scalar(
@@ -422,20 +511,139 @@ def settle_failure(
         or not attempt
         or job.status != JobStatus.RUNNING
         or attempt.status != AttemptStatus.RUNNING
+        or not _owns_execution(attempt, lease_token, execution_fence)
     ):
         raise JobError("STALE_SETTLEMENT", "The execution attempt is no longer active.", 409)
-    attempt.finished_at = datetime.now(UTC)
+    current = now or datetime.now(UTC)
+    attempt.finished_at = current
+    attempt.execution_lease_token = None
+    attempt.lease_expires_at = None
     attempt.failure_code = code
     attempt.retryable = retryable
-    if retryable and not retry_exhausted:
+    exhausted = retry_exhausted or attempt.attempt_number >= MAX_AUTOMATIC_ATTEMPTS
+    if retryable and not exhausted:
         attempt.status = AttemptStatus.RETRY_SCHEDULED
         attempt.safe_summary = "Execution will be retried."
+        attempt.retry_scheduled_at = current
         job.status = JobStatus.QUEUED
+        job.execution_generation += 1
+        delay = min(2**attempt.attempt_number, 30)
+        session.add(
+            OutboxEvent(
+                job_id=job.id,
+                execution_generation=job.execution_generation,
+                status=PublicationStatus.PENDING,
+                available_at=current + timedelta(seconds=delay),
+            )
+        )
     else:
         attempt.status = AttemptStatus.FAILED
         attempt.safe_summary = "Execution failed."
         job.status = JobStatus.FAILED
         job.failure_classification = code
-        job.completed_at = datetime.now(UTC)
+        job.completed_at = current
+        job.retry_exhausted = bool(retryable)
     job.version += 1
     session.commit()
+
+
+def recover_expired_executions(
+    session: Session,
+    *,
+    batch_size: int = 20,
+    now: datetime | None = None,
+) -> list[UUID]:
+    current = now or datetime.now(UTC)
+    attempts = list(
+        session.scalars(
+            select(JobAttempt)
+            .where(
+                JobAttempt.status == AttemptStatus.RUNNING,
+                JobAttempt.lease_expires_at <= current,
+            )
+            .order_by(JobAttempt.lease_expires_at, JobAttempt.id)
+            .limit(min(max(batch_size, 1), 100))
+            .with_for_update(skip_locked=True)
+        )
+    )
+    recovered: list[UUID] = []
+    for attempt in attempts:
+        job = session.scalar(select(Job).where(Job.id == attempt.job_id).with_for_update())
+        if not job or job.status != JobStatus.RUNNING or attempt.status != AttemptStatus.RUNNING:
+            continue
+        attempt.status = AttemptStatus.ABANDONED
+        attempt.abandoned_at = current
+        attempt.recovered_at = current
+        attempt.finished_at = current
+        attempt.failure_code = "EXECUTION_LEASE_EXPIRED"
+        attempt.safe_summary = "Execution ownership expired and was recovered."
+        attempt.retryable = True
+        attempt.execution_lease_token = None
+        attempt.lease_expires_at = None
+        if attempt.attempt_number >= MAX_AUTOMATIC_ATTEMPTS:
+            job.status = JobStatus.FAILED
+            job.retry_exhausted = True
+            job.failure_classification = "RETRY_EXHAUSTED"
+            job.completed_at = current
+        else:
+            attempt.retry_scheduled_at = current
+            job.status = JobStatus.QUEUED
+            job.execution_generation += 1
+            session.add(
+                OutboxEvent(
+                    job_id=job.id,
+                    execution_generation=job.execution_generation,
+                    status=PublicationStatus.PENDING,
+                    available_at=current,
+                )
+            )
+        job.version += 1
+        recovered.append(job.id)
+    session.commit()
+    return recovered
+
+
+def admin_retry_job(
+    session: Session,
+    actor: Actor,
+    job_id: UUID,
+    expected_version: int,
+) -> Job:
+    if actor.application_role != "ADMIN":
+        raise JobError("FORBIDDEN", "Administrator access is required.", 403)
+    job = session.scalar(select(Job).where(Job.id == job_id).with_for_update())
+    if not job:
+        raise JobError("JOB_NOT_FOUND", "The job was not found.", 404)
+    if job.version != expected_version:
+        raise JobError("VERSION_CONFLICT", "The job changed before it could be retried.", 409)
+    if job.status != JobStatus.FAILED or job.manual_retry_count >= MAX_MANUAL_RETRIES:
+        raise JobError(
+            "JOB_NOT_RETRYABLE", "The job is not eligible for administrative retry.", 409
+        )
+    if session.scalar(
+        select(JobAttempt).where(
+            JobAttempt.job_id == job.id, JobAttempt.status == AttemptStatus.RUNNING
+        )
+    ):
+        raise JobError("JOB_NOT_RETRYABLE", "The job has an active execution.", 409)
+    job.status = JobStatus.QUEUED
+    job.completed_at = None
+    job.failure_classification = None
+    job.retry_exhausted = False
+    job.manual_retry_count += 1
+    job.execution_generation += 1
+    job.version += 1
+    session.add(
+        OutboxEvent(
+            job_id=job.id,
+            execution_generation=job.execution_generation,
+            status=PublicationStatus.PENDING,
+        )
+    )
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise JobError("JOB_RETRY_CONFLICT", "The retry request conflicted.", 409) from None
+    session.refresh(job)
+    return job

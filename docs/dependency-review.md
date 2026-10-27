@@ -1,4 +1,4 @@
-# Dependency review — 2026-10-20
+# Dependency review — 2026-10-21
 
 The Phase 1 npm audit reported 12 high-severity development dependency entries stemming
 from [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
@@ -14,6 +14,12 @@ documented with the repository-controlled input constraint above.
 The Gateway, Employee Service, Work Service, and Job Service Python locks reported
 no known vulnerabilities when every pinned package was checked with `pip-audit`
 2.10.1. This includes the locked Celery transport dependency chain.
+
+The Phase 9 audit identified `PYSEC-2026-4320` in the previously pinned
+`certifi 2026.7.22`. Gateway, Employee Service, and Job Service locks now pin the
+fixed `certifi 2026.10.19`; all four Python locks then reported no known
+vulnerabilities. The production npm audit remains clean, while the full audit
+retains the 12 documented development-only `braces` findings above.
 
 Phase 2 adds `openid-client` 6.8.8 and `redis` 6.3.0. `openid-client` was selected
 for standards-compliant Authorization Code, PKCE, ID-token, and refresh processing;

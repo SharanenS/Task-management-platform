@@ -46,6 +46,9 @@ query JobDetail($id: ID!) {
     resultTruncated
     failureClassification
     completedAt
+    executionGeneration
+    retryExhausted
+    manualRetryCount
     createdAt
     updatedAt
     publication {
@@ -67,7 +70,24 @@ query JobDetail($id: ID!) {
       failureCode
       retryable
       safeSummary
+      leaseAcquiredAt
+      leaseExpiresAt
+      lastHeartbeatAt
+      abandonedAt
+      retryScheduledAt
+      recoveredAt
     }
+  }
+}
+
+mutation RetryJob($jobId: ID!, $expectedVersion: Int!) {
+  retryJob(jobId: $jobId, expectedVersion: $expectedVersion) {
+    id
+    status
+    version
+    executionGeneration
+    retryExhausted
+    manualRetryCount
   }
 }
 

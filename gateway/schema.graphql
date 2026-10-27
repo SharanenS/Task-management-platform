@@ -79,6 +79,9 @@ type Job {
   resultTruncated: Boolean
   failureClassification: String
   completedAt: DateTime
+  executionGeneration: Int!
+  retryExhausted: Boolean!
+  manualRetryCount: Int!
   version: Int!
   createdAt: DateTime!
   updatedAt: DateTime!
@@ -95,6 +98,12 @@ type JobAttempt {
   failureCode: String
   retryable: Boolean!
   safeSummary: String
+  leaseAcquiredAt: DateTime
+  leaseExpiresAt: DateTime
+  lastHeartbeatAt: DateTime
+  abandonedAt: DateTime
+  retryScheduledAt: DateTime
+  recoveredAt: DateTime
 }
 
 enum JobAttemptStatus {
@@ -102,6 +111,7 @@ enum JobAttemptStatus {
   SUCCEEDED
   FAILED
   RETRY_SCHEDULED
+  ABANDONED
 }
 
 type JobConnection {
@@ -135,6 +145,7 @@ enum JobType {
 
 type Mutation {
   dispatchJob(jobId: ID!, expectedVersion: Int!): Job!
+  retryJob(jobId: ID!, expectedVersion: Int!): Job!
   submitProjectTaskExport(input: SubmitProjectTaskExportInput!): Job!
   provisionEmployee(input: ProvisionEmployeeInput!): AdminEmployee!
   updateEmployeeRole(employeeId: ID!, role: ApplicationRole!): AdminEmployee!

@@ -46,6 +46,7 @@ from app.job_client import (
     list_jobs as job_list_jobs,
 )
 from app.job_client import list_publications as job_list_publications
+from app.job_client import retry_job as job_retry_job
 from app.job_client import (
     submit_job as job_submit_job,
 )
@@ -193,6 +194,7 @@ class JobAttemptStatus(StrEnum):
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
     RETRY_SCHEDULED = "RETRY_SCHEDULED"
+    ABANDONED = "ABANDONED"
 
 
 @strawberry.enum
@@ -368,6 +370,12 @@ class JobAttempt:
     failure_code: str | None
     retryable: bool
     safe_summary: str | None
+    lease_acquired_at: datetime | None
+    lease_expires_at: datetime | None
+    last_heartbeat_at: datetime | None
+    abandoned_at: datetime | None
+    retry_scheduled_at: datetime | None
+    recovered_at: datetime | None
 
 
 @strawberry.type
@@ -397,6 +405,9 @@ class Job:
     result_truncated: bool | None
     failure_classification: str | None
     completed_at: datetime | None
+    execution_generation: int
+    retry_exhausted: bool
+    manual_retry_count: int
     version: int
     created_at: datetime
     updated_at: datetime
@@ -626,6 +637,9 @@ def _job_value(value: JobRecord, attempts: list[JobAttempt] | None = None) -> Jo
         result_truncated=value.result_truncated,
         failure_classification=value.failure_classification,
         completed_at=datetime.fromisoformat(value.completed_at) if value.completed_at else None,
+        execution_generation=value.execution_generation,
+        retry_exhausted=value.retry_exhausted,
+        manual_retry_count=value.manual_retry_count,
         version=value.version,
         created_at=datetime.fromisoformat(value.created_at),
         updated_at=datetime.fromisoformat(value.updated_at),
@@ -677,6 +691,8 @@ def _raise_job_error(error: Exception) -> NoReturn:
             "INVALID_INPUT": "The job input is invalid.",
             "VERSION_CONFLICT": "The job changed before it could be dispatched.",
             "JOB_NOT_DISPATCHABLE": "The job cannot be dispatched in its current state.",
+            "JOB_NOT_RETRYABLE": "The job is not eligible for administrative retry.",
+            "JOB_RETRY_CONFLICT": "The retry request conflicted. Refresh and try again.",
             "BROKER_UNAVAILABLE": "Job dispatch is temporarily unavailable.",
         }
         message = messages.get(error.code)
@@ -863,6 +879,36 @@ class Query:
                         failure_code=attempt.failure_code,
                         retryable=attempt.retryable,
                         safe_summary=attempt.safe_summary,
+                        lease_acquired_at=(
+                            datetime.fromisoformat(attempt.lease_acquired_at)
+                            if attempt.lease_acquired_at
+                            else None
+                        ),
+                        lease_expires_at=(
+                            datetime.fromisoformat(attempt.lease_expires_at)
+                            if attempt.lease_expires_at
+                            else None
+                        ),
+                        last_heartbeat_at=(
+                            datetime.fromisoformat(attempt.last_heartbeat_at)
+                            if attempt.last_heartbeat_at
+                            else None
+                        ),
+                        abandoned_at=(
+                            datetime.fromisoformat(attempt.abandoned_at)
+                            if attempt.abandoned_at
+                            else None
+                        ),
+                        retry_scheduled_at=(
+                            datetime.fromisoformat(attempt.retry_scheduled_at)
+                            if attempt.retry_scheduled_at
+                            else None
+                        ),
+                        recovered_at=(
+                            datetime.fromisoformat(attempt.recovered_at)
+                            if attempt.recovered_at
+                            else None
+                        ),
                     )
                     for attempt in attempts
                 ],
@@ -1150,6 +1196,20 @@ class Mutation:
             WorkUnavailableError,
             EmployeeUnavailableError,
         ) as error:
+            _raise_job_error(error)
+
+    @strawberry.mutation
+    async def retry_job(self, info: Info, job_id: strawberry.ID, expected_version: int) -> Job:
+        _, actor = await _project_actor(info)
+        if actor.role != "ADMIN":
+            raise GraphQLError(
+                "Administrator access is required.", extensions={"code": "FORBIDDEN"}
+            )
+        try:
+            return _job_value(
+                await job_retry_job(actor, job_id=str(job_id), expected_version=expected_version)
+            )
+        except (JobDomainError, JobUnavailableError, EmployeeUnavailableError) as error:
             _raise_job_error(error)
 
     @strawberry.mutation

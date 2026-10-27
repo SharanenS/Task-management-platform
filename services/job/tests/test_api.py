@@ -108,3 +108,30 @@ def test_dispatch_endpoint_enforces_owner_version_and_state() -> None:
     )
     assert repeated.status_code == 409
     assert repeated.json()["detail"]["code"] == "JOB_NOT_DISPATCHABLE"
+
+
+def test_admin_retry_requires_admin_and_eligible_terminal_job() -> None:
+    api = client()
+    admin = headers(role="ADMIN")
+    submitted = api.post(
+        "/internal/jobs",
+        headers=admin,
+        json={
+            "job_type": "PROJECT_TASK_EXPORT",
+            "payload": {"project_id": str(uuid.uuid4()), "format": "CSV"},
+            "idempotency_key": "phase9-api-retry-0001",
+        },
+    ).json()
+    denied = api.post(
+        f"/internal/jobs/{submitted['id']}/retry",
+        headers=headers(role="MANAGER"),
+        json={"expected_version": submitted["version"]},
+    )
+    assert denied.status_code == 403
+    ineligible = api.post(
+        f"/internal/jobs/{submitted['id']}/retry",
+        headers=admin,
+        json={"expected_version": submitted["version"]},
+    )
+    assert ineligible.status_code == 409
+    assert ineligible.json()["detail"]["code"] == "JOB_NOT_RETRYABLE"

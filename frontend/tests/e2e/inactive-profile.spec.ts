@@ -27,6 +27,74 @@ function docker(args: string[]) {
   return result.stdout;
 }
 
+function configureKeycloakAdmin() {
+  docker([
+    "exec",
+    "-T",
+    "keycloak",
+    "/opt/keycloak/bin/kcadm.sh",
+    "config",
+    "credentials",
+    "--server",
+    "http://localhost:8080",
+    "--realm",
+    "master",
+    "--user",
+    env.KEYCLOAK_ADMIN_USERNAME!,
+    "--password",
+    env.KEYCLOAK_ADMIN_PASSWORD!,
+  ]);
+}
+
+function exactKeycloakUsers(username: string) {
+  const users = JSON.parse(
+    docker([
+      "exec",
+      "-T",
+      "keycloak",
+      "/opt/keycloak/bin/kcadm.sh",
+      "get",
+      "users",
+      "-r",
+      "taskspace",
+      "-q",
+      `username=${username}`,
+    ]),
+  ) as Array<{ id: string; username: string; enabled?: boolean }>;
+  return users.filter((user) => user.username === username);
+}
+
+function checkedUuid(value: string | undefined, label: string) {
+  if (
+    !value ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    )
+  )
+    throw new Error(`${label} was not a UUID.`);
+  return value;
+}
+
+function sqlLiteral(value: string) {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+function employeeSql(sql: string) {
+  return docker([
+    "exec",
+    "-T",
+    "employee-db",
+    "psql",
+    "-U",
+    "employee",
+    "-d",
+    "employee",
+    "-At",
+    "-c",
+    sql,
+  ]).trim();
+}
+
 async function gql(page: Page, query: string, variables: object = {}) {
   return (
     await page.request.post("/graphql", { data: { query, variables } })
@@ -58,10 +126,23 @@ test("a disposable inactive profile is denied without an application session", a
   const username = `inactive-${marker}`;
   const email = `inactive-${marker}@example.test`;
   let subject: string | undefined;
+  let employeeId: string | undefined;
   let primarySubject: string | undefined;
+  let ownershipVerified = false;
   const contexts: Array<{ close(): Promise<void> }> = [];
 
   try {
+    configureKeycloakAdmin();
+    const primaryUsers = exactKeycloakUsers(env.DEV_USER_USERNAME!);
+    if (primaryUsers.length !== 1 || !primaryUsers[0].enabled)
+      throw new Error("Protected primary identity verification failed.");
+    primarySubject = checkedUuid(
+      primaryUsers[0].id,
+      "Protected primary subject",
+    );
+    if (exactKeycloakUsers(username).length !== 0)
+      throw new Error("Generated inactive-profile username already exists.");
+
     const admin = await login(
       browser,
       env.DEV_USER_USERNAME!,
@@ -85,55 +166,20 @@ test("a disposable inactive profile is denied without an application session", a
       },
     );
     expect(provisioned.errors).toBeUndefined();
-
-    docker([
-      "exec",
-      "-T",
-      "keycloak",
-      "/opt/keycloak/bin/kcadm.sh",
-      "config",
-      "credentials",
-      "--server",
-      "http://localhost:8080",
-      "--realm",
-      "master",
-      "--user",
-      env.KEYCLOAK_ADMIN_USERNAME!,
-      "--password",
-      env.KEYCLOAK_ADMIN_PASSWORD!,
-    ]);
-    const users = JSON.parse(
-      docker([
-        "exec",
-        "-T",
-        "keycloak",
-        "/opt/keycloak/bin/kcadm.sh",
-        "get",
-        "users",
-        "-r",
-        "taskspace",
-        "-q",
-        `username=${username}`,
-      ]),
+    employeeId = checkedUuid(
+      provisioned.data.provisionEmployee.id,
+      "Disposable Employee ID",
     );
-    expect(users).toHaveLength(1);
-    subject = users[0].id;
-    const primary = JSON.parse(
-      docker([
-        "exec",
-        "-T",
-        "keycloak",
-        "/opt/keycloak/bin/kcadm.sh",
-        "get",
-        "users",
-        "-r",
-        "taskspace",
-        "-q",
-        `username=${env.DEV_USER_USERNAME}`,
-      ]),
+    const users = exactKeycloakUsers(username);
+    if (users.length !== 1)
+      throw new Error("Disposable inactive identity ownership is ambiguous.");
+    subject = checkedUuid(users[0].id, "Disposable Keycloak subject");
+    const employeeLink = employeeSql(
+      `SELECT count(*) FROM employees WHERE id=${sqlLiteral(employeeId)} AND keycloak_subject=${sqlLiteral(subject)} AND username=${sqlLiteral(username)};`,
     );
-    expect(primary).toHaveLength(1);
-    primarySubject = primary[0].id;
+    if (employeeLink !== "1")
+      throw new Error("Disposable Employee subject link verification failed.");
+    ownershipVerified = true;
     expect(subject).not.toBe(primarySubject);
     docker([
       "exec",
@@ -179,8 +225,37 @@ test("a disposable inactive profile is denied without an application session", a
       ),
     ).toBe(false);
   } finally {
-    for (const context of contexts.reverse()) await context.close();
-    if (subject && primarySubject) {
+    const cleanupFailures: string[] = [];
+    const cleanup = async (
+      label: string,
+      action: () => unknown | Promise<unknown>,
+    ) => {
+      try {
+        await action();
+      } catch {
+        cleanupFailures.push(label);
+      }
+    };
+
+    for (const [index, context] of contexts.reverse().entries())
+      await cleanup(`close browser context ${index + 1}`, () =>
+        context.close(),
+      );
+    await cleanup("configure Keycloak administration", () =>
+      configureKeycloakAdmin(),
+    );
+    await cleanup("remove exact inactive Employee profile", () => {
+      if (!subject || !employeeId || !primarySubject || !ownershipVerified)
+        return;
+      if (subject === primarySubject)
+        throw new Error("Refusing to remove the protected primary subject.");
+      const link = employeeSql(
+        `SELECT count(*) FROM employees WHERE id=${sqlLiteral(employeeId)} AND keycloak_subject=${sqlLiteral(subject)} AND username=${sqlLiteral(username)};`,
+      );
+      if (link !== "1") {
+        ownershipVerified = false;
+        throw new Error("Disposable Employee ownership is ambiguous.");
+      }
       docker([
         "exec",
         "-T",
@@ -194,6 +269,14 @@ test("a disposable inactive profile is denied without an application session", a
         "--protected-subject",
         primarySubject,
       ]);
+    });
+    await cleanup("remove exact inactive Keycloak identity", () => {
+      if (!subject || !primarySubject || !ownershipVerified) return;
+      if (subject === primarySubject)
+        throw new Error("Refusing to remove the protected primary subject.");
+      const users = exactKeycloakUsers(username);
+      if (users.length !== 1 || users[0].id !== subject)
+        throw new Error("Disposable Keycloak ownership is ambiguous.");
       docker([
         "exec",
         "-T",
@@ -204,6 +287,32 @@ test("a disposable inactive profile is denied without an application session", a
         "-r",
         "taskspace",
       ]);
-    }
+    });
+    await cleanup("verify current-run identity cleanup", () => {
+      const profileCount = employeeSql(
+        `SELECT count(*) FROM employees WHERE username=${sqlLiteral(username)};`,
+      );
+      if (profileCount !== "0" || exactKeycloakUsers(username).length !== 0)
+        throw new Error("Current-run inactive identity remains after cleanup.");
+    });
+    await cleanup("verify protected primary administrator", () => {
+      if (!primarySubject) throw new Error("Primary subject was not recorded.");
+      const primaryUsers = exactKeycloakUsers(env.DEV_USER_USERNAME!);
+      if (
+        primaryUsers.length !== 1 ||
+        primaryUsers[0].id !== primarySubject ||
+        !primaryUsers[0].enabled
+      )
+        throw new Error("Protected primary Keycloak identity changed.");
+      const profile = employeeSql(
+        `SELECT count(*) FROM employees WHERE username=${sqlLiteral(env.DEV_USER_USERNAME!)} AND keycloak_subject=${sqlLiteral(primarySubject)} AND active IS TRUE AND role='ADMIN';`,
+      );
+      if (profile !== "1")
+        throw new Error("Protected primary Employee profile changed.");
+    });
+    if (cleanupFailures.length)
+      throw new Error(
+        `Cleanup or integrity checks failed: ${cleanupFailures.join(", ")}`,
+      );
   }
 });

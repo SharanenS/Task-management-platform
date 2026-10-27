@@ -281,4 +281,82 @@ describe("job management", () => {
     expect(screen.getByText(/1 rows/)).toBeInTheDocument();
     expect(screen.getByText(/PRJ-1,Safe/)).toBeInTheDocument();
   });
+
+  it("shows recovered attempts and protects the ADMIN retry confirmation", async () => {
+    const failed = {
+      id: "job-9",
+      jobType: "PROJECT_TASK_EXPORT",
+      status: "FAILED",
+      submitterEmployeeId: "employee-1",
+      payload: {
+        projectId: "project-1",
+        format: "CSV",
+        includeCompleted: true,
+      },
+      version: 7,
+      executionGeneration: 3,
+      retryExhausted: true,
+      manualRetryCount: 0,
+      resultSummary: null,
+      resultContent: null,
+      resultContentType: null,
+      resultChecksum: null,
+      resultRowCount: null,
+      resultTruncated: null,
+      failureClassification: "RETRY_EXHAUSTED",
+      completedAt: "2026-10-20T01:00:00Z",
+      createdAt: "2026-10-20T00:00:00Z",
+      updatedAt: "2026-10-20T01:00:00Z",
+      publication: { status: "PUBLISHED", attemptCount: 1 },
+      attempts: [
+        {
+          id: "attempt-1",
+          attemptNumber: 1,
+          status: "ABANDONED",
+          startedAt: "2026-10-20T00:00:00Z",
+          finishedAt: "2026-10-20T00:01:00Z",
+          failureCode: "EXECUTION_LEASE_EXPIRED",
+          retryable: true,
+          safeSummary: "Execution ownership expired and was recovered.",
+          recoveredAt: "2026-10-20T00:01:00Z",
+          abandonedAt: "2026-10-20T00:01:00Z",
+        },
+      ],
+    };
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { job: failed } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: { retryJob: { id: "job-9", status: "QUEUED" } },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: { job: { ...failed, status: "QUEUED", version: 8 } },
+        }),
+      });
+    vi.stubGlobal("fetch", fetch);
+    render(<JobDetail id="job-9" isAdmin />);
+    expect(
+      await screen.findByText(/recovered after lease expiry/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/automatic retry budget is exhausted/i),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry job" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry job" }));
+    const confirm = screen.getByRole("button", { name: "Confirm retry" });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+  });
 });

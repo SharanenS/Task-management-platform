@@ -1,4 +1,4 @@
-# Architecture decisions — Phases 1–8
+# Architecture decisions — Phases 1–9
 
 ## Fixed boundaries
 
@@ -10,7 +10,8 @@ bounded services, each with its own database and migrations when introduced.
 
 Employee Service, Work Service, and Job Service are implemented. Phase 8 adds a
 transactional publication outbox and independent publisher to the RabbitMQ/Celery
-execution slice; workflow automation remains outside scope.
+execution slice. Phase 9 adds fenced execution ownership and an independent
+recovery process; workflow automation remains outside scope.
 
 ## Job management
 
@@ -40,8 +41,10 @@ acknowledgement, worker-loss rejection, prefetch one, bounded concurrency, and
 bounded time limits. Job PostgreSQL, rather than a Celery result backend, remains
 authoritative.
 
-Claim locks a `QUEUED` job and atomically creates one `RUNNING` attempt. Duplicate
-deliveries become safe no-ops after a winner claims the job. Success atomically
+Claim locks a `QUEUED` job and atomically creates one `RUNNING` attempt with a
+random lease token, bounded expiry, and monotonic fence. A background heartbeat
+renews current ownership. Duplicate deliveries become safe no-ops after a winner
+claims the job. Success atomically
 stores a bounded UTF-8 CSV result, row count, content type, SHA-256 checksum,
 truncation marker, and completion time. Permanent failure stores only a fixed
 classification. Allowlisted dependency failures receive at most two bounded
@@ -50,11 +53,14 @@ Celery retries, each represented by durable attempt state.
 Publisher confirmation can remain ambiguous and produce duplicate delivery.
 Expired publication leases are reclaimed, and lease-token settlement prevents a
 stale publisher from overwriting a newer claim. Idempotent worker claim prevents
-duplicate logical execution. Phase 8 guarantees at-least-once publication
-for eligible committed outbox events under its retry model; duplicate publication
-remains possible. A worker crash after claim can
-leave the job `RUNNING`; Phase 7 has no lease, fencing token, stale-worker guard,
-or recovery daemon. Those controls remain Phase 9 work.
+duplicate logical execution. Phase 8 guarantees at-least-once publication for
+eligible committed outbox events under its retry model; duplicate publication
+remains possible. Phase 9 recovery locks expired attempts in stable bounded batches
+with `FOR UPDATE SKIP LOCKED`, marks the old attempt abandoned, and creates at most
+one next-generation outbox event. Every heartbeat and settlement must match the
+current token and fence. A stale worker therefore cannot replace a recovered result
+or regress newer state. The recovery health check proves process liveness and Job
+PostgreSQL availability only.
 
 For `PROJECT_TASK_EXPORT`, the worker reloads the submitter by stable Employee UUID,
 requires an active profile, uses the current application role, and asks Work
