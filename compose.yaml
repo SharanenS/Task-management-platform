@@ -238,6 +238,27 @@ services:
     init: true
     restart: unless-stopped
 
+  job-recovery:
+    build:
+      context: ./services/job
+    command: ["python", "-m", "app.recovery_process"]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://job:${JOB_DB_PASSWORD}@job-db:5432/job
+    depends_on:
+      job-db:
+        condition: service_healthy
+      job:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"from app.recovery_process import health; health()\" && test -d /proc/1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    init: true
+    restart: unless-stopped
+
   gateway:
     build:
       context: ./gateway

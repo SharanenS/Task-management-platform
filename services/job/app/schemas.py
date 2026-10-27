@@ -44,6 +44,10 @@ class JobDispatchRequest(StrictModel):
     expected_version: int = Field(ge=1)
 
 
+class JobRetryRequest(StrictModel):
+    expected_version: int = Field(ge=1)
+
+
 class JobResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
@@ -60,6 +64,9 @@ class JobResponse(BaseModel):
     result_truncated: bool | None
     failure_classification: str | None
     completed_at: datetime | None
+    execution_generation: int
+    retry_exhausted: bool
+    manual_retry_count: int
     version: int
     created_at: datetime
     updated_at: datetime
@@ -88,6 +95,12 @@ class JobAttemptResponse(BaseModel):
     failure_code: str | None
     retryable: bool
     safe_summary: str | None
+    lease_acquired_at: datetime | None
+    lease_expires_at: datetime | None
+    last_heartbeat_at: datetime | None
+    abandoned_at: datetime | None
+    retry_scheduled_at: datetime | None
+    recovered_at: datetime | None
 
 
 class JobAttemptPageResponse(BaseModel):

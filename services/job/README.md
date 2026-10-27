@@ -4,7 +4,8 @@ Job Service owns durable job submissions, typed payload validation, actor-scoped
 idempotency, execution state, attempt history, and bounded results in its own
 PostgreSQL database.
 
-Phase 8 supports durable publication of `PROJECT_TASK_EXPORT`. Manual dispatch
+Phase 9 supports durable publication and recoverable execution of
+`PROJECT_TASK_EXPORT`. Manual dispatch
 requires a `SUBMITTED` job at the expected version and atomically stores its
 `QUEUED` transition with one outbox event. The independent publisher sends only
 its UUID to the durable
@@ -13,10 +14,12 @@ Job Service publisher claims the transactional outbox and uses the low-level
 RabbitMQ adapter.
 
 The Celery worker accepts JSON only, has no result backend, and uses late
-acknowledgement, worker-loss rejection, prefetch one, concurrency two, two bounded
-retries, and bounded task time limits. Claiming a queued job atomically creates a
-single running attempt. Duplicate delivery is a safe no-op after a successful
-claim. Settlement atomically updates the attempt, job, and persisted result.
+acknowledgement, worker-loss rejection, prefetch one, concurrency two, and bounded
+task time limits. Claiming a queued job atomically creates a leased and fenced
+running attempt. The worker renews ownership every 10 seconds against a 30-second
+lease. Duplicate delivery is a safe no-op after a successful claim. Settlement
+requires the current lease token and fence and atomically updates the attempt,
+job, and persisted result.
 
 At execution time the worker reloads the current Employee profile and revalidates
 project access through Work Service. It never reads another service's database.
@@ -25,9 +28,12 @@ UTF-8, standard CSV quoting, SHA-256 metadata, and formula-prefix neutralization
 CSV content and upstream error details are never logged.
 
 Eligible committed outbox events receive at-least-once publication under bounded
-automatic retry. Exactly-once delivery is not claimed; idempotent worker claim
-handles duplicate delivery. A worker crash after claim can leave a job running.
-Phase 9 execution leases, fencing, and recovery have not started.
+automatic retry. Exactly-once delivery or execution is not claimed. The independent
+recovery process reclaims expired attempts in bounded locked batches and schedules
+replacement execution only through a generation-scoped transactional outbox event.
+Automatic execution is limited to three attempts with capped delay. An active ADMIN
+may request one additional generation for an eligible failed job. Previous attempts
+and results remain immutable history.
 
 The internal HTTP API and execution dependencies use separate credentials and are
 not published on the host. The GraphQL Gateway remains the only public business

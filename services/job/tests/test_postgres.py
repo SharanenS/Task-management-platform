@@ -14,12 +14,15 @@ from app.schemas import JobSubmissionRequest
 from app.service import (
     Actor,
     JobError,
+    admin_retry_job,
     claim_job,
     claim_publications,
     dispatch_job,
+    recover_expired_executions,
     settle_failure,
     settle_publication_failure,
     settle_publication_success,
+    settle_success,
     submit_job,
 )
 
@@ -286,6 +289,8 @@ def test_retry_scheduled_status_persists_in_postgresql(factory: sessionmaker[Ses
             attempt.id,
             code="DEPENDENCY_UNAVAILABLE",
             retryable=True,
+            lease_token=attempt.execution_lease_token,
+            execution_fence=attempt.execution_fence,
         )
 
     with factory() as session:
@@ -295,3 +300,114 @@ def test_retry_scheduled_status_persists_in_postgresql(factory: sessionmaker[Ses
         assert persisted_attempt is not None
         assert persisted_attempt.status == AttemptStatus.RETRY_SCHEDULED
         assert persisted_attempt.failure_code == "DEPENDENCY_UNAVAILABLE"
+
+
+def test_two_recovery_processes_claim_expired_execution_once(
+    factory: sessionmaker[Session],
+) -> None:
+    actor = Actor(uuid.uuid4(), "MEMBER")
+    start = datetime.now(UTC) - timedelta(minutes=1)
+    with factory() as session:
+        job = submit_job(session, actor, request(uuid.uuid4(), "phase9-recovery-once"))
+        dispatch_job(session, actor, job.id, job.version)
+        attempt = claim_job(session, job.id, now=start, lease_seconds=5)
+        assert attempt
+        job_id = job.id
+    barrier = threading.Barrier(2)
+
+    def recover() -> list[uuid.UUID]:
+        with factory() as session:
+            barrier.wait()
+            return recover_expired_executions(session, now=datetime.now(UTC))
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: recover(), range(2)))
+    assert sum(job_id in result for result in results) == 1
+    with factory() as session:
+        assert len(list(session.scalars(select(OutboxEvent)))) == 2
+        attempts = list(session.scalars(select(JobAttempt)))
+        assert len(attempts) == 1 and attempts[0].status == AttemptStatus.ABANDONED
+
+
+def test_stale_settlement_cannot_replace_recovered_generation(
+    factory: sessionmaker[Session],
+) -> None:
+    actor = Actor(uuid.uuid4(), "MEMBER")
+    start = datetime.now(UTC) - timedelta(minutes=1)
+    with factory() as session:
+        job = submit_job(session, actor, request(uuid.uuid4(), "phase9-stale-fence"))
+        dispatch_job(session, actor, job.id, job.version)
+        first = claim_job(session, job.id, now=start, lease_seconds=5)
+        assert first
+        stale = (first.id, first.execution_lease_token, first.execution_fence)
+        recover_expired_executions(session, now=datetime.now(UTC))
+        second = claim_job(session, job.id)
+        assert second
+        settle_success(
+            session,
+            job.id,
+            second.id,
+            content="reference,title\n",
+            content_type="text/csv",
+            checksum="b" * 64,
+            row_count=0,
+            truncated=False,
+            lease_token=second.execution_lease_token,
+            execution_fence=second.execution_fence,
+        )
+        with pytest.raises(JobError) as rejected:
+            settle_success(
+                session,
+                job.id,
+                stale[0],
+                content="stale",
+                content_type="text/plain",
+                checksum="c" * 64,
+                row_count=1,
+                truncated=False,
+                lease_token=stale[1],
+                execution_fence=stale[2],
+            )
+        assert rejected.value.code == "STALE_SETTLEMENT"
+        session.refresh(job)
+        assert job.status == JobStatus.SUCCEEDED and job.result_checksum == "b" * 64
+
+
+def test_concurrent_admin_retry_creates_one_generation_event(
+    factory: sessionmaker[Session],
+) -> None:
+    actor = Actor(uuid.uuid4(), "MEMBER")
+    admin = Actor(uuid.uuid4(), "ADMIN")
+    with factory() as session:
+        job = submit_job(session, actor, request(uuid.uuid4(), "phase9-admin-race"))
+        dispatch_job(session, actor, job.id, job.version)
+        attempt = claim_job(session, job.id)
+        assert attempt
+        settle_failure(
+            session,
+            job.id,
+            attempt.id,
+            code="PERMANENT_FAILURE",
+            retryable=False,
+            lease_token=attempt.execution_lease_token,
+            execution_fence=attempt.execution_fence,
+        )
+        session.refresh(job)
+        job_id, version = job.id, job.version
+    barrier = threading.Barrier(2)
+
+    def retry() -> str:
+        with factory() as session:
+            barrier.wait()
+            try:
+                admin_retry_job(session, admin, job_id, version)
+                return "queued"
+            except JobError as error:
+                return error.code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: retry(), range(2)))
+    assert results.count("queued") == 1
+    assert any(value in {"VERSION_CONFLICT", "JOB_NOT_RETRYABLE"} for value in results)
+    with factory() as session:
+        assert len(list(session.scalars(select(OutboxEvent)))) == 2

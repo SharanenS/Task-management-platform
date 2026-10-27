@@ -102,6 +102,8 @@ def test_success_settles_attempt_and_result_atomically(session: Session) -> None
         checksum="a" * 64,
         row_count=1,
         truncated=False,
+        lease_token=attempt.execution_lease_token,
+        execution_fence=attempt.execution_fence,
     )
     session.refresh(job)
     session.refresh(attempt)
@@ -114,7 +116,15 @@ def test_transient_failure_schedules_retry_then_terminal_failure(session: Sessio
     dispatch_job(session, actor, job.id, job.version, Publisher())
     first = claim_job(session, job.id)
     assert first
-    settle_failure(session, job.id, first.id, code="DEPENDENCY_UNAVAILABLE", retryable=True)
+    settle_failure(
+        session,
+        job.id,
+        first.id,
+        code="DEPENDENCY_UNAVAILABLE",
+        retryable=True,
+        lease_token=first.execution_lease_token,
+        execution_fence=first.execution_fence,
+    )
     session.refresh(job)
     session.refresh(first)
     assert (job.status, first.status) == (JobStatus.QUEUED, AttemptStatus.RETRY_SCHEDULED)
@@ -127,6 +137,8 @@ def test_transient_failure_schedules_retry_then_terminal_failure(session: Sessio
         code="DEPENDENCY_UNAVAILABLE",
         retryable=True,
         retry_exhausted=True,
+        lease_token=second.execution_lease_token,
+        execution_fence=second.execution_fence,
     )
     session.refresh(job)
     assert job.status == JobStatus.FAILED

@@ -720,6 +720,86 @@ def test_owned_job_exposes_publication_without_lease_token(monkeypatch: pytest.M
     assert "must-never-appear" not in str(result)
 
 
+@pytest.mark.parametrize("role", ["MEMBER", "MANAGER"])
+def test_admin_retry_rejects_non_admin_before_job_call(
+    monkeypatch: pytest.MonkeyPatch, role: str
+) -> None:
+    allow_admin(monkeypatch, role)
+    called = False
+
+    async def retry(*_: object, **__: object) -> JobRecord:
+        nonlocal called
+        called = True
+        return job_record()
+
+    monkeypatch.setattr("app.schema.job_retry_job", retry)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": 'mutation { retryJob(jobId: "job-id", expectedVersion: 1) { id } }'},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"][0]["extensions"]["code"] == "FORBIDDEN"
+    assert not called
+
+
+def test_admin_retry_returns_typed_recovery_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch)
+
+    async def retry(*_: object, **__: object) -> JobRecord:
+        return replace(
+            job_record(),
+            status="QUEUED",
+            version=2,
+            execution_generation=2,
+            retry_exhausted=False,
+            manual_retry_count=1,
+        )
+
+    monkeypatch.setattr("app.schema.job_retry_job", retry)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": 'mutation { retryJob(jobId: "job-id", expectedVersion: 1) { status version executionGeneration retryExhausted manualRetryCount } }'
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["data"]["retryJob"] == {
+        "status": "QUEUED",
+        "version": 2,
+        "executionGeneration": 2,
+        "retryExhausted": False,
+        "manualRetryCount": 1,
+    }
+
+
+@pytest.mark.parametrize(
+    ("code", "message"),
+    [
+        ("JOB_NOT_RETRYABLE", "The job is not eligible for administrative retry."),
+        ("JOB_RETRY_CONFLICT", "The retry request conflicted. Refresh and try again."),
+    ],
+)
+def test_admin_retry_conflicts_are_sanitized(
+    monkeypatch: pytest.MonkeyPatch, code: str, message: str
+) -> None:
+    allow_admin(monkeypatch)
+
+    async def retry(*_: object, **__: object) -> JobRecord:
+        raise JobDomainError(code, "internal detail must not appear")
+
+    monkeypatch.setattr("app.schema.job_retry_job", retry)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": 'mutation { retryJob(jobId: "job-id", expectedVersion: 1) { id } }'},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"] == [{"message": message, "extensions": {"code": code}}]
+    assert "internal detail" not in str(result)
+
+
 @pytest.mark.parametrize("role", ["MEMBER", "MANAGER", "ADMIN"])
 def test_jobs_reload_current_profile_and_return_typed_owned_data(
     monkeypatch: pytest.MonkeyPatch, role: str

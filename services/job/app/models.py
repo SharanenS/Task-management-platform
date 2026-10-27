@@ -39,6 +39,7 @@ class AttemptStatus(enum.StrEnum):
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
     RETRY_SCHEDULED = "RETRY_SCHEDULED"
+    ABANDONED = "ABANDONED"
 
 
 class PublicationStatus(enum.StrEnum):
@@ -71,6 +72,9 @@ class Job(Base):
     result_truncated: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     failure_classification: Mapped[str | None] = mapped_column(String(100), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    execution_generation: Mapped[int] = mapped_column(Integer, default=0)
+    retry_exhausted: Mapped[bool] = mapped_column(Boolean, default=False)
+    manual_retry_count: Mapped[int] = mapped_column(Integer, default=0)
     version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True
@@ -83,15 +87,21 @@ class Job(Base):
     attempts: Mapped[list["JobAttempt"]] = relationship(
         cascade="all, delete-orphan", back_populates="job"
     )
-    publication: Mapped["OutboxEvent | None"] = relationship(
-        cascade="all, delete-orphan", back_populates="job", uselist=False
+    publications: Mapped[list["OutboxEvent"]] = relationship(
+        cascade="all, delete-orphan", back_populates="job"
     )
+
+    @property
+    def publication(self) -> "OutboxEvent | None":
+        return max(self.publications, key=lambda item: item.execution_generation, default=None)
 
 
 class OutboxEvent(Base):
     __tablename__ = "job_publication_outbox"
     __table_args__ = (
-        UniqueConstraint("job_id", "event_type", name="uq_job_publication_event"),
+        UniqueConstraint(
+            "job_id", "execution_generation", "event_type", name="uq_job_publication_generation"
+        ),
         Index(
             "ix_job_publication_claim",
             "status",
@@ -105,6 +115,7 @@ class OutboxEvent(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
     event_type: Mapped[str] = mapped_column(String(50), default="EXECUTE_JOB")
+    execution_generation: Mapped[int] = mapped_column(Integer, default=1)
     schema_version: Mapped[int] = mapped_column(Integer, default=1)
     status: Mapped[PublicationStatus] = mapped_column(
         Enum(PublicationStatus, name="publication_status")
@@ -127,7 +138,7 @@ class OutboxEvent(Base):
     )
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_failure_classification: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    job: Mapped[Job] = relationship(back_populates="publication")
+    job: Mapped[Job] = relationship(back_populates="publications")
 
 
 class JobAttempt(Base):
@@ -145,4 +156,21 @@ class JobAttempt(Base):
     failure_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
     retryable: Mapped[bool] = mapped_column(Boolean, default=False)
     safe_summary: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    execution_generation: Mapped[int] = mapped_column(Integer, default=1)
+    execution_fence: Mapped[int] = mapped_column(Integer, default=1)
+    execution_lease_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    lease_acquired_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_heartbeat_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    abandoned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retry_scheduled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    recovered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     job: Mapped[Job] = relationship(back_populates="attempts")

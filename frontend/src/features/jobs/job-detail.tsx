@@ -8,16 +8,25 @@ import { ErrorState, Skeleton } from "@/components/ui/states";
 import {
   JobDetailDocument,
   DispatchJobDocument,
+  RetryJobDocument,
   type JobDetailQuery,
 } from "@/graphql/generated/graphql";
 import { requestGraphQL } from "@/lib/graphql";
 
-export function JobDetail({ id }: { id: string }) {
+export function JobDetail({
+  id,
+  isAdmin = false,
+}: {
+  id: string;
+  isAdmin?: boolean;
+}) {
   const [data, setData] = useState<JobDetailQuery["job"] | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [confirming, setConfirming] = useState(false);
   const [dispatching, setDispatching] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [retryConfirming, setRetryConfirming] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const loadingRef = useRef(false);
   const dispatchButtonRef = useRef<HTMLButtonElement>(null);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
@@ -77,6 +86,25 @@ export function JobDetail({ id }: { id: string }) {
       setDispatching(false);
     }
   };
+  const retry = async () => {
+    if (!data || retrying) return;
+    setRetrying(true);
+    setActionError(null);
+    try {
+      await requestGraphQL(RetryJobDocument, {
+        jobId: data.id,
+        expectedVersion: data.version,
+      });
+      setRetryConfirming(false);
+      await load(true);
+    } catch {
+      setActionError(
+        "The retry could not be scheduled. Refresh and try again.",
+      );
+    } finally {
+      setRetrying(false);
+    }
+  };
   const download = () => {
     if (!data?.resultContent) return;
     const url = URL.createObjectURL(
@@ -117,6 +145,9 @@ export function JobDetail({ id }: { id: string }) {
             Dispatch job
           </Button>
         ) : null}
+        {isAdmin && data.status === "FAILED" && data.manualRetryCount < 1 ? (
+          <Button onClick={() => setRetryConfirming(true)}>Retry job</Button>
+        ) : null}
       </div>
       {confirming ? (
         <Card
@@ -151,6 +182,39 @@ export function JobDetail({ id }: { id: string }) {
               variant="outline"
               onClick={closeConfirmation}
               disabled={dispatching}
+            >
+              Cancel
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+      {retryConfirming ? (
+        <Card
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="retry-title"
+          className="p-6"
+        >
+          <h2 id="retry-title" className="font-semibold">
+            Retry this failed job?
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            A new execution generation will preserve the complete attempt
+            history.
+          </p>
+          {actionError ? (
+            <p role="alert" className="mt-3 text-sm text-destructive">
+              {actionError}
+            </p>
+          ) : null}
+          <div className="mt-4 flex gap-3">
+            <Button onClick={() => void retry()} disabled={retrying}>
+              {retrying ? "Scheduling…" : "Confirm retry"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setRetryConfirming(false)}
+              disabled={retrying}
             >
               Cancel
             </Button>
@@ -198,9 +262,62 @@ export function JobDetail({ id }: { id: string }) {
         {data.attempts.length ? (
           <ul className="mt-3 space-y-2">
             {data.attempts.map((attempt) => (
-              <li key={attempt.id}>
-                Attempt {attempt.attemptNumber}: {attempt.status}
-                {attempt.safeSummary ? ` — ${attempt.safeSummary}` : ""}
+              <li key={attempt.id} className="rounded-md border p-3 text-sm">
+                <strong>
+                  Attempt {attempt.attemptNumber}:{" "}
+                  {attempt.status.replaceAll("_", " ")}
+                </strong>
+                {attempt.safeSummary ? (
+                  <p className="mt-1">{attempt.safeSummary}</p>
+                ) : null}
+                <dl className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                  <div>
+                    <dt>Started</dt>
+                    <dd>{new Date(attempt.startedAt).toLocaleString()}</dd>
+                  </div>
+                  {attempt.lastHeartbeatAt ? (
+                    <div>
+                      <dt>Last heartbeat</dt>
+                      <dd>
+                        {new Date(attempt.lastHeartbeatAt).toLocaleString()}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {attempt.leaseExpiresAt ? (
+                    <div>
+                      <dt>Lease expires</dt>
+                      <dd>
+                        {new Date(attempt.leaseExpiresAt).toLocaleString()}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {attempt.retryScheduledAt ? (
+                    <div>
+                      <dt>Retry scheduled</dt>
+                      <dd>
+                        {new Date(attempt.retryScheduledAt).toLocaleString()}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {attempt.recoveredAt ? (
+                    <div>
+                      <dt>Recovered after lease expiry</dt>
+                      <dd>{new Date(attempt.recoveredAt).toLocaleString()}</dd>
+                    </div>
+                  ) : null}
+                  {attempt.abandonedAt ? (
+                    <div>
+                      <dt>Abandoned</dt>
+                      <dd>{new Date(attempt.abandonedAt).toLocaleString()}</dd>
+                    </div>
+                  ) : null}
+                  {attempt.finishedAt ? (
+                    <div>
+                      <dt>Finished</dt>
+                      <dd>{new Date(attempt.finishedAt).toLocaleString()}</dd>
+                    </div>
+                  ) : null}
+                </dl>
               </li>
             ))}
           </ul>
@@ -238,6 +355,16 @@ export function JobDetail({ id }: { id: string }) {
           {data.failureClassification ? (
             <p className="mt-2 text-sm text-muted-foreground">
               Classification: {data.failureClassification}
+            </p>
+          ) : null}
+          {data.retryExhausted ? (
+            <p className="mt-2 text-sm">
+              The automatic retry budget is exhausted.
+            </p>
+          ) : null}
+          {isAdmin && data.manualRetryCount >= 1 ? (
+            <p className="mt-2 text-sm">
+              The administrative retry allowance has been used.
             </p>
           ) : null}
         </Card>

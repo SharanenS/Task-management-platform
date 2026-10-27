@@ -5,6 +5,14 @@ const username = process.env.DEV_USER_USERNAME;
 const password = process.env.DEV_USER_PASSWORD;
 const authenticated = process.env.RUN_AUTH_E2E === "1" && username && password;
 
+function startKeycloakAndWait() {
+  execFileSync(
+    "docker",
+    ["compose", "up", "-d", "--wait", "--wait-timeout", "90", "keycloak"],
+    { cwd: "..", stdio: "ignore", timeout: 100_000 },
+  );
+}
+
 async function signIn(page: Page) {
   await page.goto("/");
   await expect(page).toHaveURL(/\/sign-in\?returnTo=%2F$/);
@@ -124,10 +132,7 @@ test("refresh failure expires the session and recovers after Keycloak returns", 
       page.getByRole("heading", { name: "Your session has expired" }),
     ).toBeVisible();
   } finally {
-    execFileSync("docker", ["compose", "start", "keycloak"], {
-      cwd: "..",
-      stdio: "ignore",
-    });
+    startKeycloakAndWait();
   }
   await expect
     .poll(
@@ -149,7 +154,7 @@ test("refresh failure expires the session and recovers after Keycloak returns", 
 test("login reports a Keycloak outage and recovers after restart", async ({
   page,
 }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   test.skip(
     process.env.RUN_LOGIN_OUTAGE_E2E !== "1",
     "The login-time identity-service outage check is opt-in.",
@@ -168,10 +173,7 @@ test("login reports a Keycloak outage and recovers after restart", async ({
     ).toBeVisible({ timeout: 10_000 });
     await expect(page.getByRole("main")).not.toContainText("ECONNREFUSED");
   } finally {
-    execFileSync("docker", ["compose", "start", "keycloak"], {
-      cwd: "..",
-      stdio: "ignore",
-    });
+    startKeycloakAndWait();
   }
   await expect
     .poll(
