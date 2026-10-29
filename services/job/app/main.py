@@ -41,6 +41,11 @@ def require_internal_service(x_internal_service_key: str = Header(default="")) -
         raise HTTPException(status_code=403, detail="Forbidden")
 
 
+def require_workflow_service(x_workflow_service_key: str = Header(default="")) -> None:
+    if not hmac.compare_digest(x_workflow_service_key, settings.workflow_service_key):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
 def actor_context(
     x_actor_employee_id: str = Header(default=""),
     x_actor_application_role: str = Header(default=""),
@@ -160,6 +165,28 @@ def submit(
 ) -> JobResponse:
     try:
         return JobResponse.model_validate(submit_job(session, actor, body))
+    except JobError as error:
+        raise failure(error) from error
+
+
+@app.post(
+    "/internal/workflow/jobs",
+    response_model=JobResponse,
+    dependencies=[Depends(require_workflow_service)],
+)
+def submit_workflow_job(
+    body: JobSubmissionRequest,
+    session: SessionDependency,
+    x_workflow_actor_employee_id: str = Header(default=""),
+) -> JobResponse:
+    try:
+        actor = Actor(UUID(x_workflow_actor_employee_id), "MEMBER")
+        job = submit_job(session, actor, body)
+        if job.status.value == "SUBMITTED":
+            job = dispatch_job(session, actor, job.id, job.version)
+        return JobResponse.model_validate(job)
+    except ValueError as error:
+        raise HTTPException(status_code=403, detail="Forbidden") from error
     except JobError as error:
         raise failure(error) from error
 

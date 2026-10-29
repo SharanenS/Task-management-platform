@@ -67,6 +67,23 @@ services:
       retries: 12
     restart: unless-stopped
 
+  workflow-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: workflow
+      POSTGRES_USER: workflow
+      POSTGRES_PASSWORD: ${WORKFLOW_DB_PASSWORD:?Set WORKFLOW_DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${WORKFLOW_DB_PORT:-5438}:5432"
+    volumes:
+      - workflow_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workflow -d workflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
   session-store:
     image: redis:8.4-alpine
     command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
@@ -154,6 +171,7 @@ services:
       DATABASE_URL: postgresql+psycopg://work:${WORK_DB_PASSWORD}@work-db:5432/work
       INTERNAL_SERVICE_KEY: ${WORK_INTERNAL_SERVICE_KEY:?Set WORK_INTERNAL_SERVICE_KEY in .env}
       JOB_WORKER_SERVICE_KEY: ${JOB_WORKER_WORK_SERVICE_KEY:?Set JOB_WORKER_WORK_SERVICE_KEY in .env}
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
     depends_on:
       work-db:
         condition: service_healthy
@@ -166,6 +184,28 @@ services:
     init: true
     restart: unless-stopped
 
+  work-event-publisher:
+    build:
+      context: ./services/work
+    command: ["python", "-m", "app.event_publisher"]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://work:${WORK_DB_PASSWORD}@work-db:5432/work
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+    depends_on:
+      work:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -d /proc/1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    init: true
+    restart: unless-stopped
+
   job:
     build:
       context: ./services/job
@@ -173,6 +213,7 @@ services:
       APP_ENV: ${APP_ENV:-development}
       DATABASE_URL: postgresql+psycopg://job:${JOB_DB_PASSWORD}@job-db:5432/job
       INTERNAL_SERVICE_KEY: ${JOB_INTERNAL_SERVICE_KEY:?Set JOB_INTERNAL_SERVICE_KEY in .env}
+      WORKFLOW_SERVICE_KEY: ${JOB_WORKFLOW_SERVICE_KEY:?Set JOB_WORKFLOW_SERVICE_KEY in .env}
       RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
     depends_on:
       job-db:
@@ -259,6 +300,57 @@ services:
     init: true
     restart: unless-stopped
 
+  workflow:
+    build:
+      context: ./services/workflow
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://workflow:${WORKFLOW_DB_PASSWORD}@workflow-db:5432/workflow
+      INTERNAL_SERVICE_KEY: ${WORKFLOW_INTERNAL_SERVICE_KEY:?Set WORKFLOW_INTERNAL_SERVICE_KEY in .env}
+      CONSUMER_SERVICE_KEY: ${WORKFLOW_CONSUMER_SERVICE_KEY:?Set WORKFLOW_CONSUMER_SERVICE_KEY in .env}
+      JOB_SERVICE_URL: http://job:8040
+      JOB_INTERNAL_SERVICE_KEY: ${JOB_INTERNAL_SERVICE_KEY:?Set JOB_INTERNAL_SERVICE_KEY in .env}
+      JOB_WORKFLOW_SERVICE_KEY: ${JOB_WORKFLOW_SERVICE_KEY:?Set JOB_WORKFLOW_SERVICE_KEY in .env}
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+    depends_on:
+      workflow-db:
+        condition: service_healthy
+      job:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8050/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    init: true
+    restart: unless-stopped
+
+  workflow-consumer:
+    build:
+      context: ./services/workflow
+    command: ["python", "-m", "app.consumer"]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://workflow:${WORKFLOW_DB_PASSWORD}@workflow-db:5432/workflow
+      JOB_SERVICE_URL: http://job:8040
+      JOB_INTERNAL_SERVICE_KEY: ${JOB_INTERNAL_SERVICE_KEY:?Set JOB_INTERNAL_SERVICE_KEY in .env}
+      JOB_WORKFLOW_SERVICE_KEY: ${JOB_WORKFLOW_SERVICE_KEY:?Set JOB_WORKFLOW_SERVICE_KEY in .env}
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+    depends_on:
+      workflow:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -d /proc/1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    init: true
+    restart: unless-stopped
+
   gateway:
     build:
       context: ./gateway
@@ -271,9 +363,11 @@ services:
       EMPLOYEE_SERVICE_URL: http://employee:8020
       WORK_SERVICE_URL: http://work:8030
       JOB_SERVICE_URL: http://job:8040
+      WORKFLOW_SERVICE_URL: http://workflow:8050
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
       WORK_INTERNAL_SERVICE_KEY: ${WORK_INTERNAL_SERVICE_KEY:?Set WORK_INTERNAL_SERVICE_KEY in .env}
       JOB_INTERNAL_SERVICE_KEY: ${JOB_INTERNAL_SERVICE_KEY:?Set JOB_INTERNAL_SERVICE_KEY in .env}
+      WORKFLOW_INTERNAL_SERVICE_KEY: ${WORKFLOW_INTERNAL_SERVICE_KEY:?Set WORKFLOW_INTERNAL_SERVICE_KEY in .env}
     ports:
       - "127.0.0.1:${GATEWAY_PORT:-8010}:8000"
     depends_on:
@@ -284,6 +378,8 @@ services:
       work:
         condition: service_healthy
       job:
+        condition: service_healthy
+      workflow:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
@@ -331,3 +427,4 @@ volumes:
   work_data:
   job_data:
   rabbitmq_data:
+  workflow_data:

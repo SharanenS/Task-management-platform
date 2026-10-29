@@ -26,11 +26,17 @@ import type { EmployeeProfile } from "@/auth/types";
 import { canViewEmployeeNavigation } from "@/auth/authorization";
 import { UserMenu } from "@/components/layout/user-menu";
 
-const navigation = [
+const navigation: Array<{
+  label: string;
+  href?: string;
+  icon: typeof LayoutDashboard;
+  phase?: number;
+  adminOnly?: boolean;
+}> = [
   { label: "Overview", href: "/", icon: LayoutDashboard },
   { label: "Projects", href: "/projects", icon: FolderKanban },
   { label: "Employees", href: "/employees", icon: Users },
-  { label: "Workflows", icon: Workflow, phase: 10 },
+  { label: "Workflows", href: "/workflows", icon: Workflow },
   { label: "Jobs", href: "/jobs", icon: Zap },
   {
     label: "Publications",
@@ -178,9 +184,11 @@ export function AppShell({
           ? "Employees"
           : pathname.startsWith("/projects")
             ? "Projects"
-            : pathname.startsWith("/jobs")
-              ? "Jobs"
-              : "Overview";
+            : pathname.startsWith("/workflows")
+              ? "Workflows"
+              : pathname.startsWith("/jobs")
+                ? "Jobs"
+                : "Overview";
   return (
     <div className="min-h-screen">
       <a

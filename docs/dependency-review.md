@@ -36,7 +36,8 @@ Node 24 LTS is required by the current toolchain. `.nvmrc`, the npm engine
 constraint, and Docker images agree on that major version. Direct npm dependencies
 and transitive resolutions are locked. Python dependencies are pinned in
 `gateway/requirements.lock`, `services/employee/requirements.lock`,
-`services/work/requirements.lock`, and `services/job/requirements.lock`; these locks include verification tooling and
+`services/work/requirements.lock`, `services/job/requirements.lock`, and
+`services/workflow/requirements.lock`; these locks include verification tooling and
 are also used by local containers. `services/work/requirements.in` records its
 direct dependencies; the lock contains the independently resolved pinned versions.
 Work Service uses the same reviewed FastAPI, SQLAlchemy, Alembic, psycopg,
@@ -55,3 +56,8 @@ RabbitMQ 3.13.7 is pinned to the locally verified immutable image digest
 `sha256:606d8c0d6b3c18d1da9afc53bc7cdb2a8d5486df91b5a9830e9e07626c9ae281` without
 publishing broker or management ports. The management interface remains
 unreachable from the host.
+
+Phase 10 reuses the reviewed FastAPI, SQLAlchemy, Alembic, psycopg, Pydantic,
+HTTPX, Kombu, and AMQP package families. Workflow Service has its own pinned lock;
+Work Service adds Kombu and its AMQP transport dependencies for the dedicated
+task-event publisher. No new frontend dependency was introduced.

@@ -166,3 +166,38 @@ class TaskActivity(Base):
         DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True
     )
     task: Mapped[Task] = relationship(back_populates="activities")
+
+
+class WorkEventStatus(enum.StrEnum):
+    PENDING = "PENDING"
+    IN_FLIGHT = "IN_FLIGHT"
+    PUBLISHED = "PUBLISHED"
+    FAILED = "FAILED"
+
+
+class WorkOutboxEvent(Base):
+    __tablename__ = "work_outbox_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    event_type: Mapped[str] = mapped_column(String(64), index=True)
+    schema_version: Mapped[int] = mapped_column(Integer)
+    project_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    task_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    actor_employee_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    task_version: Mapped[int] = mapped_column(Integer)
+    status: Mapped[WorkEventStatus] = mapped_column(
+        Enum(WorkEventStatus, name="work_event_status"), default=WorkEventStatus.PENDING, index=True
+    )
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True
+    )
+    lease_token: Mapped[str | None] = mapped_column(String(96), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_failure_classification: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True
+    )

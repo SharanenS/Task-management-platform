@@ -111,6 +111,15 @@ from app.work_client import (
 from app.work_client import (
     update_task as work_update_task,
 )
+from app.workflow_client import Execution as WorkflowExecutionRecord
+from app.workflow_client import Rule as WorkflowRuleRecord
+from app.workflow_client import WorkflowDomainError, WorkflowUnavailableError
+from app.workflow_client import create_rule as workflow_create_rule
+from app.workflow_client import get_execution as workflow_get_execution
+from app.workflow_client import get_rule as workflow_get_rule
+from app.workflow_client import list_executions as workflow_list_executions
+from app.workflow_client import list_rules as workflow_list_rules
+from app.workflow_client import update_rule as workflow_update_rule
 
 
 @strawberry.type
@@ -204,6 +213,23 @@ class PublicationStatus(StrEnum):
     PUBLISHED = "PUBLISHED"
     FAILED = "FAILED"
     RECONCILIATION_REQUIRED = "RECONCILIATION_REQUIRED"
+
+
+@strawberry.enum
+class WorkflowTriggerType(StrEnum):
+    TASK_COMPLETED = "TASK_COMPLETED"
+
+
+@strawberry.enum
+class WorkflowActionType(StrEnum):
+    PROJECT_TASK_EXPORT = "PROJECT_TASK_EXPORT"
+
+
+@strawberry.enum
+class WorkflowExecutionStatus(StrEnum):
+    PENDING = "PENDING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
 
 
 @strawberry.type
@@ -427,6 +453,47 @@ class PublicationConnection:
     page_info: PageInfo
 
 
+@strawberry.type
+class WorkflowRule:
+    id: strawberry.ID
+    project_id: strawberry.ID
+    name: str
+    trigger_type: WorkflowTriggerType
+    action_type: WorkflowActionType
+    enabled: bool
+    creator_employee_id: strawberry.ID
+    version: int
+    created_at: datetime
+    updated_at: datetime
+
+
+@strawberry.type
+class WorkflowRuleConnection:
+    nodes: list[WorkflowRule]
+    page_info: PageInfo
+
+
+@strawberry.type
+class WorkflowExecution:
+    id: strawberry.ID
+    rule_id: strawberry.ID
+    source_event_id: strawberry.ID
+    project_id: strawberry.ID
+    task_id: strawberry.ID
+    status: WorkflowExecutionStatus
+    resulting_job_id: strawberry.ID | None
+    failure_classification: str | None
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None
+
+
+@strawberry.type
+class WorkflowExecutionConnection:
+    nodes: list[WorkflowExecution]
+    page_info: PageInfo
+
+
 @strawberry.input
 class ProvisionEmployeeInput:
     idempotency_key: str
@@ -475,6 +542,21 @@ class SubmitProjectTaskExportInput:
     project_id: strawberry.ID
     include_completed: bool = True
     idempotency_key: str
+
+
+@strawberry.input
+class CreateWorkflowRuleInput:
+    project_id: strawberry.ID
+    name: str
+    trigger_type: WorkflowTriggerType
+    action_type: WorkflowActionType
+    enabled: bool = True
+
+
+@strawberry.input
+class UpdateWorkflowRuleInput:
+    name: str
+    expected_version: int
 
 
 def _admin_employee(profile: EmployeeAdminProfile) -> AdminEmployee:
@@ -748,6 +830,80 @@ def _raise_admin_error(error: Exception) -> NoReturn:
     raise error
 
 
+def _workflow_rule(value: WorkflowRuleRecord) -> WorkflowRule:
+    return WorkflowRule(
+        id=strawberry.ID(value.id),
+        project_id=strawberry.ID(value.project_id),
+        name=value.name,
+        trigger_type=WorkflowTriggerType(value.trigger_type),
+        action_type=WorkflowActionType(value.action_type),
+        enabled=value.enabled,
+        creator_employee_id=strawberry.ID(value.creator_employee_id),
+        version=value.version,
+        created_at=datetime.fromisoformat(value.created_at),
+        updated_at=datetime.fromisoformat(value.updated_at),
+    )
+
+
+def _workflow_execution(value: WorkflowExecutionRecord) -> WorkflowExecution:
+    return WorkflowExecution(
+        id=strawberry.ID(value.id),
+        rule_id=strawberry.ID(value.rule_id),
+        source_event_id=strawberry.ID(value.source_event_id),
+        project_id=strawberry.ID(value.project_id),
+        task_id=strawberry.ID(value.task_id),
+        status=WorkflowExecutionStatus(value.status),
+        resulting_job_id=strawberry.ID(value.resulting_job_id) if value.resulting_job_id else None,
+        failure_classification=value.failure_classification,
+        created_at=datetime.fromisoformat(value.created_at),
+        updated_at=datetime.fromisoformat(value.updated_at),
+        completed_at=datetime.fromisoformat(value.completed_at) if value.completed_at else None,
+    )
+
+
+async def _workflow_actor(info: Info) -> tuple[EmployeeProfile, list[str], list[str]]:
+    _, actor = await _project_actor(info)
+    project_ids: list[str] = []
+    managed: list[str] = []
+    cursor: str | None = None
+    while True:
+        page = await work_list_projects(actor, first=50, after=cursor, search=None, status=None)
+        for project in page.items:
+            project_ids.append(project.id)
+            if actor.role == "ADMIN" or any(
+                member.employee_id == actor.id and member.role == "PROJECT_MANAGER"
+                for member in project.memberships
+            ):
+                managed.append(project.id)
+        if not page.has_next_page or not page.next_cursor:
+            break
+        cursor = page.next_cursor
+    return actor, project_ids, managed
+
+
+def _raise_workflow_error(error: Exception) -> NoReturn:
+    if isinstance(error, WorkflowDomainError):
+        messages = {
+            "NOT_FOUND": "The workflow was not found.",
+            "FORBIDDEN": "Workflow access is not permitted.",
+            "VERSION_CONFLICT": "The workflow changed; reload and retry.",
+            "INVALID_CURSOR": "The workflow cursor is invalid.",
+            "INVALID_PAGE_SIZE": "The workflow page size is invalid.",
+        }
+        raise GraphQLError(
+            messages.get(error.code, "The workflow request could not be completed."),
+            extensions={"code": error.code},
+        ) from error
+    if isinstance(
+        error, (WorkflowUnavailableError, WorkUnavailableError, EmployeeUnavailableError)
+    ):
+        raise GraphQLError(
+            "Workflow automation is temporarily unavailable.",
+            extensions={"code": "SERVICE_UNAVAILABLE"},
+        ) from error
+    raise error
+
+
 @strawberry.type
 class Query:
     @strawberry.field
@@ -786,6 +942,96 @@ class Query:
             email=profile.email,
             role=ApplicationRole(profile.role),
         )
+
+    @strawberry.field
+    async def workflow_rules(
+        self,
+        info: Info,
+        first: int = 20,
+        after: str | None = None,
+        project_id: strawberry.ID | None = None,
+        enabled: bool | None = None,
+    ) -> WorkflowRuleConnection:
+        try:
+            actor, projects, managed = await _workflow_actor(info)
+            page = await workflow_list_rules(
+                actor,
+                projects,
+                managed,
+                first=first,
+                after=after,
+                project_id=str(project_id) if project_id else None,
+                enabled=enabled,
+            )
+            return WorkflowRuleConnection(
+                nodes=[_workflow_rule(item) for item in page.items],
+                page_info=PageInfo(has_next_page=page.has_next_page, end_cursor=page.next_cursor),
+            )
+        except (
+            WorkflowDomainError,
+            WorkflowUnavailableError,
+            WorkUnavailableError,
+            EmployeeUnavailableError,
+        ) as error:
+            _raise_workflow_error(error)
+
+    @strawberry.field
+    async def workflow_rule(self, info: Info, id: strawberry.ID) -> WorkflowRule:
+        try:
+            actor, projects, managed = await _workflow_actor(info)
+            return _workflow_rule(await workflow_get_rule(actor, str(id), projects, managed))
+        except (
+            WorkflowDomainError,
+            WorkflowUnavailableError,
+            WorkUnavailableError,
+            EmployeeUnavailableError,
+        ) as error:
+            _raise_workflow_error(error)
+
+    @strawberry.field
+    async def workflow_executions(
+        self,
+        info: Info,
+        first: int = 20,
+        after: str | None = None,
+        rule_id: strawberry.ID | None = None,
+    ) -> WorkflowExecutionConnection:
+        try:
+            actor, projects, managed = await _workflow_actor(info)
+            page = await workflow_list_executions(
+                actor,
+                projects,
+                managed,
+                first=first,
+                after=after,
+                rule_id=str(rule_id) if rule_id else None,
+            )
+            return WorkflowExecutionConnection(
+                nodes=[_workflow_execution(item) for item in page.items],
+                page_info=PageInfo(has_next_page=page.has_next_page, end_cursor=page.next_cursor),
+            )
+        except (
+            WorkflowDomainError,
+            WorkflowUnavailableError,
+            WorkUnavailableError,
+            EmployeeUnavailableError,
+        ) as error:
+            _raise_workflow_error(error)
+
+    @strawberry.field
+    async def workflow_execution(self, info: Info, id: strawberry.ID) -> WorkflowExecution:
+        try:
+            actor, projects, managed = await _workflow_actor(info)
+            return _workflow_execution(
+                await workflow_get_execution(actor, str(id), projects, managed)
+            )
+        except (
+            WorkflowDomainError,
+            WorkflowUnavailableError,
+            WorkUnavailableError,
+            EmployeeUnavailableError,
+        ) as error:
+            _raise_workflow_error(error)
 
     @strawberry.field
     async def jobs(
@@ -1178,6 +1424,81 @@ class Query:
 
 @strawberry.type
 class Mutation:
+    @strawberry.mutation
+    async def create_workflow_rule(
+        self, info: Info, input: CreateWorkflowRuleInput
+    ) -> WorkflowRule:
+        try:
+            actor, projects, managed = await _workflow_actor(info)
+            return _workflow_rule(
+                await workflow_create_rule(
+                    actor,
+                    {
+                        "project_id": str(input.project_id),
+                        "name": input.name,
+                        "trigger_type": input.trigger_type.value,
+                        "action_type": input.action_type.value,
+                        "enabled": input.enabled,
+                    },
+                    projects,
+                    managed,
+                )
+            )
+        except (
+            WorkflowDomainError,
+            WorkflowUnavailableError,
+            WorkUnavailableError,
+            EmployeeUnavailableError,
+        ) as error:
+            _raise_workflow_error(error)
+
+    @strawberry.mutation
+    async def update_workflow_rule(
+        self, info: Info, rule_id: strawberry.ID, input: UpdateWorkflowRuleInput
+    ) -> WorkflowRule:
+        try:
+            actor, projects, managed = await _workflow_actor(info)
+            return _workflow_rule(
+                await workflow_update_rule(
+                    actor,
+                    str(rule_id),
+                    {"name": input.name, "expected_version": input.expected_version},
+                    projects,
+                    managed,
+                )
+            )
+        except (
+            WorkflowDomainError,
+            WorkflowUnavailableError,
+            WorkUnavailableError,
+            EmployeeUnavailableError,
+        ) as error:
+            _raise_workflow_error(error)
+
+    @strawberry.mutation
+    async def set_workflow_rule_enabled(
+        self, info: Info, rule_id: strawberry.ID, enabled: bool, expected_version: int
+    ) -> WorkflowRule:
+        try:
+            actor, projects, managed = await _workflow_actor(info)
+            return _workflow_rule(
+                await workflow_update_rule(
+                    actor,
+                    str(rule_id),
+                    {"enabled": enabled, "expected_version": expected_version},
+                    projects,
+                    managed,
+                    state=True,
+                )
+            )
+        except (
+            WorkflowDomainError,
+            WorkflowUnavailableError,
+            WorkUnavailableError,
+            EmployeeUnavailableError,
+        ) as error:
+            _raise_workflow_error(error)
+
     @strawberry.mutation
     async def dispatch_job(self, info: Info, job_id: strawberry.ID, expected_version: int) -> Job:
         _, actor = await _project_actor(info)

@@ -1,4 +1,4 @@
-# Architecture decisions — Phases 1–9
+# Architecture decisions — Phases 1–10
 
 ## Fixed boundaries
 
@@ -8,10 +8,37 @@ infrastructure endpoints are explicit HTTP exceptions. The gateway owns no domai
 data. Employee, Work Management, Workflow, and Job Execution remain independent
 bounded services, each with its own database and migrations when introduced.
 
-Employee Service, Work Service, and Job Service are implemented. Phase 8 adds a
+Employee Service, Work Service, Job Service, and Workflow Service are implemented. Phase 8 adds a
 transactional publication outbox and independent publisher to the RabbitMQ/Celery
 execution slice. Phase 9 adds fenced execution ownership and an independent
-recovery process; workflow automation remains outside scope.
+recovery process. Phase 10 adds bounded task-completion workflow automation.
+
+## Workflow automation
+
+Work Service commits a versioned `TASK_COMPLETED` event to its outbox in the same
+transaction that changes a task to `DONE`. A dedicated publisher claims only
+committed Work events and publishes persistent JSON to the durable `work.domain`
+exchange with routing key `work.task.completed.v1`. The dedicated
+`workflow.task.completed` queue is separate from the Job worker queue.
+
+Workflow Service owns rules, source-event inbox records, and executions in its
+own PostgreSQL schema. Inbox event UUID uniqueness and `(rule_id,
+source_event_id)` uniqueness make duplicate publication and delivery safe. The
+consumer accepts only schema version 1 `TASK_COMPLETED` events and quarantines
+unsupported contracts. Each execution submits the existing
+`PROJECT_TASK_EXPORT` action with `workflow:<execution UUID>` as the deterministic
+Job Service idempotency key. Failed internal action requests remain pending and
+are retried by bounded consumer polling. Publication and consumption are at least
+once; no exactly-once or cross-service distributed transaction is claimed.
+
+The Gateway reloads the current Employee profile and current Work Service project
+access before every workflow operation. Workflow Service independently checks
+the asserted accessible and managed project sets. Administrators manage all
+rules; current project managers manage rules for their projects; members can
+view history for accessible projects; non-members receive concealed not-found
+behavior. A creator's former authority does not grant future management access,
+and Job execution revalidates the creator's current active profile and project
+access before reading project tasks.
 
 ## Job management
 
@@ -220,7 +247,8 @@ the ignored local `.env`, creates or updates a development Keycloak user, obtain
 its stable subject, and invokes an internal Employee Service bootstrap command.
 
 Keycloak, Employee Service PostgreSQL, Work Service PostgreSQL, Job Service
-PostgreSQL, RabbitMQ, and Redis each use a distinct named volume.
+PostgreSQL, Workflow Service PostgreSQL, RabbitMQ, and Redis each use a distinct
+named volume.
 Readiness checks verify database connectivity or service endpoints before dependent
 containers start. Host-published ports bind to loopback.
 
@@ -249,6 +277,10 @@ containers start. Host-published ports bind to loopback.
 | Duplicate broker delivery             | Atomic `QUEUED` claim creates one attempt; other deliveries become safe no-ops             |
 | Spreadsheet formula execution         | Fixed CSV field allowlist, CSV quoting, and dangerous-prefix neutralization                |
 | Broker or worker information leakage  | Fixed classifications, bounded calls, and no payload, CSV, token, or traceback logging     |
+| Lost task-completion intent           | Atomic Work transition/outbox commit plus leased retrying publication                      |
+| Duplicate workflow delivery           | Source-event and rule/event database uniqueness plus deterministic Job idempotency         |
+| Unauthorized workflow management      | Current Employee reload, current Work access, and independent Workflow authorization       |
+| Workflow information leakage          | Unexposed internal API, dedicated credentials, fixed errors, and concealed identifiers     |
 
 ## Dependency choices
 
@@ -257,7 +289,7 @@ token processing while the application retains transaction storage, cookie polic
 session lifecycle, authorization, and error handling. The official Redis client
 supports durable shared sessions and atomic lock acquisition. PyJWT performs strict
 gateway JWT validation with cached JWKS lookup. SQLAlchemy, Alembic, and psycopg
-provide explicit Employee Service, Work Service, and Job Service ownership of their
+provide explicit Employee Service, Work Service, Job Service, and Workflow Service ownership of their
 respective models, migrations, and PostgreSQL schemas.
 Celery supplies bounded local worker execution and Kombu supplies durable AMQP
 routing and publisher confirmation. RabbitMQ is internal-only in Compose. The

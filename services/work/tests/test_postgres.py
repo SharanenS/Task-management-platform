@@ -1,18 +1,31 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
 from threading import Barrier
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import create_engine, delete, select
+from sqlalchemy import create_engine, delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models import Project, ProjectMembership, ProjectRole, Task, TaskPriority
+from app.event_publisher import claim_events, settle_failure, settle_success
+from app.models import (
+    Project,
+    ProjectMembership,
+    ProjectRole,
+    Task,
+    TaskActivity,
+    TaskPriority,
+    TaskStatus,
+    WorkEventStatus,
+    WorkOutboxEvent,
+)
 from app.service import (
     Actor,
     WorkError,
     add_member,
     assign_task,
+    change_task_status,
     create_project,
     create_task,
     remove_member,
@@ -31,12 +44,14 @@ def database() -> sessionmaker[Session]:
     engine = create_engine(DATABASE_URL)
     factory = sessionmaker(bind=engine, expire_on_commit=False)
     with factory() as session:
+        session.execute(delete(WorkOutboxEvent))
         session.execute(delete(Task))
         session.execute(delete(ProjectMembership))
         session.execute(delete(Project))
         session.commit()
     yield factory
     with factory() as session:
+        session.execute(delete(WorkOutboxEvent))
         session.execute(delete(Task))
         session.execute(delete(ProjectMembership))
         session.execute(delete(Project))
@@ -240,3 +255,186 @@ def test_project_lock_prevents_assignment_membership_removal_race(
         )
         assert final_task is not None
         assert final_task.assignee_employee_id is None or membership is not None
+
+
+def test_concurrent_completion_commits_one_task_transition_and_one_outbox_event(
+    database: sessionmaker[Session],
+) -> None:
+    owner = Actor(uuid4(), "MANAGER")
+    with database() as session:
+        project_id = create_project(
+            session, owner, key="PG-WORKFLOW", name="Workflow", description=None
+        ).id
+        task = create_task(
+            session,
+            owner,
+            project_id,
+            title="Complete once",
+            description=None,
+            priority=TaskPriority.MEDIUM,
+            assignee_employee_id=None,
+            due_date=None,
+        )
+        change_task_status(
+            session, owner, project_id, task.id, status=TaskStatus.IN_PROGRESS, expected_version=1
+        )
+        task_id = task.id
+
+    def complete(_: int) -> str:
+        with database() as session:
+            try:
+                change_task_status(
+                    session, owner, project_id, task_id, status=TaskStatus.DONE, expected_version=2
+                )
+                return "completed"
+            except WorkError as error:
+                return error.code
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(complete, range(2)))
+    assert sorted(results) == ["VERSION_CONFLICT", "completed"]
+    with database() as session:
+        task = session.get(Task, task_id)
+        events = list(
+            session.scalars(select(WorkOutboxEvent).where(WorkOutboxEvent.task_id == task_id))
+        )
+        assert task and task.status == TaskStatus.DONE
+        assert len(events) == 1 and events[0].task_version == task.version
+
+
+def _outbox(task_number: int, created_at: datetime) -> WorkOutboxEvent:
+    return WorkOutboxEvent(
+        event_type="TASK_COMPLETED",
+        schema_version=1,
+        project_id=uuid4(),
+        task_id=uuid4(),
+        actor_employee_id=uuid4(),
+        task_version=task_number,
+        created_at=created_at,
+        available_at=created_at,
+    )
+
+
+def test_publishers_claim_disjoint_bounded_ordered_batches(database: sessionmaker[Session]) -> None:
+    now = datetime.now(UTC)
+    with database() as session:
+        session.add_all([_outbox(index, now + timedelta(microseconds=index)) for index in range(6)])
+        session.commit()
+    barrier = Barrier(2)
+
+    def claim(_: int) -> list[tuple[object, int]]:
+        with database() as session:
+            barrier.wait()
+            return [
+                (item.id, item.task_version)
+                for item in claim_events(session, now=now + timedelta(seconds=1), limit=3)
+            ]
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        batches = list(executor.map(claim, range(2)))
+    assert all(len(batch) <= 3 for batch in batches)
+    assert set(item[0] for item in batches[0]).isdisjoint(item[0] for item in batches[1])
+    assert sorted(item[1] for batch in batches for item in batch) == list(range(6))
+    assert all(
+        [item[1] for item in batch] == sorted(item[1] for item in batch) for batch in batches
+    )
+
+
+def test_expired_lease_reclaim_is_single_owner_and_exact_token_fenced(
+    database: sessionmaker[Session],
+) -> None:
+    now = datetime.now(UTC)
+    with database() as session:
+        item = _outbox(1, now - timedelta(minutes=2))
+        item.status = WorkEventStatus.IN_FLIGHT
+        item.lease_token = "previous-token"
+        item.lease_expires_at = now - timedelta(seconds=1)
+        session.add(item)
+        session.commit()
+        event_id = item.id
+    barrier = Barrier(2)
+
+    def reclaim(_: int) -> list[str]:
+        with database() as session:
+            barrier.wait()
+            return [item.lease_token or "" for item in claim_events(session, now=now, limit=1)]
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        tokens = [token for batch in executor.map(reclaim, range(2)) for token in batch]
+    assert len(tokens) == 1 and tokens[0] != "previous-token"
+    with database() as session:
+        assert not settle_success(session, event_id, "previous-token")
+        assert not settle_failure(session, event_id, "previous-token")
+        assert settle_success(session, event_id, tokens[0])
+        session.commit()
+    with database() as session:
+        assert claim_events(session, now=now + timedelta(hours=1), limit=1) == []
+        assert not settle_failure(session, event_id, tokens[0])
+
+
+def test_completion_commit_failure_rolls_back_task_activity_and_event(
+    database: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    owner = Actor(uuid4(), "MANAGER")
+    with database() as session:
+        project_id = create_project(
+            session, owner, key="PG-ROLLBACK", name="Rollback", description=None
+        ).id
+        task = create_task(
+            session,
+            owner,
+            project_id,
+            title="Rollback",
+            description=None,
+            priority=TaskPriority.MEDIUM,
+            assignee_employee_id=None,
+            due_date=None,
+        )
+        change_task_status(
+            session, owner, project_id, task.id, status=TaskStatus.IN_PROGRESS, expected_version=1
+        )
+        task_id = task.id
+    with database() as session:
+
+        def fail_commit() -> None:
+            raise RuntimeError("controlled pre-commit failure")
+
+        monkeypatch.setattr(session, "commit", fail_commit)
+        with pytest.raises(RuntimeError, match="controlled pre-commit failure"):
+            change_task_status(
+                session, owner, project_id, task_id, status=TaskStatus.DONE, expected_version=2
+            )
+        session.rollback()
+    with database() as session:
+        task = session.get(Task, task_id)
+        assert task and task.status == TaskStatus.IN_PROGRESS and task.version == 2
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(WorkOutboxEvent)
+                .where(WorkOutboxEvent.task_id == task_id)
+            )
+            == 0
+        )
+        activity_count = session.scalar(
+            select(func.count()).select_from(TaskActivity).where(TaskActivity.task_id == task_id)
+        )
+        change_task_status(
+            session, owner, project_id, task_id, status=TaskStatus.DONE, expected_version=2
+        )
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(TaskActivity)
+                .where(TaskActivity.task_id == task_id)
+            )
+            == activity_count + 1
+        )
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(WorkOutboxEvent)
+                .where(WorkOutboxEvent.task_id == task_id)
+            )
+            == 1
+        )

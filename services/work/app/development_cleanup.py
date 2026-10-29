@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.db import SessionLocal
-from app.models import Project
+from app.models import Project, WorkOutboxEvent
 
 
 def main() -> None:
@@ -20,6 +20,10 @@ def main() -> None:
         project = session.scalar(select(Project).where(Project.id == project_id))
         if not project or project.key != args.expected_key.strip().upper():
             raise SystemExit("Exact disposable project identity was not verified.")
+        for event in session.scalars(
+            select(WorkOutboxEvent).where(WorkOutboxEvent.project_id == project.id)
+        ):
+            session.delete(event)
         session.delete(project)
         session.commit()
     print("Disposable development project removed.")
