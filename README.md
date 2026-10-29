@@ -1,7 +1,7 @@
 # Enterprise Task Platform
 
 A GraphQL-first enterprise work platform, developed in verified full-stack slices.
-Phases 1–9 are accepted. Phase 10 has not started.
+Phases 1–10 are accepted. Phase 11 has not started.
 
 Phase 2 adds a protected Taskspace shell, Keycloak Authorization Code Flow with
 PKCE, Redis-backed server sessions, an Employee Service with its own PostgreSQL
@@ -125,8 +125,26 @@ performance or load certification, and no cross-service distributed transaction 
 claimed. The generic missing or inactive-profile scenario remains intentionally
 skipped when its configured credentials identify the protected administrator; the
 ownership-proven disposable inactive-profile journey passed separately. Subjective
-visual and UX refinement remains deferred to Phases 12 and 15. Phase 10 has not
-started.
+visual and UX refinement remains deferred to Phases 12 and 15.
+
+Phase 10 adds a bounded workflow automation path. Authorized administrators and
+project managers can configure a rule that reacts when a task enters `DONE` and
+submits the existing `PROJECT_TASK_EXPORT` CSV job. Work Service commits a
+versioned task-completion event in the same transaction as the transition, a
+dedicated publisher uses a separate durable RabbitMQ route, and Workflow Service
+owns rule, inbox, and execution data in its own PostgreSQL database. Duplicate
+publication and delivery are handled with source-event uniqueness,
+rule-and-event uniqueness, and an execution-derived Job Service idempotency key.
+Delivery is at least once; exactly-once behavior and cross-service distributed
+transactions are not claimed. Phase 11 has not started.
+
+The owner accepted Phase 10 on 2026-10-29 after the recorded functional,
+authorization, concurrency, persistence, duplicate-delivery, outage, recovery,
+responsive-overflow, cleanup, and security verification. The current Python
+lockfiles were not successfully re-audited during final closure, and the combined
+final Python image rebuild was interrupted and is not claimed as passed. These
+accepted residual limitations and the complete attempt history remain recorded in
+the Phase 10 verification report.
 
 ## Run with Docker
 
@@ -155,10 +173,12 @@ Local endpoints:
 - Employee PostgreSQL: loopback port 5435
 - Work PostgreSQL: loopback port 5436
 - Job PostgreSQL: loopback port 5437
+- Workflow PostgreSQL: loopback port 5438
 - Session Redis: loopback port 6380
 
 Keycloak, Employee Service PostgreSQL, Work Service PostgreSQL, Job Service
-PostgreSQL, RabbitMQ, and Redis each use a distinct named volume. RabbitMQ is
+PostgreSQL, Workflow Service PostgreSQL, RabbitMQ, and Redis each use a distinct
+named volume. RabbitMQ is
 internal-only; no broker or management port is published to the host. Do not use
 `docker compose down --volumes` when the data should be retained.
 

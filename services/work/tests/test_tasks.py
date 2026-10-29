@@ -18,6 +18,7 @@ from app.models import (
     TaskActivityType,
     TaskPriority,
     TaskStatus,
+    WorkOutboxEvent,
 )
 from app.schemas import TaskCommentCreateRequest, TaskCreateRequest, TaskUpdateRequest
 from app.service import (
@@ -79,6 +80,24 @@ def test_task_schema_normalizes_and_validates() -> None:
         TaskCreateRequest(title="   ")
     with pytest.raises(ValidationError):
         TaskCommentCreateRequest(body="   ")
+
+
+def test_done_transition_atomically_records_one_versioned_domain_event(session: Session) -> None:
+    manager, project = setup_project(session)
+    task = new_task(session, manager, project.id)
+    task = change_task_status(
+        session, manager, project.id, task.id, status=TaskStatus.IN_PROGRESS, expected_version=1
+    )
+    assert session.scalar(select(func.count()).select_from(WorkOutboxEvent)) == 0
+    change_task_status(
+        session, manager, project.id, task.id, status=TaskStatus.DONE, expected_version=2
+    )
+    events = list(session.scalars(select(WorkOutboxEvent)))
+    assert len(events) == 1
+    assert events[0].event_type == "TASK_COMPLETED"
+    assert events[0].schema_version == 1
+    assert events[0].project_id == project.id
+    assert events[0].task_id == task.id
 
 
 def test_manager_contributor_and_admin_create_tasks_with_atomic_activity(session: Session) -> None:

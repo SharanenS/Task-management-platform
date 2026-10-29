@@ -31,6 +31,14 @@ input CreateTaskInput {
   dueDate: Date = null
 }
 
+input CreateWorkflowRuleInput {
+  projectId: ID!
+  name: String!
+  triggerType: WorkflowTriggerType!
+  actionType: WorkflowActionType!
+  enabled: Boolean! = true
+}
+
 """Date (isoformat)"""
 scalar Date
 
@@ -144,6 +152,9 @@ enum JobType {
 }
 
 type Mutation {
+  createWorkflowRule(input: CreateWorkflowRuleInput!): WorkflowRule!
+  updateWorkflowRule(ruleId: ID!, input: UpdateWorkflowRuleInput!): WorkflowRule!
+  setWorkflowRuleEnabled(ruleId: ID!, enabled: Boolean!, expectedVersion: Int!): WorkflowRule!
   dispatchJob(jobId: ID!, expectedVersion: Int!): Job!
   retryJob(jobId: ID!, expectedVersion: Int!): Job!
   submitProjectTaskExport(input: SubmitProjectTaskExportInput!): Job!
@@ -244,6 +255,10 @@ enum PublicationStatus {
 type Query {
   systemInfo: SystemInfo!
   me: Employee!
+  workflowRules(first: Int! = 20, after: String = null, projectId: ID = null, enabled: Boolean = null): WorkflowRuleConnection!
+  workflowRule(id: ID!): WorkflowRule!
+  workflowExecutions(first: Int! = 20, after: String = null, ruleId: ID = null): WorkflowExecutionConnection!
+  workflowExecution(id: ID!): WorkflowExecution!
   jobs(first: Int! = 20, after: String = null, status: JobStatus = null, jobType: JobType = null): JobConnection!
   jobPublications(first: Int! = 20, after: String = null, status: PublicationStatus = null): PublicationConnection!
   job(id: ID!): Job!
@@ -369,4 +384,60 @@ input UpdateTaskInput {
   priority: TaskPriority!
   dueDate: Date
   expectedVersion: Int!
+}
+
+input UpdateWorkflowRuleInput {
+  name: String!
+  expectedVersion: Int!
+}
+
+enum WorkflowActionType {
+  PROJECT_TASK_EXPORT
+}
+
+type WorkflowExecution {
+  id: ID!
+  ruleId: ID!
+  sourceEventId: ID!
+  projectId: ID!
+  taskId: ID!
+  status: WorkflowExecutionStatus!
+  resultingJobId: ID
+  failureClassification: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  completedAt: DateTime
+}
+
+type WorkflowExecutionConnection {
+  nodes: [WorkflowExecution!]!
+  pageInfo: PageInfo!
+}
+
+enum WorkflowExecutionStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+type WorkflowRule {
+  id: ID!
+  projectId: ID!
+  name: String!
+  triggerType: WorkflowTriggerType!
+  actionType: WorkflowActionType!
+  enabled: Boolean!
+  creatorEmployeeId: ID!
+  version: Int!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type WorkflowRuleConnection {
+  nodes: [WorkflowRule!]!
+  pageInfo: PageInfo!
+}
+
+enum WorkflowTriggerType {
+  TASK_COMPLETED
 }

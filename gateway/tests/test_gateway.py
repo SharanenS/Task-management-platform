@@ -35,6 +35,8 @@ from app.work_client import (
     WorkTaskPage,
     WorkUnavailableError,
 )
+from app.workflow_client import Page as WorkflowPage
+from app.workflow_client import Rule as WorkflowRuleRecord
 
 
 def request(
@@ -112,6 +114,75 @@ def test_me_requires_authentication(monkeypatch: pytest.MonkeyPatch) -> None:
         {
             "message": "Authentication is required.",
             "extensions": {"code": "UNAUTHENTICATED"},
+        }
+    ]
+
+
+def test_workflow_directory_requires_authentication(monkeypatch: pytest.MonkeyPatch) -> None:
+    def reject(_: str | None) -> Identity:
+        raise AuthenticationError
+
+    monkeypatch.setattr("app.schema.token_validator.validate", reject)
+    result = request(
+        "POST", "/graphql", payload={"query": "{ workflowRules { nodes { id } } }"}
+    ).json()
+    assert result["errors"] == [
+        {"message": "Authentication is required.", "extensions": {"code": "UNAUTHENTICATED"}}
+    ]
+
+
+def test_workflow_directory_maps_typed_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.schema.token_validator.validate", lambda _: Identity(subject="subject-1")
+    )
+    actor = EmployeeProfile(
+        id="11111111-1111-4111-8111-111111111111",
+        display_name="Admin",
+        email="admin@example.test",
+        role="ADMIN",
+    )
+
+    async def employee(_: str) -> EmployeeProfile:
+        return actor
+
+    async def projects(*_: object, **__: object) -> WorkProjectPage:
+        return WorkProjectPage([], None, False)
+
+    async def workflows(*_: object, **__: object) -> WorkflowPage:
+        return WorkflowPage(
+            [
+                WorkflowRuleRecord(
+                    "22222222-2222-4222-8222-222222222222",
+                    "33333333-3333-4333-8333-333333333333",
+                    "Export done",
+                    "TASK_COMPLETED",
+                    "PROJECT_TASK_EXPORT",
+                    True,
+                    actor.id,
+                    1,
+                    "2026-10-28T00:00:00+00:00",
+                    "2026-10-28T00:00:00+00:00",
+                )
+            ],
+            None,
+            False,
+        )
+
+    monkeypatch.setattr("app.schema.get_employee", employee)
+    monkeypatch.setattr("app.schema.work_list_projects", projects)
+    monkeypatch.setattr("app.schema.workflow_list_rules", workflows)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": "{ workflowRules { nodes { name triggerType actionType enabled } } }"},
+        headers={"Authorization": "Bearer test"},
+    ).json()
+    assert result["data"]["workflowRules"]["nodes"] == [
+        {
+            "name": "Export done",
+            "triggerType": "TASK_COMPLETED",
+            "actionType": "PROJECT_TASK_EXPORT",
+            "enabled": True,
         }
     ]
 

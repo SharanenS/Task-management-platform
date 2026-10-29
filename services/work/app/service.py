@@ -19,6 +19,7 @@ from app.models import (
     TaskComment,
     TaskPriority,
     TaskStatus,
+    WorkOutboxEvent,
 )
 
 
@@ -565,6 +566,17 @@ def change_task_status(
         TaskActivityType.STATUS_CHANGED,
         {"from": previous.value, "to": status.value, "version": task.version},
     )
+    if status == TaskStatus.DONE:
+        session.add(
+            WorkOutboxEvent(
+                event_type="TASK_COMPLETED",
+                schema_version=1,
+                project_id=project.id,
+                task_id=task.id,
+                actor_employee_id=actor.employee_id,
+                task_version=task.version,
+            )
+        )
     session.commit()
     return _task(session, project.id, task.id)
 

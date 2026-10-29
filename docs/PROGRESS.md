@@ -1,6 +1,8 @@
 ﻿# Project progress
 
-Last updated: 2026-10-27
+Last updated: 2026-10-29
+
+Current boundary: Phases 1–10 are accepted. Phase 11 has not started.
 
 ## Phase 1 â€” Project Foundation and Frontend Design System
 
@@ -275,4 +277,33 @@ allowed only through the verified safe state transition. The generic missing or
 inactive-profile scenario remains intentionally skipped when its credentials
 identify the protected administrator; the ownership-proven disposable journey
 passed separately. Subjective visual and UX refinement remains deferred to Phases
-12 and 15. Phase 10 has not started.
+12 and 15.
+
+## Phase 10 — Workflow Automation
+
+Status: **Accepted**
+
+Delivered:
+
+- Independent Workflow Service and PostgreSQL schema for bounded rules,
+  versioned source-event inbox records, and execution history.
+- Atomic Work Service `TASK_COMPLETED` outbox creation on the `DONE` transition,
+  with a dedicated publisher and isolated durable RabbitMQ route and queue.
+- At-least-once consumption with event and rule uniqueness plus deterministic
+  Job Service idempotency derived from the workflow execution UUID.
+- Current-profile and project-access composition at the Gateway, independent
+  Workflow Service authorization, typed GraphQL operations, and a protected
+  workflow list, create form, detail, state control, history, and job linkage.
+- Forward-only Work revision `20261028_01` and Workflow revision
+  `20261028_01`.
+
+Phase 10 supports only task completion to `PROJECT_TASK_EXPORT` in CSV format.
+It does not claim exactly-once delivery, arbitrary workflow definitions,
+scheduling, notifications, or cross-service distributed transactions. Phase 11
+has not started. Subjective visual and UX refinement remains deferred to Phases
+12 and 15.
+
+Owner acceptance completed on 2026-10-29 after the verification evidence recorded
+in the Phase 10 report. The accepted residual limitations are that the current
+Python lockfiles were not successfully re-audited during final closure and the
+combined final Python image rebuild was interrupted and is not claimed as passed.
