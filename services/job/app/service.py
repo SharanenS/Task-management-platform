@@ -14,6 +14,7 @@ from app.models import (
     AttemptStatus,
     Job,
     JobAttempt,
+    JobDomainEvent,
     JobStatus,
     JobType,
     OutboxEvent,
@@ -61,6 +62,26 @@ class JobError(Exception):
         self.code = code
         self.message = message
         self.status_code = status_code
+
+
+def _add_terminal_event(session: Session, job: Job, event_type: str) -> None:
+    if (
+        session.scalar(
+            select(JobDomainEvent.id).where(
+                JobDomainEvent.job_id == job.id,
+                JobDomainEvent.event_type == event_type,
+            )
+        )
+        is None
+    ):
+        session.add(
+            JobDomainEvent(
+                job_id=job.id,
+                event_type=event_type,
+                recipient_employee_id=job.submitter_employee_id,
+                project_id=job.related_project_id,
+            )
+        )
 
 
 def normalize_request(body: JobSubmissionRequest) -> tuple[dict[str, object], str]:
@@ -485,6 +506,7 @@ def settle_success(
     job.result_summary = f"Exported {row_count} task rows."
     job.completed_at = now
     job.version += 1
+    _add_terminal_event(session, job, "REPORT_SUCCEEDED")
     session.commit()
 
 
@@ -543,6 +565,7 @@ def settle_failure(
         job.failure_classification = code
         job.completed_at = current
         job.retry_exhausted = bool(retryable)
+        _add_terminal_event(session, job, "REPORT_FAILED")
     job.version += 1
     session.commit()
 

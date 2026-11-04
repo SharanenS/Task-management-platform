@@ -12,7 +12,10 @@ from app.db import SessionLocal
 from app.models import WorkEventStatus, WorkOutboxEvent
 
 EXCHANGE = Exchange("work.domain", type="direct", durable=True)
-ROUTING_KEY = "work.task.completed.v1"
+ROUTING_KEYS = {
+    "TASK_COMPLETED": "work.task.completed.v1",
+    "TASK_ASSIGNED": "work.task.assigned.v1",
+}
 
 
 def claim_events(
@@ -88,6 +91,9 @@ def publish_once() -> int:
                     "projectId": str(event.project_id),
                     "taskId": str(event.task_id),
                     "actorEmployeeId": str(event.actor_employee_id),
+                    "recipientEmployeeId": (
+                        str(event.recipient_employee_id) if event.recipient_employee_id else None
+                    ),
                     "taskVersion": event.task_version,
                     "occurredAt": event.created_at.isoformat(),
                 }
@@ -95,7 +101,7 @@ def publish_once() -> int:
                     Producer(connection).publish(
                         payload,
                         exchange=EXCHANGE,
-                        routing_key=ROUTING_KEY,
+                        routing_key=ROUTING_KEYS[event.event_type],
                         serializer="json",
                         declare=[EXCHANGE],
                         delivery_mode=2,

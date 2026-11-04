@@ -9,7 +9,16 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models import AttemptStatus, Job, JobAttempt, JobStatus, OutboxEvent, PublicationStatus
+from app import service as job_service
+from app.models import (
+    AttemptStatus,
+    Job,
+    JobAttempt,
+    JobDomainEvent,
+    JobStatus,
+    OutboxEvent,
+    PublicationStatus,
+)
 from app.schemas import JobSubmissionRequest
 from app.service import (
     Actor,
@@ -49,7 +58,9 @@ def factory() -> sessionmaker[Session]:
     assert POSTGRES_URL is not None
     engine = create_engine(POSTGRES_URL, pool_pre_ping=True)
     with engine.begin() as connection:
-        connection.exec_driver_sql("TRUNCATE job_publication_outbox, job_attempts, jobs CASCADE")
+        connection.exec_driver_sql(
+            "TRUNCATE job_domain_outbox, job_publication_outbox, job_attempts, jobs CASCADE"
+        )
     return sessionmaker(engine, expire_on_commit=False)
 
 
@@ -176,13 +187,58 @@ def test_dispatch_and_outbox_are_atomic_and_unique(factory: sessionmaker[Session
     actor = Actor(uuid.uuid4(), "MEMBER")
     with factory() as session:
         job = submit_job(session, actor, request(uuid.uuid4(), "phase8-atomic-0001"))
+        before = datetime.now(UTC)
         dispatched = dispatch_job(session, actor, job.id, job.version)
-        event = session.scalar(select(OutboxEvent).where(OutboxEvent.job_id == job.id))
+        after = datetime.now(UTC)
+        events = list(session.scalars(select(OutboxEvent).where(OutboxEvent.job_id == job.id)))
         assert dispatched.status == JobStatus.QUEUED
-        assert event is not None and event.status == PublicationStatus.PENDING
+        assert dispatched.execution_generation == 1
+        assert len(events) == 1
+        event = events[0]
+        assert event.event_type == "EXECUTE_JOB"
+        assert event.schema_version == 1
+        assert event.execution_generation == 1
+        assert event.status == PublicationStatus.PENDING
+        assert event.attempt_count == 0
+        assert before <= event.available_at <= after
+        assert event.lease_token is None and event.lease_expires_at is None
+        assert [item.id for item in claim_publications(session, now=after)] == [event.id]
+        assert event.status == PublicationStatus.IN_FLIGHT
         session.add(OutboxEvent(job_id=job.id, status=PublicationStatus.PENDING))
         with pytest.raises(IntegrityError):
             session.commit()
+
+
+def test_dispatch_rolls_back_job_when_publication_insert_conflicts(
+    factory: sessionmaker[Session],
+) -> None:
+    actor = Actor(uuid.uuid4(), "MEMBER")
+    with factory() as session:
+        job = submit_job(session, actor, request(uuid.uuid4(), "phase11-dispatch-rollback"))
+        job_id, version = job.id, job.version
+        session.add(
+            OutboxEvent(
+                job_id=job_id,
+                event_type="EXECUTE_JOB",
+                execution_generation=1,
+                status=PublicationStatus.PENDING,
+            )
+        )
+        session.commit()
+
+    with factory() as session:
+        with pytest.raises(JobError) as raised:
+            dispatch_job(session, actor, job_id, version)
+        assert raised.value.code == "JOB_NOT_DISPATCHABLE"
+
+    with factory() as session:
+        retained = session.get(Job, job_id)
+        events = list(session.scalars(select(OutboxEvent).where(OutboxEvent.job_id == job_id)))
+        assert retained is not None
+        assert retained.status == JobStatus.SUBMITTED
+        assert retained.execution_generation == 0
+        assert retained.version == version
+        assert len(events) == 1
 
 
 def _pending(factory: sessionmaker[Session], key: str, created_at: datetime) -> uuid.UUID:
@@ -371,6 +427,10 @@ def test_stale_settlement_cannot_replace_recovered_generation(
         assert rejected.value.code == "STALE_SETTLEMENT"
         session.refresh(job)
         assert job.status == JobStatus.SUCCEEDED and job.result_checksum == "b" * 64
+        events = list(
+            session.scalars(select(JobDomainEvent).where(JobDomainEvent.job_id == job.id))
+        )
+        assert len(events) == 1 and events[0].event_type == "REPORT_SUCCEEDED"
 
 
 def test_concurrent_admin_retry_creates_one_generation_event(
@@ -411,3 +471,173 @@ def test_concurrent_admin_retry_creates_one_generation_event(
     assert any(value in {"VERSION_CONFLICT", "JOB_NOT_RETRYABLE"} for value in results)
     with factory() as session:
         assert len(list(session.scalars(select(OutboxEvent)))) == 2
+
+
+def test_terminal_report_state_and_domain_event_commit_atomically(
+    factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    actor = Actor(uuid.uuid4(), "MEMBER")
+    with factory() as session:
+        job = submit_job(session, actor, request(uuid.uuid4(), "phase11-terminal-atomic"))
+        dispatch_job(session, actor, job.id, job.version)
+        attempt = claim_job(session, job.id)
+        assert attempt
+        job_id, attempt_id = job.id, attempt.id
+    with factory() as session:
+        attempt = session.get(JobAttempt, attempt_id)
+        assert attempt
+
+        def fail_commit() -> None:
+            raise RuntimeError("controlled terminal commit failure")
+
+        monkeypatch.setattr(session, "commit", fail_commit)
+        with pytest.raises(RuntimeError, match="controlled terminal commit failure"):
+            settle_success(
+                session,
+                job_id,
+                attempt_id,
+                content="reference,title\n",
+                content_type="text/csv; charset=utf-8",
+                checksum="d" * 64,
+                row_count=0,
+                truncated=False,
+                lease_token=attempt.execution_lease_token,
+                execution_fence=attempt.execution_fence,
+            )
+        session.rollback()
+    with factory() as session:
+        job = session.get(Job, job_id)
+        assert job and job.status == JobStatus.RUNNING and job.result_content is None
+        assert session.scalar(select(JobDomainEvent).where(JobDomainEvent.job_id == job_id)) is None
+
+
+def test_terminal_event_uniqueness_failure_rolls_back_settlement(
+    factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    actor = Actor(uuid.uuid4(), "MEMBER")
+    with factory() as session:
+        job = submit_job(session, actor, request(uuid.uuid4(), "phase11-terminal-unique-rollback"))
+        dispatch_job(session, actor, job.id, job.version)
+        attempt = claim_job(session, job.id)
+        assert attempt
+        job_id, attempt_id = job.id, attempt.id
+
+    def add_conflicting_events(session: Session, job: Job, event_type: str) -> None:
+        for _ in range(2):
+            session.add(
+                JobDomainEvent(
+                    job_id=job.id,
+                    event_type=event_type,
+                    recipient_employee_id=job.submitter_employee_id,
+                    project_id=job.related_project_id,
+                )
+            )
+
+    monkeypatch.setattr(job_service, "_add_terminal_event", add_conflicting_events)
+    with factory() as session:
+        attempt = session.get(JobAttempt, attempt_id)
+        assert attempt
+        with pytest.raises(IntegrityError):
+            settle_success(
+                session,
+                job_id,
+                attempt_id,
+                content="reference,title\n",
+                content_type="text/csv; charset=utf-8",
+                checksum="1" * 64,
+                row_count=0,
+                truncated=False,
+                lease_token=attempt.execution_lease_token,
+                execution_fence=attempt.execution_fence,
+            )
+        session.rollback()
+
+    with factory() as session:
+        job = session.get(Job, job_id)
+        attempt = session.get(JobAttempt, attempt_id)
+        assert job and attempt
+        assert job.status == JobStatus.RUNNING
+        assert attempt.status == AttemptStatus.RUNNING
+        assert job.result_content is None
+        assert job.result_content_type is None
+        assert job.result_checksum is None
+        assert job.result_row_count is None
+        assert job.completed_at is None
+        assert session.scalar(select(JobDomainEvent).where(JobDomainEvent.job_id == job_id)) is None
+
+
+def test_terminal_report_event_is_unique_and_retry_is_nonterminal(
+    factory: sessionmaker[Session],
+) -> None:
+    actor = Actor(uuid.uuid4(), "MEMBER")
+    with factory() as session:
+        job = submit_job(session, actor, request(uuid.uuid4(), "phase11-terminal-unique"))
+        dispatch_job(session, actor, job.id, job.version)
+        first = claim_job(session, job.id)
+        assert first
+        settle_failure(
+            session,
+            job.id,
+            first.id,
+            code="DEPENDENCY_UNAVAILABLE",
+            retryable=True,
+            lease_token=first.execution_lease_token,
+            execution_fence=first.execution_fence,
+        )
+        assert session.scalar(select(JobDomainEvent).where(JobDomainEvent.job_id == job.id)) is None
+        second = claim_job(session, job.id)
+        assert second
+        settle_success(
+            session,
+            job.id,
+            second.id,
+            content="reference,title\n",
+            content_type="text/csv; charset=utf-8",
+            checksum="e" * 64,
+            row_count=0,
+            truncated=False,
+            lease_token=second.execution_lease_token,
+            execution_fence=second.execution_fence,
+        )
+        events = list(
+            session.scalars(select(JobDomainEvent).where(JobDomainEvent.job_id == job.id))
+        )
+        assert len(events) == 1 and events[0].event_type == "REPORT_SUCCEEDED"
+        assert (
+            job.result_checksum == "e" * 64 and job.result_content_type == "text/csv; charset=utf-8"
+        )
+
+
+def test_domain_event_cascade_is_owned_by_job(factory: sessionmaker[Session]) -> None:
+    actor = Actor(uuid.uuid4(), "MEMBER")
+    with factory() as session:
+        jobs = [
+            submit_job(session, actor, request(uuid.uuid4(), f"phase11-cascade-{index}"))
+            for index in range(2)
+        ]
+        for job in jobs:
+            dispatch_job(session, actor, job.id, job.version)
+            attempt = claim_job(session, job.id)
+            assert attempt
+            settle_success(
+                session,
+                job.id,
+                attempt.id,
+                content="reference,title\n",
+                content_type="text/csv; charset=utf-8",
+                checksum="f" * 64,
+                row_count=0,
+                truncated=False,
+                lease_token=attempt.execution_lease_token,
+                execution_fence=attempt.execution_fence,
+            )
+        first_id, second_id = jobs[0].id, jobs[1].id
+        session.delete(jobs[0])
+        session.commit()
+        assert (
+            session.scalar(select(JobDomainEvent).where(JobDomainEvent.job_id == first_id)) is None
+        )
+        assert (
+            session.scalar(select(JobDomainEvent).where(JobDomainEvent.job_id == second_id))
+            is not None
+        )

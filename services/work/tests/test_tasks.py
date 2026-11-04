@@ -341,6 +341,28 @@ def test_assignment_requires_manager_current_membership_and_version(session: Ses
         "to_employee_id",
         "version",
     }
+    outbox = session.scalars(
+        select(WorkOutboxEvent).where(WorkOutboxEvent.event_type == "TASK_ASSIGNED")
+    ).all()
+    assert len(outbox) == 1
+    assert outbox[0].recipient_employee_id == contributor
+    unchanged = assign_task(
+        session,
+        manager,
+        project.id,
+        task.id,
+        assignee_employee_id=contributor,
+        expected_version=2,
+    )
+    assert unchanged.version == 2
+    assert (
+        len(
+            session.scalars(
+                select(WorkOutboxEvent).where(WorkOutboxEvent.event_type == "TASK_ASSIGNED")
+            ).all()
+        )
+        == 1
+    )
     with pytest.raises(WorkError) as stale:
         assign_task(
             session,

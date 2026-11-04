@@ -6,10 +6,12 @@ import * as Dialog from "@radix-ui/react-dialog";
 import {
   Activity,
   ArrowUpRight,
+  Bell,
   Blocks,
   BookOpen,
   ChevronRight,
   CircleHelp,
+  FileChartColumn,
   FolderKanban,
   LayoutDashboard,
   Menu,
@@ -25,6 +27,7 @@ import { cn } from "@/lib/utils";
 import type { EmployeeProfile } from "@/auth/types";
 import { canViewEmployeeNavigation } from "@/auth/authorization";
 import { UserMenu } from "@/components/layout/user-menu";
+import { UnreadNotificationLink } from "@/features/notifications/unread-notification-link";
 
 const navigation: Array<{
   label: string;
@@ -38,6 +41,8 @@ const navigation: Array<{
   { label: "Employees", href: "/employees", icon: Users },
   { label: "Workflows", href: "/workflows", icon: Workflow },
   { label: "Jobs", href: "/jobs", icon: Zap },
+  { label: "Reports", href: "/reports", icon: FileChartColumn },
+  { label: "Notifications", href: "/notifications", icon: Bell },
   {
     label: "Publications",
     href: "/jobs/publications",
@@ -186,9 +191,13 @@ export function AppShell({
             ? "Projects"
             : pathname.startsWith("/workflows")
               ? "Workflows"
-              : pathname.startsWith("/jobs")
-                ? "Jobs"
-                : "Overview";
+              : pathname.startsWith("/notifications")
+                ? "Notifications"
+                : pathname.startsWith("/reports")
+                  ? "Reports"
+                  : pathname.startsWith("/jobs")
+                    ? "Jobs"
+                    : "Overview";
   return (
     <div className="min-h-screen">
       <a
@@ -202,7 +211,7 @@ export function AppShell({
       </aside>
       <div className="lg:pl-64">
         <header className="flex h-[76px] items-center justify-between gap-3 border-b bg-card px-5 sm:px-8 lg:px-10">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <Dialog.Root open={open} onOpenChange={setOpen}>
               <Dialog.Trigger asChild>
                 <Button
@@ -239,10 +248,11 @@ export function AppShell({
               Workspace
             </span>
             <ChevronRight className="hidden size-3 text-muted-foreground sm:block" />
-            <span className="text-xs font-medium">{title}</span>
+            <span className="truncate text-xs font-medium">{title}</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex shrink-0 items-center gap-4">
             <ConnectionStatus />
+            <UnreadNotificationLink />
             <span className="hidden h-5 border-l sm:block" />
             <UserMenu user={user} />
           </div>

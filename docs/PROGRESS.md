@@ -1,8 +1,9 @@
 ﻿# Project progress
 
-Last updated: 2026-10-29
+Last updated: 2026-11-04
 
-Current boundary: Phases 1–10 are accepted. Phase 11 has not started.
+Current boundary: Phases 1–10 are accepted. Phase 11 acceptance verification is
+complete. Phase 12 has not started.
 
 ## Phase 1 â€” Project Foundation and Frontend Design System
 
@@ -299,11 +300,20 @@ Delivered:
 
 Phase 10 supports only task completion to `PROJECT_TASK_EXPORT` in CSV format.
 It does not claim exactly-once delivery, arbitrary workflow definitions,
-scheduling, notifications, or cross-service distributed transactions. Phase 11
-has not started. Subjective visual and UX refinement remains deferred to Phases
-12 and 15.
+scheduling, notifications, or cross-service distributed transactions. Subjective
+visual and UX refinement remains deferred to Phases 12 and 15.
 
 Owner acceptance completed on 2026-10-29 after the verification evidence recorded
 in the Phase 10 report. The accepted residual limitations are that the current
 Python lockfiles were not successfully re-audited during final closure and the
 combined final Python image rebuild was interrupted and is not claimed as passed.
+
+## Phase 11 — Notifications and Reports
+
+Status: **Acceptance verified. Pending owner review and manual commit.**
+
+Recipient-scoped notifications cover task assignments and terminal report
+outcomes. The report center supports submitter-owned CSV exports with ADMIN
+override. The [verification record](phase-11-verification.md) records the three
+lifecycle viewport passes, the desktop role and duplicate-delivery journeys,
+all six recovery cases, and scoped cleanup and restoration.

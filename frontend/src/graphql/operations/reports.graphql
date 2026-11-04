@@ -1,0 +1,65 @@
+query Reports($first: Int!, $after: String, $status: JobStatus) {
+  reports(first: $first, after: $after, status: $status) {
+    nodes {
+      id
+      status
+      submitterEmployeeId
+      payload {
+        projectId
+        format
+        includeCompleted
+      }
+      failureClassification
+      completedAt
+      resultChecksum
+      resultRowCount
+      resultTruncated
+      resultContentType
+      createdAt
+      updatedAt
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+
+query Report($id: ID!) {
+  report(id: $id) {
+    id
+    status
+    payload {
+      projectId
+      format
+      includeCompleted
+    }
+    failureClassification
+    completedAt
+    resultChecksum
+    resultRowCount
+    resultTruncated
+    resultContentType
+    createdAt
+  }
+}
+
+query ReportArtifact($id: ID!) {
+  reportArtifact(id: $id) {
+    reportId
+    filename
+    contentType
+    checksum
+    rowCount
+    truncated
+    content
+  }
+}
+
+mutation RequestProjectTaskReport($input: SubmitProjectTaskExportInput!) {
+  requestProjectTaskReport(input: $input) {
+    id
+    status
+    version
+  }
+}

@@ -15,10 +15,12 @@ class Settings(BaseSettings):
     work_service_url: str = "http://127.0.0.1:8030"
     job_service_url: str = "http://127.0.0.1:8040"
     workflow_service_url: str = "http://127.0.0.1:8050"
+    notification_service_url: str = "http://127.0.0.1:8060"
     internal_service_key: str = "development-only-placeholder"
     work_internal_service_key: str = "development-only-placeholder"
     job_internal_service_key: str = "development-only-placeholder"
     workflow_internal_service_key: str = "development-only-placeholder"
+    notification_internal_service_key: str = "development-only-placeholder"
 
 
 settings = Settings()

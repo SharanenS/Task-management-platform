@@ -15,6 +15,7 @@ from app.models import (
     ProjectRole,
     Task,
     TaskActivity,
+    TaskActivityType,
     TaskPriority,
     TaskStatus,
     WorkEventStatus,
@@ -437,4 +438,68 @@ def test_completion_commit_failure_rolls_back_task_activity_and_event(
                 .where(WorkOutboxEvent.task_id == task_id)
             )
             == 1
+        )
+
+
+def test_assignment_commit_failure_rolls_back_task_activity_and_event(
+    database: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    owner = Actor(uuid4(), "MANAGER")
+    assignee = uuid4()
+    with database() as session:
+        project = create_project(
+            session, owner, key="PG-ASSIGN-RB", name="Assign rollback", description=None
+        )
+        add_member(session, owner, project.id, assignee, ProjectRole.CONTRIBUTOR)
+        task = create_task(
+            session,
+            owner,
+            project.id,
+            title="Assignment rollback",
+            description=None,
+            priority=TaskPriority.MEDIUM,
+            assignee_employee_id=None,
+            due_date=None,
+        )
+        project_id, task_id = project.id, task.id
+    with database() as session:
+
+        def fail_commit() -> None:
+            raise RuntimeError("controlled assignment commit failure")
+
+        monkeypatch.setattr(session, "commit", fail_commit)
+        with pytest.raises(RuntimeError, match="controlled assignment commit failure"):
+            assign_task(
+                session,
+                owner,
+                project_id,
+                task_id,
+                assignee_employee_id=assignee,
+                expected_version=1,
+            )
+        session.rollback()
+    with database() as session:
+        task = session.get(Task, task_id)
+        assert task and task.assignee_employee_id is None and task.version == 1
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(WorkOutboxEvent)
+                .where(
+                    WorkOutboxEvent.task_id == task_id,
+                    WorkOutboxEvent.event_type == "TASK_ASSIGNED",
+                )
+            )
+            == 0
+        )
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(TaskActivity)
+                .where(
+                    TaskActivity.task_id == task_id,
+                    TaskActivity.activity_type == TaskActivityType.ASSIGNMENT_CHANGED,
+                )
+            )
+            == 0
         )

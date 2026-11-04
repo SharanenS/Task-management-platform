@@ -40,6 +40,18 @@ describe("live gateway status", () => {
     vi.stubGlobal("fetch", fetch);
     mount();
     expect(await screen.findByText("Gateway is reachable")).toBeInTheDocument();
+    const gatewayLink = screen.getByRole("link", {
+      name: "View gateway connection status",
+    });
+    expect(gatewayLink).toHaveClass("shrink-0");
+    expect(gatewayLink.querySelector('[role="status"]')).toHaveClass(
+      "sr-only",
+      "sm:not-sr-only",
+    );
+    expect(gatewayLink.querySelector('[role="status"]')).not.toHaveClass(
+      "hidden",
+      "sm:inline",
+    );
     expect(screen.getByText("test")).toBeInTheDocument();
     expect(fetch.mock.calls[0][0]).toBe("/graphql");
     expect(JSON.parse(fetch.mock.calls[0][1].body).operationName).toBe(

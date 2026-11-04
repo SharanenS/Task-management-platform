@@ -499,6 +499,8 @@ def assign_task(
     if assignee_employee_id and not _membership(session, project.id, assignee_employee_id):
         raise WorkError("INVALID_ASSIGNEE", "The assignee is not an eligible project member.")
     previous = task.assignee_employee_id
+    if previous == assignee_employee_id:
+        return task
     task.assignee_employee_id = assignee_employee_id
     task.version += 1
     _activity(
@@ -512,6 +514,18 @@ def assign_task(
             "version": task.version,
         },
     )
+    if assignee_employee_id is not None and assignee_employee_id != actor.employee_id:
+        session.add(
+            WorkOutboxEvent(
+                event_type="TASK_ASSIGNED",
+                schema_version=1,
+                project_id=project.id,
+                task_id=task.id,
+                actor_employee_id=actor.employee_id,
+                recipient_employee_id=assignee_employee_id,
+                task_version=task.version,
+            )
+        )
     session.commit()
     return _task(session, project.id, task.id)
 

@@ -50,6 +50,15 @@ from app.job_client import retry_job as job_retry_job
 from app.job_client import (
     submit_job as job_submit_job,
 )
+from app.notification_client import (
+    NotificationDomainError,
+    NotificationRecord,
+    NotificationUnavailableError,
+)
+from app.notification_client import list_notifications as notification_list
+from app.notification_client import mark_all_read as notification_mark_all
+from app.notification_client import mark_read as notification_mark_read
+from app.notification_client import unread_count as notification_unread_count
 from app.work_client import (
     WorkDomainError,
     WorkMembership,
@@ -230,6 +239,13 @@ class WorkflowExecutionStatus(StrEnum):
     PENDING = "PENDING"
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
+
+
+@strawberry.enum
+class NotificationType(StrEnum):
+    TASK_ASSIGNED = "TASK_ASSIGNED"
+    REPORT_SUCCEEDED = "REPORT_SUCCEEDED"
+    REPORT_FAILED = "REPORT_FAILED"
 
 
 @strawberry.type
@@ -492,6 +508,41 @@ class WorkflowExecution:
 class WorkflowExecutionConnection:
     nodes: list[WorkflowExecution]
     page_info: PageInfo
+
+
+@strawberry.type
+class Notification:
+    id: strawberry.ID
+    notification_type: NotificationType
+    title: str
+    message: str
+    project_id: strawberry.ID | None
+    task_id: strawberry.ID | None
+    report_id: strawberry.ID | None
+    read_at: datetime | None
+    created_at: datetime
+
+
+@strawberry.type
+class NotificationConnection:
+    nodes: list[Notification]
+    page_info: PageInfo
+
+
+@strawberry.type
+class MarkAllNotificationsResult:
+    updated_count: int
+
+
+@strawberry.type
+class ReportArtifact:
+    report_id: strawberry.ID
+    filename: str
+    content_type: str
+    checksum: str
+    row_count: int
+    truncated: bool
+    content: str
 
 
 @strawberry.input
@@ -904,6 +955,39 @@ def _raise_workflow_error(error: Exception) -> NoReturn:
     raise error
 
 
+def _notification_value(value: NotificationRecord) -> Notification:
+    return Notification(
+        id=strawberry.ID(value.id),
+        notification_type=NotificationType(value.notification_type),
+        title=value.title,
+        message=value.message,
+        project_id=strawberry.ID(value.project_id) if value.project_id else None,
+        task_id=strawberry.ID(value.task_id) if value.task_id else None,
+        report_id=strawberry.ID(value.report_id) if value.report_id else None,
+        read_at=datetime.fromisoformat(value.read_at) if value.read_at else None,
+        created_at=datetime.fromisoformat(value.created_at),
+    )
+
+
+def _raise_notification_error(error: Exception) -> NoReturn:
+    if isinstance(error, NotificationDomainError):
+        messages = {
+            "NOT_FOUND": "The notification was not found.",
+            "INVALID_CURSOR": "The notification cursor is invalid.",
+            "INVALID_PAGE_SIZE": "The notification page size is invalid.",
+        }
+        raise GraphQLError(
+            messages.get(error.code, "The notification request could not be completed."),
+            extensions={"code": error.code},
+        ) from error
+    if isinstance(error, (NotificationUnavailableError, EmployeeUnavailableError)):
+        raise GraphQLError(
+            "Notifications are temporarily unavailable.",
+            extensions={"code": "SERVICE_UNAVAILABLE"},
+        ) from error
+    raise error
+
+
 @strawberry.type
 class Query:
     @strawberry.field
@@ -942,6 +1026,93 @@ class Query:
             email=profile.email,
             role=ApplicationRole(profile.role),
         )
+
+    @strawberry.field
+    async def notifications(
+        self,
+        info: Info,
+        first: int = 20,
+        after: str | None = None,
+        unread_only: bool = False,
+    ) -> NotificationConnection:
+        _, actor = await _project_actor(info)
+        try:
+            page = await notification_list(actor, first=first, after=after, unread_only=unread_only)
+            return NotificationConnection(
+                nodes=[_notification_value(item) for item in page.items],
+                page_info=PageInfo(has_next_page=page.has_next_page, end_cursor=page.next_cursor),
+            )
+        except (NotificationDomainError, NotificationUnavailableError) as error:
+            _raise_notification_error(error)
+
+    @strawberry.field
+    async def unread_notification_count(self, info: Info) -> int:
+        _, actor = await _project_actor(info)
+        try:
+            return await notification_unread_count(actor)
+        except (NotificationDomainError, NotificationUnavailableError) as error:
+            _raise_notification_error(error)
+
+    @strawberry.field
+    async def reports(
+        self,
+        info: Info,
+        first: int = 20,
+        after: str | None = None,
+        status: JobStatus | None = None,
+    ) -> JobConnection:
+        _, actor = await _project_actor(info)
+        try:
+            page = await job_list_jobs(
+                actor,
+                first=first,
+                after=after,
+                status=status.value if status else None,
+                job_type=JobType.PROJECT_TASK_EXPORT.value,
+            )
+            return JobConnection(
+                nodes=[_job_value(value) for value in page.items],
+                page_info=PageInfo(has_next_page=page.has_next_page, end_cursor=page.next_cursor),
+            )
+        except (JobDomainError, JobUnavailableError) as error:
+            _raise_job_error(error)
+
+    @strawberry.field
+    async def report(self, info: Info, id: strawberry.ID) -> Job:
+        _, actor = await _project_actor(info)
+        try:
+            return _job_value(await job_get_job(actor, str(id)))
+        except (JobDomainError, JobUnavailableError) as error:
+            _raise_job_error(error)
+
+    @strawberry.field
+    async def report_artifact(self, info: Info, id: strawberry.ID) -> ReportArtifact:
+        _, actor = await _project_actor(info)
+        try:
+            value = await job_get_job(actor, str(id))
+            if (
+                value.status != "SUCCEEDED"
+                or value.result_content is None
+                or value.result_content_type != "text/csv; charset=utf-8"
+                or value.result_checksum is None
+                or value.result_row_count is None
+                or value.result_truncated is None
+            ):
+                raise GraphQLError(
+                    "The report artifact is not available.",
+                    extensions={"code": "ARTIFACT_UNAVAILABLE"},
+                )
+            return ReportArtifact(
+                report_id=strawberry.ID(value.id),
+                filename=f"project-tasks-{value.id}.csv",
+                content_type=value.result_content_type,
+                checksum=value.result_checksum,
+                row_count=value.result_row_count,
+                truncated=value.result_truncated,
+                content=value.result_content,
+            )
+        except (JobDomainError, JobUnavailableError) as error:
+            _raise_job_error(error)
 
     @strawberry.field
     async def workflow_rules(
@@ -1424,6 +1595,49 @@ class Query:
 
 @strawberry.type
 class Mutation:
+    @strawberry.mutation
+    async def mark_notification_read(self, info: Info, id: strawberry.ID) -> Notification:
+        _, actor = await _project_actor(info)
+        try:
+            return _notification_value(await notification_mark_read(actor, str(id)))
+        except (NotificationDomainError, NotificationUnavailableError) as error:
+            _raise_notification_error(error)
+
+    @strawberry.mutation
+    async def mark_all_notifications_read(self, info: Info) -> MarkAllNotificationsResult:
+        _, actor = await _project_actor(info)
+        try:
+            return MarkAllNotificationsResult(updated_count=await notification_mark_all(actor))
+        except (NotificationDomainError, NotificationUnavailableError) as error:
+            _raise_notification_error(error)
+
+    @strawberry.mutation
+    async def request_project_task_report(
+        self, info: Info, input: SubmitProjectTaskExportInput
+    ) -> Job:
+        _, actor = await _project_actor(info)
+        try:
+            await work_get_project(actor, str(input.project_id))
+            current = await job_submit_job(
+                actor,
+                project_id=str(input.project_id),
+                include_completed=input.include_completed,
+                idempotency_key=input.idempotency_key,
+            )
+            if current.status == "SUBMITTED":
+                current = await job_dispatch_job(
+                    actor, job_id=current.id, expected_version=current.version
+                )
+            return _job_value(current)
+        except (
+            JobDomainError,
+            JobUnavailableError,
+            WorkDomainError,
+            WorkUnavailableError,
+            EmployeeUnavailableError,
+        ) as error:
+            _raise_job_error(error)
+
     @strawberry.mutation
     async def create_workflow_rule(
         self, info: Info, input: CreateWorkflowRuleInput

@@ -50,6 +50,13 @@ class PublicationStatus(enum.StrEnum):
     RECONCILIATION_REQUIRED = "RECONCILIATION_REQUIRED"
 
 
+class DomainEventStatus(enum.StrEnum):
+    PENDING = "PENDING"
+    IN_FLIGHT = "IN_FLIGHT"
+    PUBLISHED = "PUBLISHED"
+    FAILED = "FAILED"
+
+
 class Job(Base):
     __tablename__ = "jobs"
     __table_args__ = (
@@ -174,3 +181,41 @@ class JobAttempt(Base):
     )
     recovered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     job: Mapped[Job] = relationship(back_populates="attempts")
+
+
+class JobDomainEvent(Base):
+    __tablename__ = "job_domain_outbox"
+    __table_args__ = (
+        UniqueConstraint("job_id", "event_type", name="uq_job_domain_terminal_event"),
+        Index(
+            "ix_job_domain_claim",
+            "status",
+            "available_at",
+            "lease_expires_at",
+            "created_at",
+            "id",
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    job_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
+    event_type: Mapped[str] = mapped_column(String(64))
+    schema_version: Mapped[int] = mapped_column(Integer, default=1)
+    recipient_employee_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    project_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    status: Mapped[DomainEventStatus] = mapped_column(
+        Enum(DomainEventStatus, name="job_domain_event_status"),
+        default=DomainEventStatus.PENDING,
+    )
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    lease_token: Mapped[str | None] = mapped_column(String(96), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_failure_classification: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
