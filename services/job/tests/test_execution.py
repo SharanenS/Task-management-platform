@@ -1,25 +1,39 @@
 import uuid
 from collections.abc import Generator
+from datetime import UTC, datetime
 
 import pytest
 from kombu.exceptions import OperationalError
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
+from app import tasks
 from app.db import Base
 from app.execution import (
     ExecutionFailure,
+    ExportResult,
     execute_project_task_export,
     render_csv,
     safe_cell,
 )
-from app.models import AttemptStatus, Job, JobStatus, OutboxEvent, PublicationStatus
+from app.models import (
+    AttemptStatus,
+    DomainEventStatus,
+    Job,
+    JobAttempt,
+    JobDomainEvent,
+    JobStatus,
+    OutboxEvent,
+    PublicationStatus,
+)
 from app.publisher import QUEUE_NAME, ROUTING_KEY, TASK_NAME, CeleryPublisher, PublishFailure
 from app.schemas import JobSubmissionRequest
 from app.service import (
     Actor,
     JobError,
     claim_job,
+    claim_publications,
     dispatch_job,
     settle_failure,
     settle_success,
@@ -62,12 +76,27 @@ class Publisher:
 def test_dispatch_creates_outbox_without_calling_publisher(session: Session) -> None:
     actor, job = submitted(session)
     publisher = Publisher()
+    before = datetime.now(UTC)
     queued = dispatch_job(session, actor, job.id, job.version, publisher)
+    after = datetime.now(UTC)
     assert queued.status == JobStatus.QUEUED
+    assert queued.execution_generation == 1
     assert queued.version == 2
     assert publisher.identifiers == []
     event = session.query(OutboxEvent).one()
-    assert event.job_id == job.id and event.status == PublicationStatus.PENDING
+    assert event.job_id == job.id
+    assert event.event_type == "EXECUTE_JOB"
+    assert event.schema_version == 1
+    assert event.execution_generation == 1
+    assert event.status == PublicationStatus.PENDING
+    assert event.attempt_count == 0
+    available_at = event.available_at.replace(tzinfo=event.available_at.tzinfo or UTC)
+    assert before <= available_at <= after
+    assert event.lease_token is None and event.lease_expires_at is None
+    assert event.published_at is None and event.last_failure_classification is None
+    claimed = claim_publications(session, now=after)
+    assert [item.id for item in claimed] == [event.id]
+    assert claimed[0].status == PublicationStatus.IN_FLIGHT
 
 
 def test_dispatch_requires_owner_or_admin_and_exact_version(session: Session) -> None:
@@ -111,6 +140,76 @@ def test_success_settles_attempt_and_result_atomically(session: Session) -> None
     assert job.result_row_count == 1 and job.completed_at is not None
 
 
+def test_celery_task_commits_report_result_and_terminal_event_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    sessions = sessionmaker(engine, expire_on_commit=False)
+    actor = Actor(uuid.uuid4(), "MEMBER")
+    project_id = uuid.uuid4()
+    body = JobSubmissionRequest.model_validate(
+        {
+            "job_type": "PROJECT_TASK_EXPORT",
+            "payload": {
+                "project_id": str(project_id),
+                "format": "CSV",
+                "include_completed": True,
+            },
+            "idempotency_key": "phase11-worker-boundary-0001",
+        }
+    )
+    with sessions() as setup:
+        job = submit_job(setup, actor, body)
+        dispatch_job(setup, actor, job.id, job.version)
+        job_id = job.id
+
+    content = "reference,title\nT-1,Safe report\n"
+    result = ExportResult(
+        content=content,
+        content_type="text/csv; charset=utf-8",
+        checksum="a" * 64,
+        row_count=1,
+        truncated=False,
+    )
+    monkeypatch.setattr(tasks, "SessionLocal", sessions)
+    monkeypatch.setattr(tasks, "execute_project_task_export", lambda *_args: result)
+
+    tasks.execute_job.run(str(job_id))
+    tasks.execute_job.run(str(job_id))
+
+    with sessions() as verification:
+        job = verification.get(Job, job_id)
+        assert job
+        attempts = verification.query(JobAttempt).filter_by(job_id=job_id).all()
+        events = verification.query(JobDomainEvent).filter_by(job_id=job_id).all()
+        assert job.status == JobStatus.SUCCEEDED
+        assert job.result_content == content
+        assert job.result_content_type == "text/csv; charset=utf-8"
+        assert job.result_checksum == "a" * 64
+        assert job.result_row_count == 1
+        assert job.result_truncated is False
+        assert len(attempts) == 1 and attempts[0].status == AttemptStatus.SUCCEEDED
+        assert len(events) == 1
+        event = events[0]
+        assert event.event_type == "REPORT_SUCCEEDED"
+        assert event.job_id == job_id
+        assert event.recipient_employee_id == actor.employee_id
+        assert event.project_id == project_id
+        assert event.schema_version == 1
+        assert event.status == DomainEventStatus.PENDING
+        assert event.attempt_count == 0
+        available_at = event.available_at.replace(tzinfo=event.available_at.tzinfo or UTC)
+        assert available_at <= datetime.now(UTC)
+        assert event.lease_token is None and event.lease_expires_at is None
+        assert event.published_at is None
+        assert event.last_failure_classification is None
+
+
 def test_transient_failure_schedules_retry_then_terminal_failure(session: Session) -> None:
     actor, job = submitted(session)
     dispatch_job(session, actor, job.id, job.version, Publisher())
@@ -143,6 +242,11 @@ def test_transient_failure_schedules_retry_then_terminal_failure(session: Sessio
     session.refresh(job)
     assert job.status == JobStatus.FAILED
     assert job.failure_classification == "DEPENDENCY_UNAVAILABLE"
+    event = session.query(JobDomainEvent).one()
+    assert event.event_type == "REPORT_FAILED"
+    assert event.job_id == job.id
+    assert event.recipient_employee_id == actor.employee_id
+    assert event.project_id == job.related_project_id
 
 
 @pytest.mark.parametrize("value", ["=1+1", "+cmd", "-2", "@link", "\tvalue", "\rvalue"])

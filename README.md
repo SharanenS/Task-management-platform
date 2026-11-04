@@ -1,7 +1,8 @@
 # Enterprise Task Platform
 
 A GraphQL-first enterprise work platform, developed in verified full-stack slices.
-Phases 1–10 are accepted. Phase 11 has not started.
+Phases 1–10 are accepted. Phase 11 acceptance verification is complete.
+Phase 12 has not started.
 
 Phase 2 adds a protected Taskspace shell, Keycloak Authorization Code Flow with
 PKCE, Redis-backed server sessions, an Employee Service with its own PostgreSQL
@@ -136,7 +137,7 @@ owns rule, inbox, and execution data in its own PostgreSQL database. Duplicate
 publication and delivery are handled with source-event uniqueness,
 rule-and-event uniqueness, and an execution-derived Job Service idempotency key.
 Delivery is at least once; exactly-once behavior and cross-service distributed
-transactions are not claimed. Phase 11 has not started.
+transactions are not claimed.
 
 The owner accepted Phase 10 on 2026-10-29 after the recorded functional,
 authorization, concurrency, persistence, duplicate-delivery, outage, recovery,
@@ -145,6 +146,11 @@ lockfiles were not successfully re-audited during final closure, and the combine
 final Python image rebuild was interrupted and is not claimed as passed. These
 accepted residual limitations and the complete attempt history remain recorded in
 the Phase 10 verification report.
+
+Phase 11 adds recipient-scoped notifications for task assignments and report
+outcomes, plus a protected report center and CSV downloads. The
+[Phase 11 verification record](docs/phase-11-verification.md) records browser
+acceptance, authorization, delivery and recovery, and scoped cleanup.
 
 ## Run with Docker
 

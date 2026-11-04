@@ -1,0 +1,37 @@
+query Notifications($first: Int!, $after: String, $unreadOnly: Boolean!) {
+  notifications(first: $first, after: $after, unreadOnly: $unreadOnly) {
+    nodes {
+      id
+      notificationType
+      title
+      message
+      projectId
+      taskId
+      reportId
+      readAt
+      createdAt
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+  unreadNotificationCount
+}
+
+query UnreadNotificationCount {
+  unreadNotificationCount
+}
+
+mutation MarkNotificationRead($id: ID!) {
+  markNotificationRead(id: $id) {
+    id
+    readAt
+  }
+}
+
+mutation MarkAllNotificationsRead {
+  markAllNotificationsRead {
+    updatedCount
+  }
+}

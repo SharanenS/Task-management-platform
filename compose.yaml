@@ -84,6 +84,23 @@ services:
       retries: 12
     restart: unless-stopped
 
+  notification-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: notification
+      POSTGRES_USER: notification
+      POSTGRES_PASSWORD: ${NOTIFICATION_DB_PASSWORD:?Set NOTIFICATION_DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${NOTIFICATION_DB_PORT:-5439}:5432"
+    volumes:
+      - notification_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notification -d notification"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
   session-store:
     image: redis:8.4-alpine
     command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
@@ -300,6 +317,28 @@ services:
     init: true
     restart: unless-stopped
 
+  job-domain-publisher:
+    build:
+      context: ./services/job
+    command: ["python", "-m", "app.domain_event_publisher"]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://job:${JOB_DB_PASSWORD}@job-db:5432/job
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+    depends_on:
+      job:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -d /proc/1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    init: true
+    restart: unless-stopped
+
   workflow:
     build:
       context: ./services/workflow
@@ -351,6 +390,49 @@ services:
     init: true
     restart: unless-stopped
 
+  notification:
+    build:
+      context: ./services/notification
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://notification:${NOTIFICATION_DB_PASSWORD}@notification-db:5432/notification
+      INTERNAL_SERVICE_KEY: ${NOTIFICATION_INTERNAL_SERVICE_KEY:?Set NOTIFICATION_INTERNAL_SERVICE_KEY in .env}
+      CONSUMER_SERVICE_KEY: ${NOTIFICATION_CONSUMER_SERVICE_KEY:?Set NOTIFICATION_CONSUMER_SERVICE_KEY in .env}
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+    depends_on:
+      notification-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8060/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    init: true
+    restart: unless-stopped
+
+  notification-consumer:
+    build:
+      context: ./services/notification
+    command: ["python", "-m", "app.consumer"]
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://notification:${NOTIFICATION_DB_PASSWORD}@notification-db:5432/notification
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+    depends_on:
+      notification:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -d /proc/1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    init: true
+    restart: unless-stopped
+
   gateway:
     build:
       context: ./gateway
@@ -364,10 +446,12 @@ services:
       WORK_SERVICE_URL: http://work:8030
       JOB_SERVICE_URL: http://job:8040
       WORKFLOW_SERVICE_URL: http://workflow:8050
+      NOTIFICATION_SERVICE_URL: http://notification:8060
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
       WORK_INTERNAL_SERVICE_KEY: ${WORK_INTERNAL_SERVICE_KEY:?Set WORK_INTERNAL_SERVICE_KEY in .env}
       JOB_INTERNAL_SERVICE_KEY: ${JOB_INTERNAL_SERVICE_KEY:?Set JOB_INTERNAL_SERVICE_KEY in .env}
       WORKFLOW_INTERNAL_SERVICE_KEY: ${WORKFLOW_INTERNAL_SERVICE_KEY:?Set WORKFLOW_INTERNAL_SERVICE_KEY in .env}
+      NOTIFICATION_INTERNAL_SERVICE_KEY: ${NOTIFICATION_INTERNAL_SERVICE_KEY:?Set NOTIFICATION_INTERNAL_SERVICE_KEY in .env}
     ports:
       - "127.0.0.1:${GATEWAY_PORT:-8010}:8000"
     depends_on:
@@ -380,6 +464,8 @@ services:
       job:
         condition: service_healthy
       workflow:
+        condition: service_healthy
+      notification:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
@@ -428,3 +514,4 @@ volumes:
   job_data:
   rabbitmq_data:
   workflow_data:
+  notification_data:

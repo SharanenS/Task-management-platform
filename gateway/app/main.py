@@ -50,6 +50,7 @@ class SafeGraphQLRouter(GraphQLRouter):
                     "JOB_NOT_RETRYABLE",
                     "JOB_RETRY_CONFLICT",
                     "BROKER_UNAVAILABLE",
+                    "ARTIFACT_UNAVAILABLE",
                     "PROJECT_KEY_CONFLICT",
                     "MEMBERSHIP_CONFLICT",
                     "VERSION_CONFLICT",

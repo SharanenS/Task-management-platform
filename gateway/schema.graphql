@@ -151,7 +151,14 @@ enum JobType {
   PROJECT_TASK_EXPORT
 }
 
+type MarkAllNotificationsResult {
+  updatedCount: Int!
+}
+
 type Mutation {
+  markNotificationRead(id: ID!): Notification!
+  markAllNotificationsRead: MarkAllNotificationsResult!
+  requestProjectTaskReport(input: SubmitProjectTaskExportInput!): Job!
   createWorkflowRule(input: CreateWorkflowRuleInput!): WorkflowRule!
   updateWorkflowRule(ruleId: ID!, input: UpdateWorkflowRuleInput!): WorkflowRule!
   setWorkflowRuleEnabled(ruleId: ID!, enabled: Boolean!, expectedVersion: Int!): WorkflowRule!
@@ -173,6 +180,29 @@ type Mutation {
   assignTask(projectId: ID!, taskId: ID!, assigneeEmployeeId: ID, expectedVersion: Int!): Task!
   changeTaskStatus(projectId: ID!, taskId: ID!, status: TaskStatus!, expectedVersion: Int!): Task!
   addTaskComment(projectId: ID!, taskId: ID!, body: String!): TaskComment!
+}
+
+type Notification {
+  id: ID!
+  notificationType: NotificationType!
+  title: String!
+  message: String!
+  projectId: ID
+  taskId: ID
+  reportId: ID
+  readAt: DateTime
+  createdAt: DateTime!
+}
+
+type NotificationConnection {
+  nodes: [Notification!]!
+  pageInfo: PageInfo!
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  REPORT_SUCCEEDED
+  REPORT_FAILED
 }
 
 type PageInfo {
@@ -255,6 +285,11 @@ enum PublicationStatus {
 type Query {
   systemInfo: SystemInfo!
   me: Employee!
+  notifications(first: Int! = 20, after: String = null, unreadOnly: Boolean! = false): NotificationConnection!
+  unreadNotificationCount: Int!
+  reports(first: Int! = 20, after: String = null, status: JobStatus = null): JobConnection!
+  report(id: ID!): Job!
+  reportArtifact(id: ID!): ReportArtifact!
   workflowRules(first: Int! = 20, after: String = null, projectId: ID = null, enabled: Boolean = null): WorkflowRuleConnection!
   workflowRule(id: ID!): WorkflowRule!
   workflowExecutions(first: Int! = 20, after: String = null, ruleId: ID = null): WorkflowExecutionConnection!
@@ -272,6 +307,16 @@ type Query {
   task(projectId: ID!, taskId: ID!): Task!
   taskComments(projectId: ID!, taskId: ID!, first: Int! = 20, after: String = null): TaskCommentConnection!
   taskActivity(projectId: ID!, taskId: ID!, first: Int! = 20, after: String = null): TaskActivityConnection!
+}
+
+type ReportArtifact {
+  reportId: ID!
+  filename: String!
+  contentType: String!
+  checksum: String!
+  rowCount: Int!
+  truncated: Boolean!
+  content: String!
 }
 
 input SubmitProjectTaskExportInput {

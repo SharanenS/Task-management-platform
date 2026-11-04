@@ -25,6 +25,12 @@ from app.job_client import (
     PublicationRecord,
 )
 from app.main import app
+from app.notification_client import (
+    NotificationDomainError,
+    NotificationRecord,
+    NotificationUnavailableError,
+)
+from app.notification_client import Page as NotificationPage
 from app.schema import schema
 from app.work_client import (
     WorkDomainError,
@@ -1363,3 +1369,310 @@ def test_admin_errors_are_sanitized(
     ).json()
     assert result["errors"] == [{"message": message, "extensions": {"code": code}}]
     assert "http://employee" not in str(result)
+
+
+def test_notifications_require_authentication(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.schema.token_validator.validate",
+        lambda _: (_ for _ in ()).throw(AuthenticationError()),
+    )
+    result = request(
+        "POST", "/graphql", payload={"query": "{ notifications { nodes { id } } }"}
+    ).json()
+    assert result["errors"][0]["extensions"]["code"] == "UNAUTHENTICATED"
+
+
+def test_notification_contract_is_recipient_scoped(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch)
+    item = NotificationRecord(
+        "11111111-1111-4111-8111-111111111112",
+        "11111111-1111-4111-8111-111111111111",
+        "TASK_ASSIGNED",
+        "Task assigned",
+        "A task was assigned to you.",
+        "11111111-1111-4111-8111-111111111113",
+        "11111111-1111-4111-8111-111111111114",
+        "11111111-1111-4111-8111-111111111115",
+        None,
+        None,
+        "2026-10-29T00:00:00+00:00",
+    )
+
+    async def notifications(*args: object, **kwargs: object) -> NotificationPage:
+        actor = args[0]
+        assert isinstance(actor, EmployeeProfile)
+        assert actor.id == "actor"
+        return NotificationPage([item], None, False)
+
+    monkeypatch.setattr("app.schema.notification_list", notifications)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": "{ notifications { nodes { id notificationType title message readAt } } }"
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result.get("errors") is None
+    assert result["data"]["notifications"]["nodes"][0]["notificationType"] == "TASK_ASSIGNED"
+    assert "recipientEmployeeId" not in str(result)
+
+
+def test_foreign_notification_is_concealed(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch)
+
+    async def denied(*args: object, **kwargs: object) -> NotificationRecord:
+        raise NotificationDomainError("NOT_FOUND", "internal foreign row")
+
+    monkeypatch.setattr("app.schema.notification_mark_read", denied)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": 'mutation { markNotificationRead(id: "11111111-1111-4111-8111-111111111112") { id } }'
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"] == [
+        {"message": "The notification was not found.", "extensions": {"code": "NOT_FOUND"}}
+    ]
+    assert "foreign" not in str(result)
+
+
+def test_all_notification_operations_are_scoped_to_current_employee(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    allow_admin(monkeypatch, "MEMBER")
+    calls: list[tuple[str, str]] = []
+    item = NotificationRecord(
+        "11111111-1111-4111-8111-111111111112",
+        "actor",
+        "TASK_ASSIGNED",
+        "Task assigned",
+        "A task was assigned to you.",
+        "11111111-1111-4111-8111-111111111113",
+        None,
+        None,
+        None,
+        None,
+        "2026-10-29T00:00:00+00:00",
+    )
+
+    async def listing(actor: EmployeeProfile, **_: object) -> NotificationPage:
+        calls.append(("list", actor.id))
+        return NotificationPage([item], None, False)
+
+    async def count(actor: EmployeeProfile) -> int:
+        calls.append(("count", actor.id))
+        return 1
+
+    async def mark(actor: EmployeeProfile, _: str) -> NotificationRecord:
+        calls.append(("mark", actor.id))
+        return item
+
+    async def mark_all(actor: EmployeeProfile) -> int:
+        calls.append(("all", actor.id))
+        return 1
+
+    monkeypatch.setattr("app.schema.notification_list", listing)
+    monkeypatch.setattr("app.schema.notification_unread_count", count)
+    monkeypatch.setattr("app.schema.notification_mark_read", mark)
+    monkeypatch.setattr("app.schema.notification_mark_all", mark_all)
+    for query in (
+        "{ notifications { nodes { id } } unreadNotificationCount }",
+        'mutation { markNotificationRead(id: "11111111-1111-4111-8111-111111111112") { id } }',
+        "mutation { markAllNotificationsRead { updatedCount } }",
+    ):
+        result = request(
+            "POST", "/graphql", payload={"query": query}, headers={"Authorization": "Bearer token"}
+        ).json()
+        assert result.get("errors") is None
+    assert calls == [("list", "actor"), ("count", "actor"), ("mark", "actor"), ("all", "actor")]
+
+
+@pytest.mark.parametrize("profile_state", ["missing", "inactive"])
+def test_notification_profile_denial_precedes_downstream_call(
+    monkeypatch: pytest.MonkeyPatch, profile_state: str
+) -> None:
+    monkeypatch.setattr(
+        "app.schema.token_validator.validate",
+        lambda _: Identity(subject=f"{profile_state}-subject"),
+    )
+
+    async def denied(_: str) -> EmployeeProfile:
+        raise EmployeeForbiddenError
+
+    async def forbidden_call(*_: object, **__: object) -> NotificationPage:
+        pytest.fail("Notification Service must not be called")
+
+    monkeypatch.setattr("app.schema.get_employee", denied)
+    monkeypatch.setattr("app.schema.notification_list", forbidden_call)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": "{ notifications { nodes { id } } }"},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"] == [
+        {
+            "message": "Project access is not available for this account.",
+            "extensions": {"code": "FORBIDDEN"},
+        }
+    ]
+
+
+def test_notification_outage_is_sanitized(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch)
+
+    async def unavailable(*_: object, **__: object) -> NotificationPage:
+        raise NotificationUnavailableError("credential http://notification:8060 broker lease-token")
+
+    monkeypatch.setattr("app.schema.notification_list", unavailable)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": "{ notifications { nodes { id } } }"},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"] == [
+        {
+            "message": "Notifications are temporarily unavailable.",
+            "extensions": {"code": "SERVICE_UNAVAILABLE"},
+        }
+    ]
+    assert "credential" not in str(result) and "notification:8060" not in str(result)
+
+
+def test_report_request_dispatches_newly_submitted_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    allow_admin(monkeypatch)
+    sequence: list[str] = []
+
+    async def project(actor: EmployeeProfile, project_id: str) -> WorkProject:
+        assert actor.id == "actor" and project_id == "project-id"
+        sequence.append("project")
+        return work_project()
+
+    async def submit(actor: EmployeeProfile, **values: object) -> JobRecord:
+        assert actor.id == "actor"
+        assert values == {
+            "project_id": "project-id",
+            "include_completed": True,
+            "idempotency_key": "phase11-report-request-0001",
+        }
+        sequence.append("submit")
+        return job_record()
+
+    async def dispatch(actor: EmployeeProfile, *, job_id: str, expected_version: int) -> JobRecord:
+        assert actor.id == "actor"
+        assert (job_id, expected_version) == ("job-id", 1)
+        sequence.append("dispatch")
+        return replace(job_record(), status="QUEUED", version=2)
+
+    monkeypatch.setattr("app.schema.work_get_project", project)
+    monkeypatch.setattr("app.schema.job_submit_job", submit)
+    monkeypatch.setattr("app.schema.job_dispatch_job", dispatch)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": 'mutation { requestProjectTaskReport(input: {projectId: "project-id", includeCompleted: true, idempotencyKey: "phase11-report-request-0001"}) { id status version } }'
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result.get("errors") is None
+    assert result["data"]["requestProjectTaskReport"] == {
+        "id": "job-id",
+        "status": "QUEUED",
+        "version": 2,
+    }
+    assert sequence == ["project", "submit", "dispatch"]
+
+
+@pytest.mark.parametrize("role", ["ADMIN", "MANAGER", "MEMBER"])
+def test_report_operations_forward_current_role_and_return_authorized_artifact(
+    monkeypatch: pytest.MonkeyPatch, role: str
+) -> None:
+    allow_admin(monkeypatch, role)
+    completed = replace(
+        job_record(),
+        status="SUCCEEDED",
+        result_content="reference,title\nOPS-1,Export\n",
+        result_content_type="text/csv; charset=utf-8",
+        result_checksum="a" * 64,
+        result_row_count=1,
+        result_truncated=False,
+    )
+
+    async def get_job(actor: EmployeeProfile, _: str) -> JobRecord:
+        assert actor.role == role and actor.id == "actor"
+        return completed
+
+    async def list_jobs(actor: EmployeeProfile, **_: object) -> JobPage:
+        assert actor.role == role and actor.id == "actor"
+        return JobPage([completed], None, False)
+
+    monkeypatch.setattr("app.schema.job_get_job", get_job)
+    monkeypatch.setattr("app.schema.job_list_jobs", list_jobs)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={
+            "query": '{ reports { nodes { id } } report(id: "job-id") { id } reportArtifact(id: "job-id") { contentType checksum content } }'
+        },
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result.get("errors") is None
+    assert result["data"]["reportArtifact"]["contentType"] == "text/csv; charset=utf-8"
+
+
+@pytest.mark.parametrize("status", ["SUBMITTED", "FAILED"])
+def test_pending_and_failed_reports_expose_no_artifact(
+    monkeypatch: pytest.MonkeyPatch, status: str
+) -> None:
+    allow_admin(monkeypatch)
+
+    async def get_job(*_: object) -> JobRecord:
+        return replace(job_record(), status=status)
+
+    monkeypatch.setattr("app.schema.job_get_job", get_job)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": '{ reportArtifact(id: "job-id") { content } }'},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"] == [
+        {
+            "message": "The report artifact is not available.",
+            "extensions": {"code": "ARTIFACT_UNAVAILABLE"},
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("code", "message"),
+    [
+        ("JOB_NOT_FOUND", "The job was not found."),
+        ("IDEMPOTENCY_CONFLICT", "The idempotency key is already in use."),
+        ("INVALID_CURSOR", "The job cursor is invalid."),
+    ],
+)
+def test_report_domain_errors_are_typed_and_sanitized(
+    monkeypatch: pytest.MonkeyPatch, code: str, message: str
+) -> None:
+    allow_admin(monkeypatch)
+
+    async def denied(*_: object, **__: object) -> JobPage:
+        raise JobDomainError(code, "raw internal URL credential broker metadata")
+
+    monkeypatch.setattr("app.schema.job_list_jobs", denied)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": '{ reports(after: "invalid") { nodes { id } } }'},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"] == [{"message": message, "extensions": {"code": code}}]
+    assert "credential" not in str(result) and "broker" not in str(result)

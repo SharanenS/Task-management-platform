@@ -9,7 +9,7 @@ export function ConnectionStatus() {
   return (
     <Link
       href="/system"
-      className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
+      className="inline-flex shrink-0 items-center gap-2 rounded-full border bg-card px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
       aria-label="View gateway connection status"
     >
       <span
@@ -22,7 +22,7 @@ export function ConnectionStatus() {
               : "bg-amber-600",
         )}
       />
-      <span role="status">
+      <span role="status" className="sr-only sm:not-sr-only">
         {query.isPending
           ? "Connecting…"
           : connected
