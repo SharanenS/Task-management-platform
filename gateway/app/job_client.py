@@ -87,6 +87,23 @@ class PublicationPage:
     has_next_page: bool
 
 
+@dataclass(frozen=True)
+class JobMetrics:
+    total_count: int
+    submitted_count: int
+    queued_count: int
+    running_count: int
+    succeeded_count: int
+    failed_count: int
+    cancelled_count: int
+
+
+@dataclass(frozen=True)
+class JobDashboardMetrics:
+    job_metrics: JobMetrics
+    recent_jobs: list[JobRecord]
+
+
 def _job(data: dict[str, Any]) -> JobRecord:
     try:
         payload = data["payload"]
@@ -292,6 +309,26 @@ async def list_publications(
             ],
             data.get("next_cursor"),
             data["has_next_page"],
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise JobUnavailableError from error
+
+
+async def get_dashboard_metrics(actor: EmployeeProfile) -> JobDashboardMetrics:
+    data = await _request("GET", "/internal/dashboard/metrics", actor)
+    try:
+        metrics_data = data["job_metrics"]
+        return JobDashboardMetrics(
+            job_metrics=JobMetrics(
+                total_count=metrics_data["total_count"],
+                submitted_count=metrics_data["submitted_count"],
+                queued_count=metrics_data["queued_count"],
+                running_count=metrics_data["running_count"],
+                succeeded_count=metrics_data["succeeded_count"],
+                failed_count=metrics_data["failed_count"],
+                cancelled_count=metrics_data["cancelled_count"],
+            ),
+            recent_jobs=[_job(item) for item in data["recent_jobs"]],
         )
     except (KeyError, TypeError, ValueError) as error:
         raise JobUnavailableError from error

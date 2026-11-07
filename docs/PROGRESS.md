@@ -1,9 +1,9 @@
-﻿# Project progress
+# Project progress
 
-Last updated: 2026-11-04
+Last updated: 2026-11-07
 
-Current boundary: Phases 1–10 are accepted. Phase 11 acceptance verification is
-complete. Phase 12 has not started.
+Current boundary: Phases 1–11 are accepted. Phase 12 implementation is
+complete and pending owner acceptance. Phase 13 has not started.
 
 ## Phase 1 â€” Project Foundation and Frontend Design System
 
@@ -310,10 +310,27 @@ combined final Python image rebuild was interrupted and is not claimed as passed
 
 ## Phase 11 — Notifications and Reports
 
-Status: **Acceptance verified. Pending owner review and manual commit.**
+Status: **Accepted**
 
 Recipient-scoped notifications cover task assignments and terminal report
 outcomes. The report center supports submitter-owned CSV exports with ADMIN
 override. The [verification record](phase-11-verification.md) records the three
 lifecycle viewport passes, the desktop role and duplicate-delivery journeys,
-all six recovery cases, and scoped cleanup and restoration.
+all six recovery cases, and scoped cleanup and restoration. Merged into main at `36eb11b`.
+
+## Phase 12 — Advanced Dashboard + UX Refinement
+
+Status: **Implemented; pending owner acceptance**
+
+Delivered:
+
+- Bounded aggregate GraphQL query `dashboard: DashboardData!` derived securely from the authenticated Employee profile with fail-closed inactive checks.
+- Role-scoped metrics and bounded previews for `MEMBER`, `MANAGER`, and `ADMIN` across accessible/managed projects, task status/overdue breakdowns, and own/platform background jobs.
+- O(1) statement count invariant conditional SQL aggregation in Work Service and Job Service, with eager-loaded publications eliminating N+1 overhead.
+- Live Next.js dashboard replacing all mock statistics, with accessible skeleton loading states, truthful zero metrics, and section-level partial failure handling.
+- Full viewport responsiveness eliminating horizontal document overflow across desktop (1280px), tablet (768px), and mobile (390px) viewports.
+- Integrated URL query parameter filter handoffs across `/projects`, `/jobs`, and `/projects/[id]/tasks`, with all `JobStatus` options supported and browser history navigation preserved.
+- Dynamic access revocation reactivity verified end-to-end via disposable-identity Playwright browser acceptance.
+- Complete unit, integration, PostgreSQL, and browser acceptance test coverage across services, gateway, and frontend, with 100% build, lint, and format verification.
+
+The [verification record](phase-12-verification.md) records test results, contract specifications, container parity, and verification evidence.

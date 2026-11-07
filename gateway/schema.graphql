@@ -39,6 +39,62 @@ input CreateWorkflowRuleInput {
   enabled: Boolean! = true
 }
 
+type DashboardAssignedTask {
+  id: ID!
+  projectId: ID!
+  projectKey: String!
+  number: Int!
+  title: String!
+  status: TaskStatus!
+  priority: TaskPriority!
+  dueDate: Date
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type DashboardData {
+  projectMetrics: DashboardProjectMetrics
+  taskMetrics: DashboardTaskMetrics
+  assignedTaskMetrics: DashboardTaskMetrics
+  recentProjects: [Project!]
+  recentAssignedTasks: [DashboardAssignedTask!]
+  jobMetrics: DashboardJobMetrics
+  recentJobs: [Job!]
+  workAvailable: Boolean!
+  jobAvailable: Boolean!
+}
+
+type DashboardJobMetrics {
+  totalCount: Int!
+  submittedCount: Int!
+  queuedCount: Int!
+  runningCount: Int!
+  succeededCount: Int!
+  failedCount: Int!
+  cancelledCount: Int!
+}
+
+type DashboardProjectMetrics {
+  totalCount: Int!
+  activeCount: Int!
+  draftCount: Int!
+  archivedCount: Int!
+  managedTotalCount: Int
+  managedActiveCount: Int
+  managedDraftCount: Int
+  managedArchivedCount: Int
+}
+
+type DashboardTaskMetrics {
+  totalCount: Int!
+  todoCount: Int!
+  inProgressCount: Int!
+  blockedCount: Int!
+  doneCount: Int!
+  cancelledCount: Int!
+  overdueCount: Int!
+}
+
 """Date (isoformat)"""
 scalar Date
 
@@ -285,6 +341,7 @@ enum PublicationStatus {
 type Query {
   systemInfo: SystemInfo!
   me: Employee!
+  dashboard: DashboardData!
   notifications(first: Int! = 20, after: String = null, unreadOnly: Boolean! = false): NotificationConnection!
   unreadNotificationCount: Int!
   reports(first: Int! = 20, after: String = null, status: JobStatus = null): JobConnection!

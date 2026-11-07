@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
     AttemptStatus,
@@ -20,7 +20,12 @@ from app.models import (
     OutboxEvent,
     PublicationStatus,
 )
-from app.schemas import JobSubmissionRequest
+from app.schemas import (
+    JobDashboardResponse,
+    JobMetricsResponse,
+    JobResponse,
+    JobSubmissionRequest,
+)
 
 MAX_PAYLOAD_BYTES = 1024
 TRANSITIONS: dict[JobStatus, frozenset[JobStatus]] = {
@@ -670,3 +675,59 @@ def admin_retry_job(
         raise JobError("JOB_RETRY_CONFLICT", "The retry request conflicted.", 409) from None
     session.refresh(job)
     return job
+
+
+def get_dashboard_metrics(session: Session, actor: Actor) -> JobDashboardResponse:
+    if actor.application_role == "ADMIN":
+        stmt = select(
+            func.count(Job.id).label("total"),
+            func.count(case((Job.status == JobStatus.SUBMITTED, 1))).label("submitted"),
+            func.count(case((Job.status == JobStatus.QUEUED, 1))).label("queued"),
+            func.count(case((Job.status == JobStatus.RUNNING, 1))).label("running"),
+            func.count(case((Job.status == JobStatus.SUCCEEDED, 1))).label("succeeded"),
+            func.count(case((Job.status == JobStatus.FAILED, 1))).label("failed"),
+            func.count(case((Job.status == JobStatus.CANCELLED, 1))).label("cancelled"),
+        ).select_from(Job)
+        recent_stmt = (
+            select(Job)
+            .options(selectinload(Job.publications))
+            .order_by(Job.created_at.desc(), Job.id.desc())
+            .limit(5)
+        )
+    else:
+        stmt = (
+            select(
+                func.count(Job.id).label("total"),
+                func.count(case((Job.status == JobStatus.SUBMITTED, 1))).label("submitted"),
+                func.count(case((Job.status == JobStatus.QUEUED, 1))).label("queued"),
+                func.count(case((Job.status == JobStatus.RUNNING, 1))).label("running"),
+                func.count(case((Job.status == JobStatus.SUCCEEDED, 1))).label("succeeded"),
+                func.count(case((Job.status == JobStatus.FAILED, 1))).label("failed"),
+                func.count(case((Job.status == JobStatus.CANCELLED, 1))).label("cancelled"),
+            )
+            .select_from(Job)
+            .where(Job.submitter_employee_id == actor.employee_id)
+        )
+        recent_stmt = (
+            select(Job)
+            .options(selectinload(Job.publications))
+            .where(Job.submitter_employee_id == actor.employee_id)
+            .order_by(Job.created_at.desc(), Job.id.desc())
+            .limit(5)
+        )
+
+    row = session.execute(stmt).one()
+    recent_jobs = [JobResponse.model_validate(j) for j in session.scalars(recent_stmt)]
+
+    return JobDashboardResponse(
+        job_metrics=JobMetricsResponse(
+            total_count=row.total or 0,
+            submitted_count=row.submitted or 0,
+            queued_count=row.queued or 0,
+            running_count=row.running or 0,
+            succeeded_count=row.succeeded or 0,
+            failed_count=row.failed or 0,
+            cancelled_count=row.cancelled or 0,
+        ),
+        recent_jobs=recent_jobs,
+    )

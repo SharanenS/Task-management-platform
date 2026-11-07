@@ -14,11 +14,36 @@ import {
 } from "@/graphql/generated/graphql";
 import { requestGraphQL } from "@/lib/graphql";
 
+const VALID_STATUSES: JobStatus[] = [
+  "SUBMITTED",
+  "QUEUED",
+  "RUNNING",
+  "SUCCEEDED",
+  "FAILED",
+  "CANCELLED",
+];
+
+function getInitialParam(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get(key);
+}
+
 export function JobDirectory() {
+  const initialStatus = getInitialParam("status") as JobStatus | null;
+  const initialJobType = getInitialParam("jobType") as JobType | null;
+
   const [data, setData] = useState<JobsQuery["jobs"] | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
-  const [status, setStatus] = useState<JobStatus | "">("");
-  const [jobType, setJobType] = useState<JobType | "">("");
+  const [status, setStatus] = useState<JobStatus | "">(
+    initialStatus && VALID_STATUSES.includes(initialStatus)
+      ? initialStatus
+      : "",
+  );
+  const [jobType, setJobType] = useState<JobType | "">(
+    initialJobType && initialJobType === "PROJECT_TASK_EXPORT"
+      ? initialJobType
+      : "",
+  );
   const [cursor, setCursor] = useState<string | null>(null);
   const [history, setHistory] = useState<Array<string | null>>([]);
   const load = useCallback(async () => {
@@ -35,7 +60,7 @@ export function JobDirectory() {
     } catch {
       setState("error");
     }
-  }, [cursor, jobType, status]);
+  }, [cursor, jobType, setData, setState, status]);
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
     return () => clearTimeout(timer);
@@ -70,7 +95,11 @@ export function JobDirectory() {
             className="ml-2 h-10 rounded-lg border px-3"
           >
             <option value="">All</option>
-            <option value="SUBMITTED">SUBMITTED</option>
+            {VALID_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
           </select>
         </label>
         <label className="text-sm">

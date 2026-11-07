@@ -107,3 +107,18 @@ class JobAttemptPageResponse(BaseModel):
     items: list[JobAttemptResponse]
     next_cursor: str | None = None
     has_next_page: bool = False
+
+
+class JobMetricsResponse(BaseModel):
+    total_count: int
+    submitted_count: int
+    queued_count: int
+    running_count: int
+    succeeded_count: int
+    failed_count: int
+    cancelled_count: int
+
+
+class JobDashboardResponse(BaseModel):
+    job_metrics: JobMetricsResponse
+    recent_jobs: list[JobResponse]

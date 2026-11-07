@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, delete, event, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -27,6 +27,7 @@ from app.service import (
     claim_job,
     claim_publications,
     dispatch_job,
+    get_dashboard_metrics,
     recover_expired_executions,
     settle_failure,
     settle_publication_failure,
@@ -641,3 +642,116 @@ def test_domain_event_cascade_is_owned_by_job(factory: sessionmaker[Session]) ->
             session.scalar(select(JobDomainEvent).where(JobDomainEvent.job_id == second_id))
             is not None
         )
+
+
+def test_postgres_job_dashboard_metrics(factory: sessionmaker[Session]) -> None:
+    member1 = Actor(uuid.uuid4(), "MEMBER")
+    member2 = Actor(uuid.uuid4(), "MEMBER")
+    admin = Actor(uuid.uuid4(), "ADMIN")
+
+    with factory() as session:
+        # Member 1 creates 3 jobs: 1 SUBMITTED, 1 QUEUED, 1 SUCCEEDED
+        submit_job(session, member1, request(uuid.uuid4(), "pg-dash-test-key-1"))
+        j2 = submit_job(session, member1, request(uuid.uuid4(), "pg-dash-test-key-2"))
+        dispatch_job(session, member1, j2.id, j2.version)
+        j3 = submit_job(session, member1, request(uuid.uuid4(), "pg-dash-test-key-3"))
+        dispatch_job(session, member1, j3.id, j3.version)
+        att3 = claim_job(session, j3.id)
+        assert att3 is not None
+        settle_success(
+            session,
+            j3.id,
+            att3.id,
+            content="col1\n",
+            content_type="text/csv; charset=utf-8",
+            checksum="c" * 64,
+            row_count=1,
+            truncated=False,
+            lease_token=att3.execution_lease_token,
+            execution_fence=att3.execution_fence,
+        )
+
+        # Member 2 creates 1 FAILED job
+        j4 = submit_job(session, member2, request(uuid.uuid4(), "pg-dash-test-key-4"))
+        dispatch_job(session, member2, j4.id, j4.version)
+        att4 = claim_job(session, j4.id)
+        assert att4 is not None
+        settle_failure(
+            session,
+            j4.id,
+            att4.id,
+            code="FATAL_ERROR",
+            retryable=False,
+            lease_token=att4.execution_lease_token,
+            execution_fence=att4.execution_fence,
+        )
+
+        # Check Member 1 metrics: should see ONLY their 3 jobs
+        m1_dash = get_dashboard_metrics(session, member1)
+        assert m1_dash.job_metrics.total_count == 3
+        assert m1_dash.job_metrics.submitted_count == 1
+        assert m1_dash.job_metrics.queued_count == 1
+        assert m1_dash.job_metrics.succeeded_count == 1
+        assert m1_dash.job_metrics.failed_count == 0
+        assert len(m1_dash.recent_jobs) == 3
+        assert all(j.submitter_employee_id == member1.employee_id for j in m1_dash.recent_jobs)
+
+        # Check Member 2 metrics: should see ONLY their 1 job
+        m2_dash = get_dashboard_metrics(session, member2)
+        assert m2_dash.job_metrics.total_count == 1
+        assert m2_dash.job_metrics.failed_count == 1
+        assert m2_dash.job_metrics.submitted_count == 0
+        assert len(m2_dash.recent_jobs) == 1
+        assert m2_dash.recent_jobs[0].id == j4.id
+
+        # Check ADMIN metrics: should see all 4 jobs
+        admin_dash = get_dashboard_metrics(session, admin)
+        assert admin_dash.job_metrics.total_count == 4
+        assert admin_dash.job_metrics.submitted_count == 1
+        assert admin_dash.job_metrics.queued_count == 1
+        assert admin_dash.job_metrics.succeeded_count == 1
+        assert admin_dash.job_metrics.failed_count == 1
+        assert len(admin_dash.recent_jobs) == 4
+
+
+def test_postgres_job_dashboard_query_invariance(factory: sessionmaker[Session]) -> None:
+    actor = Actor(uuid.uuid4(), "MEMBER")
+
+    def seed_jobs(count: int, key_prefix: str) -> None:
+        with factory() as session:
+            for i in range(count):
+                submit_job(session, actor, request(uuid.uuid4(), f"{key_prefix}-{i}"))
+
+    def count_queries() -> int:
+        query_count = 0
+
+        def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+            nonlocal query_count
+            query_count += 1
+
+        engine = factory().get_bind()
+        event.listen(engine, "before_cursor_execute", before_cursor_execute)
+        try:
+            with factory() as session:
+                dash = get_dashboard_metrics(session, actor)
+                assert len(dash.recent_jobs) <= 5
+        finally:
+            event.remove(engine, "before_cursor_execute", before_cursor_execute)
+        return query_count
+
+    # Small fixture: 2 jobs
+    seed_jobs(2, "small-pg-dash-key")
+    small_queries = count_queries()
+
+    # Clear and large fixture: 15 jobs
+    with factory() as session:
+        session.execute(delete(Job))
+        session.commit()
+
+    seed_jobs(15, "large-pg-dash-key")
+    large_queries = count_queries()
+
+    # Exact statement count invariance: query count MUST NOT grow with scale (O(1))
+    assert small_queries == large_queries
+    # Exactly 2 or 3 statements: count query + recent jobs query (+ selectinload publications)
+    assert small_queries <= 3

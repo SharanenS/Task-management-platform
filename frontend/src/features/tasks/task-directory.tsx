@@ -16,7 +16,26 @@ import {
 } from "@/graphql/generated/graphql";
 import { requestGraphQL } from "@/lib/graphql";
 
+const VALID_STATUSES: TaskStatus[] = [
+  "TODO",
+  "IN_PROGRESS",
+  "BLOCKED",
+  "DONE",
+  "CANCELLED",
+];
+const VALID_PRIORITIES: TaskPriority[] = ["LOW", "MEDIUM", "HIGH", "URGENT"];
+
+function getInitialParam(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get(key);
+}
+
 export function TaskDirectory({ projectId }: { projectId: string }) {
+  const initialStatus = getInitialParam("status") as TaskStatus | null;
+  const initialPriority = getInitialParam("priority") as TaskPriority | null;
+  const initialSearch = getInitialParam("search") || "";
+  const initialUnassigned = getInitialParam("unassigned") === "true";
+
   const [mode, setMode] = useState<"list" | "board">("list");
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [list, setList] = useState<ProjectTasksQuery["projectTasks"] | null>(
@@ -25,10 +44,18 @@ export function TaskDirectory({ projectId }: { projectId: string }) {
   const [board, setBoard] = useState<
     ProjectTaskBoardQuery["projectTaskBoard"] | null
   >(null);
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<TaskStatus | "">("");
-  const [priority, setPriority] = useState<TaskPriority | "">("");
-  const [unassigned, setUnassigned] = useState(false);
+  const [search, setSearch] = useState(initialSearch);
+  const [status, setStatus] = useState<TaskStatus | "">(
+    initialStatus && VALID_STATUSES.includes(initialStatus)
+      ? initialStatus
+      : "",
+  );
+  const [priority, setPriority] = useState<TaskPriority | "">(
+    initialPriority && VALID_PRIORITIES.includes(initialPriority)
+      ? initialPriority
+      : "",
+  );
+  const [unassigned, setUnassigned] = useState(initialUnassigned);
   const [after, setAfter] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -57,7 +84,18 @@ export function TaskDirectory({ projectId }: { projectId: string }) {
     } catch {
       setState("error");
     }
-  }, [after, mode, priority, projectId, search, status, unassigned]);
+  }, [
+    after,
+    mode,
+    priority,
+    projectId,
+    search,
+    setBoard,
+    setList,
+    setState,
+    status,
+    unassigned,
+  ]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
@@ -103,7 +141,10 @@ export function TaskDirectory({ projectId }: { projectId: string }) {
             Status
             <select
               value={status}
-              onChange={(e) => setStatus(e.target.value as TaskStatus | "")}
+              onChange={(e) => {
+                setStatus(e.target.value as TaskStatus | "");
+                setAfter(null);
+              }}
               className="mt-1 block h-10 rounded-lg border px-3"
             >
               <option value="">All</option>
@@ -118,7 +159,10 @@ export function TaskDirectory({ projectId }: { projectId: string }) {
             Priority
             <select
               value={priority}
-              onChange={(e) => setPriority(e.target.value as TaskPriority | "")}
+              onChange={(e) => {
+                setPriority(e.target.value as TaskPriority | "");
+                setAfter(null);
+              }}
               className="mt-1 block h-10 rounded-lg border px-3"
             >
               <option value="">All</option>
@@ -131,7 +175,10 @@ export function TaskDirectory({ projectId }: { projectId: string }) {
             <input
               type="checkbox"
               checked={unassigned}
-              onChange={(e) => setUnassigned(e.target.checked)}
+              onChange={(e) => {
+                setUnassigned(e.target.checked);
+                setAfter(null);
+              }}
             />{" "}
             Unassigned
           </label>

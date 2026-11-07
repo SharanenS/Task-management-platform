@@ -12,6 +12,7 @@ from app.models import JobStatus, JobType, PublicationStatus
 from app.schemas import (
     JobAttemptPageResponse,
     JobAttemptResponse,
+    JobDashboardResponse,
     JobDispatchRequest,
     JobPageResponse,
     JobResponse,
@@ -25,6 +26,7 @@ from app.service import (
     JobError,
     admin_retry_job,
     dispatch_job,
+    get_dashboard_metrics,
     get_job,
     list_attempts,
     list_jobs,
@@ -77,6 +79,18 @@ def liveness() -> dict[str, str]:
 def readiness(session: SessionDependency) -> dict[str, str]:
     session.execute(text("SELECT 1"))
     return {"status": "ready"}
+
+
+@app.get(
+    "/internal/dashboard/metrics",
+    response_model=JobDashboardResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def dashboard_metrics(session: SessionDependency, actor: ActorDependency) -> JobDashboardResponse:
+    try:
+        return get_dashboard_metrics(session, actor)
+    except JobError as error:
+        raise failure(error) from error
 
 
 @app.get(

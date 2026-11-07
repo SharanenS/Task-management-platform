@@ -96,6 +96,52 @@ class WorkTaskActivity:
     created_at: str
 
 
+@dataclass(frozen=True)
+class WorkProjectMetrics:
+    total_count: int
+    active_count: int
+    draft_count: int
+    archived_count: int
+    managed_total_count: int | None
+    managed_active_count: int | None
+    managed_draft_count: int | None
+    managed_archived_count: int | None
+
+
+@dataclass(frozen=True)
+class WorkTaskMetrics:
+    total_count: int
+    todo_count: int
+    in_progress_count: int
+    blocked_count: int
+    done_count: int
+    cancelled_count: int
+    overdue_count: int
+
+
+@dataclass(frozen=True)
+class WorkDashboardTaskItem:
+    id: str
+    project_id: str
+    project_key: str
+    number: int
+    title: str
+    status: str
+    priority: str
+    due_date: str | None
+    created_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class WorkDashboardMetrics:
+    project_metrics: WorkProjectMetrics
+    task_metrics: WorkTaskMetrics | None
+    assigned_task_metrics: WorkTaskMetrics
+    recent_projects: list[WorkProject]
+    recent_assigned_tasks: list[WorkDashboardTaskItem]
+
+
 def _project(data: dict[str, Any]) -> WorkProject:
     try:
         return WorkProject(
@@ -401,6 +447,69 @@ async def list_task_activity(
             ],
             data.get("next_cursor"),
             data["has_next_page"],
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise WorkUnavailableError from error
+
+
+async def get_dashboard_metrics(actor: EmployeeProfile) -> WorkDashboardMetrics:
+    data = await _request("GET", "/internal/dashboard/metrics", actor)
+    try:
+        p_metrics = data["project_metrics"]
+        project_metrics = WorkProjectMetrics(
+            total_count=p_metrics["total_count"],
+            active_count=p_metrics["active_count"],
+            draft_count=p_metrics["draft_count"],
+            archived_count=p_metrics["archived_count"],
+            managed_total_count=p_metrics.get("managed_total_count"),
+            managed_active_count=p_metrics.get("managed_active_count"),
+            managed_draft_count=p_metrics.get("managed_draft_count"),
+            managed_archived_count=p_metrics.get("managed_archived_count"),
+        )
+        task_metrics = None
+        if data.get("task_metrics"):
+            t_metrics = data["task_metrics"]
+            task_metrics = WorkTaskMetrics(
+                total_count=t_metrics["total_count"],
+                todo_count=t_metrics["todo_count"],
+                in_progress_count=t_metrics["in_progress_count"],
+                blocked_count=t_metrics["blocked_count"],
+                done_count=t_metrics["done_count"],
+                cancelled_count=t_metrics["cancelled_count"],
+                overdue_count=t_metrics["overdue_count"],
+            )
+        a_metrics = data["assigned_task_metrics"]
+        assigned_task_metrics = WorkTaskMetrics(
+            total_count=a_metrics["total_count"],
+            todo_count=a_metrics["todo_count"],
+            in_progress_count=a_metrics["in_progress_count"],
+            blocked_count=a_metrics["blocked_count"],
+            done_count=a_metrics["done_count"],
+            cancelled_count=a_metrics["cancelled_count"],
+            overdue_count=a_metrics["overdue_count"],
+        )
+        recent_projects = [_project(item) for item in data["recent_projects"]]
+        recent_assigned_tasks = [
+            WorkDashboardTaskItem(
+                id=item["id"],
+                project_id=item["project_id"],
+                project_key=item["project_key"],
+                number=item["number"],
+                title=item["title"],
+                status=item["status"],
+                priority=item["priority"],
+                due_date=item.get("due_date"),
+                created_at=item["created_at"],
+                updated_at=item["updated_at"],
+            )
+            for item in data["recent_assigned_tasks"]
+        ]
+        return WorkDashboardMetrics(
+            project_metrics=project_metrics,
+            task_metrics=task_metrics,
+            assigned_task_metrics=assigned_task_metrics,
+            recent_projects=recent_projects,
+            recent_assigned_tasks=recent_assigned_tasks,
         )
     except (KeyError, TypeError, ValueError) as error:
         raise WorkUnavailableError from error

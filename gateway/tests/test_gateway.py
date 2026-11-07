@@ -17,7 +17,9 @@ from app.employee_client import (
     EmployeeUnavailableError,
 )
 from app.job_client import (
+    JobDashboardMetrics,
     JobDomainError,
+    JobMetrics,
     JobPage,
     JobRecord,
     JobUnavailableError,
@@ -33,11 +35,15 @@ from app.notification_client import (
 from app.notification_client import Page as NotificationPage
 from app.schema import schema
 from app.work_client import (
+    WorkDashboardMetrics,
+    WorkDashboardTaskItem,
     WorkDomainError,
     WorkMembership,
     WorkProject,
+    WorkProjectMetrics,
     WorkProjectPage,
     WorkTask,
+    WorkTaskMetrics,
     WorkTaskPage,
     WorkUnavailableError,
 )
@@ -1676,3 +1682,426 @@ def test_report_domain_errors_are_typed_and_sanitized(
     ).json()
     assert result["errors"] == [{"message": message, "extensions": {"code": code}}]
     assert "credential" not in str(result) and "broker" not in str(result)
+
+
+DASHBOARD_QUERY = """
+query DashboardTest {
+  dashboard {
+    workAvailable
+    jobAvailable
+    projectMetrics {
+      totalCount
+      activeCount
+      draftCount
+      archivedCount
+      managedTotalCount
+      managedActiveCount
+      managedDraftCount
+      managedArchivedCount
+    }
+    taskMetrics {
+      totalCount
+      todoCount
+      inProgressCount
+      blockedCount
+      doneCount
+      cancelledCount
+      overdueCount
+    }
+    assignedTaskMetrics {
+      totalCount
+      todoCount
+      inProgressCount
+      blockedCount
+      doneCount
+      cancelledCount
+      overdueCount
+    }
+    recentProjects {
+      id
+      key
+      name
+      status
+    }
+    recentAssignedTasks {
+      id
+      projectId
+      projectKey
+      number
+      title
+      status
+      priority
+      dueDate
+    }
+    jobMetrics {
+      totalCount
+      submittedCount
+      queuedCount
+      runningCount
+      succeededCount
+      failedCount
+      cancelledCount
+    }
+    recentJobs {
+      id
+      jobType
+      status
+    }
+  }
+}
+"""
+
+
+def mock_work_dashboard(role: str = "MEMBER") -> WorkDashboardMetrics:
+    is_manager = role == "MANAGER"
+    is_admin = role == "ADMIN"
+    return WorkDashboardMetrics(
+        project_metrics=WorkProjectMetrics(
+            total_count=3,
+            active_count=2,
+            draft_count=1,
+            archived_count=0,
+            managed_total_count=2 if (is_manager or is_admin) else None,
+            managed_active_count=1 if (is_manager or is_admin) else None,
+            managed_draft_count=1 if (is_manager or is_admin) else None,
+            managed_archived_count=0 if (is_manager or is_admin) else None,
+        ),
+        task_metrics=(
+            WorkTaskMetrics(
+                total_count=10,
+                todo_count=4,
+                in_progress_count=3,
+                blocked_count=1,
+                done_count=1,
+                cancelled_count=1,
+                overdue_count=2,
+            )
+            if (is_manager or is_admin)
+            else None
+        ),
+        assigned_task_metrics=WorkTaskMetrics(
+            total_count=5,
+            todo_count=2,
+            in_progress_count=1,
+            blocked_count=1,
+            done_count=1,
+            cancelled_count=0,
+            overdue_count=1,
+        ),
+        recent_projects=[
+            WorkProject(
+                id="proj-1",
+                key="OPS",
+                name="Operations",
+                description=None,
+                status="ACTIVE",
+                creator_employee_id="actor",
+                version=1,
+                created_at="2026-10-14T00:00:00+00:00",
+                updated_at="2026-10-14T00:00:00+00:00",
+                memberships=[],
+            )
+        ],
+        recent_assigned_tasks=[
+            WorkDashboardTaskItem(
+                id="task-1",
+                project_id="proj-1",
+                project_key="OPS",
+                number=1,
+                title="Assigned Task 1",
+                status="TODO",
+                priority="HIGH",
+                due_date="2026-11-10",
+                created_at="2026-10-14T00:00:00+00:00",
+                updated_at="2026-10-14T00:00:00+00:00",
+            )
+        ],
+    )
+
+
+def mock_job_dashboard() -> JobDashboardMetrics:
+    return JobDashboardMetrics(
+        job_metrics=JobMetrics(
+            total_count=4,
+            submitted_count=1,
+            queued_count=1,
+            running_count=0,
+            succeeded_count=1,
+            failed_count=1,
+            cancelled_count=0,
+        ),
+        recent_jobs=[
+            JobRecord(
+                id="job-1",
+                job_type="PROJECT_TASK_EXPORT",
+                status="SUCCEEDED",
+                submitter_employee_id="actor",
+                related_project_id="proj-1",
+                payload={"projectId": "proj-1", "format": "CSV", "includeCompleted": True},
+                result_summary="Exported 5 tasks",
+                result_content=None,
+                result_content_type=None,
+                result_checksum=None,
+                result_row_count=5,
+                result_truncated=False,
+                failure_classification=None,
+                completed_at="2026-10-15T00:00:00+00:00",
+                version=1,
+                created_at="2026-10-15T00:00:00+00:00",
+                updated_at="2026-10-15T00:00:00+00:00",
+            )
+        ],
+    )
+
+
+def test_dashboard_requires_authentication(monkeypatch: pytest.MonkeyPatch) -> None:
+    def reject(_: str | None) -> Identity:
+        raise AuthenticationError
+
+    monkeypatch.setattr("app.schema.token_validator.validate", reject)
+    result = request("POST", "/graphql", payload={"query": DASHBOARD_QUERY}).json()
+    assert result["errors"] == [
+        {"message": "Authentication is required.", "extensions": {"code": "UNAUTHENTICATED"}}
+    ]
+
+
+@pytest.mark.parametrize(
+    ("error", "code", "message"),
+    [
+        (
+            EmployeeForbiddenError(),
+            "FORBIDDEN",
+            "Project access is not available for this account.",
+        ),
+        (
+            EmployeeUnavailableError(),
+            "SERVICE_UNAVAILABLE",
+            "Project access is temporarily unavailable.",
+        ),
+    ],
+)
+def test_dashboard_rejects_inactive_or_missing_profile(
+    monkeypatch: pytest.MonkeyPatch, error: Exception, code: str, message: str
+) -> None:
+    monkeypatch.setattr(
+        "app.schema.token_validator.validate", lambda _: Identity(subject="subject-1")
+    )
+
+    async def employee(_: str) -> EmployeeProfile:
+        raise error
+
+    monkeypatch.setattr("app.schema.get_employee", employee)
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": DASHBOARD_QUERY},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"] == [{"message": message, "extensions": {"code": code}}]
+
+
+def test_dashboard_member_role_aggregates(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch, role="MEMBER")
+
+    async def work_dash(actor: EmployeeProfile) -> WorkDashboardMetrics:
+        return mock_work_dashboard("MEMBER")
+
+    async def job_dash(actor: EmployeeProfile) -> JobDashboardMetrics:
+        return mock_job_dashboard()
+
+    monkeypatch.setattr("app.schema.work_get_dashboard_metrics", work_dash)
+    monkeypatch.setattr("app.schema.job_get_dashboard_metrics", job_dash)
+
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": DASHBOARD_QUERY},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result.get("errors") is None
+    data = result["data"]["dashboard"]
+    assert data["workAvailable"] is True
+    assert data["jobAvailable"] is True
+    assert data["taskMetrics"] is None  # MEMBER has no managed taskMetrics
+    assert data["assignedTaskMetrics"]["totalCount"] == 5
+    assert data["assignedTaskMetrics"]["overdueCount"] == 1
+    assert data["projectMetrics"]["totalCount"] == 3
+    assert data["projectMetrics"]["managedTotalCount"] is None
+    assert len(data["recentProjects"]) == 1
+    assert data["recentProjects"][0]["key"] == "OPS"
+    assert len(data["recentAssignedTasks"]) == 1
+    assert data["recentAssignedTasks"][0]["title"] == "Assigned Task 1"
+    assert data["jobMetrics"]["totalCount"] == 4
+    assert len(data["recentJobs"]) == 1
+
+
+def test_dashboard_manager_role_aggregates(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch, role="MANAGER")
+
+    async def work_dash(actor: EmployeeProfile) -> WorkDashboardMetrics:
+        return mock_work_dashboard("MANAGER")
+
+    async def job_dash(actor: EmployeeProfile) -> JobDashboardMetrics:
+        return mock_job_dashboard()
+
+    monkeypatch.setattr("app.schema.work_get_dashboard_metrics", work_dash)
+    monkeypatch.setattr("app.schema.job_get_dashboard_metrics", job_dash)
+
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": DASHBOARD_QUERY},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result.get("errors") is None
+    data = result["data"]["dashboard"]
+    assert data["taskMetrics"]["totalCount"] == 10
+    assert data["taskMetrics"]["overdueCount"] == 2
+    assert data["assignedTaskMetrics"]["totalCount"] == 5
+    assert data["projectMetrics"]["managedTotalCount"] == 2
+
+
+def test_dashboard_admin_role_aggregates(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch, role="ADMIN")
+
+    async def work_dash(actor: EmployeeProfile) -> WorkDashboardMetrics:
+        return mock_work_dashboard("ADMIN")
+
+    async def job_dash(actor: EmployeeProfile) -> JobDashboardMetrics:
+        return mock_job_dashboard()
+
+    monkeypatch.setattr("app.schema.work_get_dashboard_metrics", work_dash)
+    monkeypatch.setattr("app.schema.job_get_dashboard_metrics", job_dash)
+
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": DASHBOARD_QUERY},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result.get("errors") is None
+    data = result["data"]["dashboard"]
+    assert data["taskMetrics"]["totalCount"] == 10
+    assert data["jobMetrics"]["totalCount"] == 4
+
+
+def test_dashboard_partial_failure_work_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch, role="MEMBER")
+
+    async def work_fail(actor: EmployeeProfile) -> WorkDashboardMetrics:
+        raise WorkUnavailableError()
+
+    async def job_dash(actor: EmployeeProfile) -> JobDashboardMetrics:
+        return mock_job_dashboard()
+
+    monkeypatch.setattr("app.schema.work_get_dashboard_metrics", work_fail)
+    monkeypatch.setattr("app.schema.job_get_dashboard_metrics", job_dash)
+
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": DASHBOARD_QUERY},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result.get("errors") is None
+    data = result["data"]["dashboard"]
+    assert data["workAvailable"] is False
+    assert data["projectMetrics"] is None
+    assert data["taskMetrics"] is None
+    assert data["assignedTaskMetrics"] is None
+    assert data["recentProjects"] is None
+    assert data["recentAssignedTasks"] is None
+    assert data["jobAvailable"] is True
+    assert data["jobMetrics"]["totalCount"] == 4
+    assert len(data["recentJobs"]) == 1
+
+
+def test_dashboard_partial_failure_job_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch, role="MEMBER")
+
+    async def work_dash(actor: EmployeeProfile) -> WorkDashboardMetrics:
+        return mock_work_dashboard("MEMBER")
+
+    async def job_fail(actor: EmployeeProfile) -> JobDashboardMetrics:
+        raise JobUnavailableError()
+
+    monkeypatch.setattr("app.schema.work_get_dashboard_metrics", work_dash)
+    monkeypatch.setattr("app.schema.job_get_dashboard_metrics", job_fail)
+
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": DASHBOARD_QUERY},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result.get("errors") is None
+    data = result["data"]["dashboard"]
+    assert data["workAvailable"] is True
+    assert data["projectMetrics"]["totalCount"] == 3
+    assert data["jobAvailable"] is False
+    assert data["jobMetrics"] is None
+    assert data["recentJobs"] is None
+
+
+def test_dashboard_both_services_fail_gracefully(monkeypatch: pytest.MonkeyPatch) -> None:
+    allow_admin(monkeypatch, role="MEMBER")
+
+    async def work_fail(actor: EmployeeProfile) -> WorkDashboardMetrics:
+        raise WorkUnavailableError()
+
+    async def job_fail(actor: EmployeeProfile) -> JobDashboardMetrics:
+        raise JobUnavailableError()
+
+    monkeypatch.setattr("app.schema.work_get_dashboard_metrics", work_fail)
+    monkeypatch.setattr("app.schema.job_get_dashboard_metrics", job_fail)
+
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": DASHBOARD_QUERY},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result["errors"] == [
+        {
+            "message": "Dashboard data is temporarily unavailable.",
+            "extensions": {"code": "SERVICE_UNAVAILABLE"},
+        }
+    ]
+
+
+def test_dashboard_downstream_requests_are_bounded_o1(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = {"employee": 0, "work": 0, "job": 0}
+
+    monkeypatch.setattr(
+        "app.schema.token_validator.validate", lambda _: Identity(subject="actor-subject")
+    )
+
+    async def actor(_: str) -> EmployeeProfile:
+        calls["employee"] += 1
+        return EmployeeProfile(
+            id="actor", display_name="Actor", email="actor@example.test", role="MANAGER"
+        )
+
+    async def work_dash(_: EmployeeProfile) -> WorkDashboardMetrics:
+        calls["work"] += 1
+        return mock_work_dashboard("MANAGER")
+
+    async def job_dash(_: EmployeeProfile) -> JobDashboardMetrics:
+        calls["job"] += 1
+        return mock_job_dashboard()
+
+    monkeypatch.setattr("app.schema.get_employee", actor)
+    monkeypatch.setattr("app.schema.work_get_dashboard_metrics", work_dash)
+    monkeypatch.setattr("app.schema.job_get_dashboard_metrics", job_dash)
+
+    result = request(
+        "POST",
+        "/graphql",
+        payload={"query": DASHBOARD_QUERY},
+        headers={"Authorization": "Bearer token"},
+    ).json()
+    assert result.get("errors") is None
+    assert calls["employee"] == 1
+    assert calls["work"] == 1
+    assert calls["job"] == 1
+    assert sum(calls.values()) == 3  # Strictly 3 downstream calls, O(1)
