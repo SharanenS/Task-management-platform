@@ -188,3 +188,46 @@ class TaskActivityPageResponse(BaseModel):
     items: list[TaskActivityResponse]
     next_cursor: str | None
     has_next_page: bool
+
+
+class ProjectMetricsResponse(BaseModel):
+    total_count: int
+    active_count: int
+    draft_count: int
+    archived_count: int
+    managed_total_count: int | None = None
+    managed_active_count: int | None = None
+    managed_draft_count: int | None = None
+    managed_archived_count: int | None = None
+
+
+class TaskMetricsResponse(BaseModel):
+    total_count: int
+    todo_count: int
+    in_progress_count: int
+    blocked_count: int
+    done_count: int
+    cancelled_count: int
+    overdue_count: int
+
+
+class DashboardTaskItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    project_id: UUID
+    project_key: str
+    number: int
+    title: str
+    status: TaskStatus
+    priority: TaskPriority
+    due_date: date | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class WorkDashboardResponse(BaseModel):
+    project_metrics: ProjectMetricsResponse
+    task_metrics: TaskMetricsResponse | None = None
+    assigned_task_metrics: TaskMetricsResponse
+    recent_projects: list[ProjectResponse]
+    recent_assigned_tasks: list[DashboardTaskItem]

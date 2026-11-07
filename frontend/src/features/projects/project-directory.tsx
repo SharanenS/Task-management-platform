@@ -17,13 +17,26 @@ import {
 import { requestGraphQL } from "@/lib/graphql";
 
 const PAGE_SIZE = 12;
+const VALID_STATUSES: ProjectStatus[] = ["DRAFT", "ACTIVE", "ARCHIVED"];
 type Item = ProjectDirectoryQuery["projects"]["nodes"][number];
 
+function getInitialParam(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get(key);
+}
+
 export function ProjectDirectory({ role }: { role: ApplicationRole }) {
+  const initialStatus = getInitialParam("status") as ProjectStatus | null;
+  const initialSearch = getInitialParam("search") || "";
+
   const [items, setItems] = useState<Item[]>([]);
-  const [search, setSearch] = useState("");
-  const [appliedSearch, setAppliedSearch] = useState("");
-  const [status, setStatus] = useState<ProjectStatus | "">("");
+  const [search, setSearch] = useState(initialSearch);
+  const [appliedSearch, setAppliedSearch] = useState(initialSearch);
+  const [status, setStatus] = useState<ProjectStatus | "">(
+    initialStatus && VALID_STATUSES.includes(initialStatus)
+      ? initialStatus
+      : "",
+  );
   const [cursor, setCursor] = useState<string | null>(null);
   const [history, setHistory] = useState<Array<string | null>>([]);
   const [pageInfo, setPageInfo] = useState({
@@ -47,7 +60,7 @@ export function ProjectDirectory({ role }: { role: ApplicationRole }) {
     } catch {
       setState("error");
     }
-  }, [appliedSearch, cursor, status]);
+  }, [appliedSearch, cursor, setItems, setPageInfo, setState, status]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
@@ -101,9 +114,11 @@ export function ProjectDirectory({ role }: { role: ApplicationRole }) {
             <span className="sr-only">Project status</span>
             <select
               value={status}
-              onChange={(event) =>
-                setStatus(event.target.value as ProjectStatus | "")
-              }
+              onChange={(event) => {
+                setStatus(event.target.value as ProjectStatus | "");
+                setCursor(null);
+                setHistory([]);
+              }}
               className="h-10 w-full rounded-lg border bg-background px-3 text-sm focus:ring-2 focus:ring-ring"
             >
               <option value="">All statuses</option>

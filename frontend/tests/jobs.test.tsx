@@ -56,6 +56,55 @@ describe("job management", () => {
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
   });
 
+  it("resets pagination cursor and history when job status or type filter is changed after navigating past page 1", async () => {
+    const fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          jobs: {
+            nodes: [
+              {
+                id: "job-1",
+                jobType: "PROJECT_TASK_EXPORT",
+                status: "SUBMITTED",
+                submitterEmployeeId: "employee-1",
+                payload: {
+                  projectId: "project-1",
+                  format: "CSV",
+                  includeCompleted: true,
+                },
+                version: 1,
+                createdAt: "2026-10-16T00:00:00Z",
+                updatedAt: "2026-10-16T00:00:00Z",
+              },
+            ],
+            pageInfo: { hasNextPage: true, endCursor: "cursor-job-1" },
+          },
+        },
+      }),
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<JobDirectory />);
+    expect(await screen.findByText("Project task export")).toBeInTheDocument();
+
+    // Navigate to next page
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(fetch.mock.calls[1][1].body).variables).toMatchObject({
+      after: "cursor-job-1",
+    });
+
+    // Change status filter -> MUST reset cursor to null
+    fireEvent.change(screen.getByLabelText("Job status"), {
+      target: { value: "RUNNING" },
+    });
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    expect(JSON.parse(fetch.mock.calls[2][1].body).variables).toMatchObject({
+      after: null,
+      status: "RUNNING",
+    });
+  });
+
   it("renders empty and retryable error states", async () => {
     const fetch = vi
       .fn()

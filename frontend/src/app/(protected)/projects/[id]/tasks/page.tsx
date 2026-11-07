@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { TaskDirectory } from "@/features/tasks/task-directory";
 
 export default async function TasksPage({
@@ -6,5 +7,9 @@ export default async function TasksPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <TaskDirectory projectId={id} />;
+  return (
+    <Suspense>
+      <TaskDirectory projectId={id} />
+    </Suspense>
+  );
 }

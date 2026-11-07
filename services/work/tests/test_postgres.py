@@ -1,11 +1,11 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from threading import Barrier
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import create_engine, delete, func, select
+from sqlalchemy import create_engine, delete, event, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.event_publisher import claim_events, settle_failure, settle_success
@@ -13,6 +13,7 @@ from app.models import (
     Project,
     ProjectMembership,
     ProjectRole,
+    ProjectStatus,
     Task,
     TaskActivity,
     TaskActivityType,
@@ -26,9 +27,11 @@ from app.service import (
     WorkError,
     add_member,
     assign_task,
+    change_member_role,
     change_task_status,
     create_project,
     create_task,
+    get_dashboard_metrics,
     remove_member,
     update_task,
 )
@@ -503,3 +506,437 @@ def test_assignment_commit_failure_rolls_back_task_activity_and_event(
             )
             == 0
         )
+
+
+def test_postgres_dashboard_metrics_and_date_boundaries(
+    database: sessionmaker[Session],
+) -> None:
+    owner = Actor(uuid4(), "MANAGER")
+    member = Actor(uuid4(), "MEMBER")
+    admin = Actor(uuid4(), "ADMIN")
+
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    tomorrow = today + timedelta(days=1)
+
+    with database() as session:
+        # Project 1: Managed by owner, member is contributor. Status = ACTIVE
+        p1 = Project(
+            key="PGDASH1",
+            name="Dashboard Proj 1",
+            status=ProjectStatus.ACTIVE,
+            creator_employee_id=owner.employee_id,
+        )
+        p1.memberships.append(
+            ProjectMembership(employee_id=owner.employee_id, role=ProjectRole.PROJECT_MANAGER)
+        )
+        p1.memberships.append(
+            ProjectMembership(employee_id=member.employee_id, role=ProjectRole.CONTRIBUTOR)
+        )
+
+        # Project 2: Owned by someone else, owner is contributor,
+        # member is NOT member. Status = DRAFT
+        p2 = Project(
+            key="PGDASH2",
+            name="Dashboard Proj 2",
+            status=ProjectStatus.DRAFT,
+            creator_employee_id=uuid4(),
+        )
+        p2.memberships.append(
+            ProjectMembership(employee_id=owner.employee_id, role=ProjectRole.CONTRIBUTOR)
+        )
+
+        # Project 3: Unrelated project, member is contributor. Status = ARCHIVED
+        p3 = Project(
+            key="PGDASH3",
+            name="Dashboard Proj 3",
+            status=ProjectStatus.ARCHIVED,
+            creator_employee_id=uuid4(),
+        )
+        p3.memberships.append(
+            ProjectMembership(employee_id=member.employee_id, role=ProjectRole.CONTRIBUTOR)
+        )
+
+        session.add_all([p1, p2, p3])
+        session.flush()
+
+        # Tasks in Project 1 (managed by owner, member has access)
+        t_yesterday_todo = Task(
+            project_id=p1.id,
+            number=1,
+            title="Overdue Todo Task",
+            status=TaskStatus.TODO,
+            priority=TaskPriority.HIGH,
+            assignee_employee_id=member.employee_id,
+            creator_employee_id=owner.employee_id,
+            due_date=yesterday,
+        )
+        t_today_todo = Task(
+            project_id=p1.id,
+            number=2,
+            title="Due Today Task",
+            status=TaskStatus.TODO,
+            priority=TaskPriority.MEDIUM,
+            assignee_employee_id=member.employee_id,
+            creator_employee_id=owner.employee_id,
+            due_date=today,
+        )
+        t_tomorrow_todo = Task(
+            project_id=p1.id,
+            number=3,
+            title="Due Tomorrow Task",
+            status=TaskStatus.IN_PROGRESS,
+            priority=TaskPriority.LOW,
+            assignee_employee_id=owner.employee_id,
+            creator_employee_id=owner.employee_id,
+            due_date=tomorrow,
+        )
+        t_null_todo = Task(
+            project_id=p1.id,
+            number=4,
+            title="No Due Date Task",
+            status=TaskStatus.BLOCKED,
+            priority=TaskPriority.MEDIUM,
+            assignee_employee_id=owner.employee_id,
+            creator_employee_id=owner.employee_id,
+            due_date=None,
+        )
+        t_yesterday_done = Task(
+            project_id=p1.id,
+            number=5,
+            title="Done Yesterday Task",
+            status=TaskStatus.DONE,
+            priority=TaskPriority.HIGH,
+            assignee_employee_id=member.employee_id,
+            creator_employee_id=owner.employee_id,
+            due_date=yesterday,
+        )
+        t_yesterday_cancelled = Task(
+            project_id=p1.id,
+            number=6,
+            title="Cancelled Yesterday Task",
+            status=TaskStatus.CANCELLED,
+            priority=TaskPriority.LOW,
+            assignee_employee_id=member.employee_id,
+            creator_employee_id=owner.employee_id,
+            due_date=yesterday,
+        )
+
+        # Task in Project 2 (owner is contributor only, not manager)
+        t_proj2 = Task(
+            project_id=p2.id,
+            number=1,
+            title="Project 2 Task",
+            status=TaskStatus.TODO,
+            priority=TaskPriority.MEDIUM,
+            assignee_employee_id=owner.employee_id,
+            creator_employee_id=uuid4(),
+            due_date=yesterday,
+        )
+
+        # Task in Project 3 (inaccessible to owner, member is contributor)
+        t_proj3 = Task(
+            project_id=p3.id,
+            number=1,
+            title="Project 3 Task",
+            status=TaskStatus.TODO,
+            priority=TaskPriority.MEDIUM,
+            assignee_employee_id=member.employee_id,
+            creator_employee_id=uuid4(),
+            due_date=yesterday,
+        )
+
+        session.add_all(
+            [
+                t_yesterday_todo,
+                t_today_todo,
+                t_tomorrow_todo,
+                t_null_todo,
+                t_yesterday_done,
+                t_yesterday_cancelled,
+                t_proj2,
+                t_proj3,
+            ]
+        )
+        session.commit()
+
+    with database() as session:
+        # Check MEMBER dashboard
+        m_dash = get_dashboard_metrics(session, member)
+        assert m_dash.project_metrics.total_count == 2  # p1 (ACTIVE) and p3 (ARCHIVED)
+        assert m_dash.project_metrics.active_count == 1
+        assert m_dash.project_metrics.draft_count == 0
+        assert m_dash.project_metrics.archived_count == 1
+        assert m_dash.project_metrics.managed_total_count is None
+        assert m_dash.task_metrics is None
+
+        # Member personal assigned tasks: t_yesterday_todo, t_today_todo,
+        # t_yesterday_done, t_yesterday_cancelled, t_proj3
+        # Total assigned = 5
+        assert m_dash.assigned_task_metrics.total_count == 5
+        # Overdue assigned: t_yesterday_todo (p1) and t_proj3 (p3).
+        # t_today_todo is due today (not overdue).
+        # t_yesterday_done is DONE (not overdue).
+        # t_yesterday_cancelled is CANCELLED (not overdue).
+        assert m_dash.assigned_task_metrics.overdue_count == 2
+        assert (
+            m_dash.assigned_task_metrics.todo_count == 3
+        )  # t_yesterday_todo, t_today_todo, t_proj3
+        assert m_dash.assigned_task_metrics.done_count == 1
+        assert m_dash.assigned_task_metrics.cancelled_count == 1
+
+        # Check MANAGER dashboard
+        mgr_dash = get_dashboard_metrics(session, owner)
+        assert mgr_dash.project_metrics.total_count == 2  # p1 and p2 accessible
+        assert mgr_dash.project_metrics.managed_total_count == 1  # p1 only
+        assert mgr_dash.project_metrics.managed_active_count == 1
+
+        # Manager task_metrics (scoped to managed project p1 only!)
+        # Excludes t_proj2 (p2 is not managed) and t_proj3 (p3 is inaccessible)
+        assert mgr_dash.task_metrics is not None
+        assert mgr_dash.task_metrics.total_count == 6  # 6 tasks in p1
+        assert mgr_dash.task_metrics.overdue_count == 1  # only t_yesterday_todo
+        assert mgr_dash.task_metrics.todo_count == 2  # t_yesterday_todo, t_today_todo
+        assert mgr_dash.task_metrics.in_progress_count == 1  # t_tomorrow_todo
+        assert mgr_dash.task_metrics.blocked_count == 1  # t_null_todo
+        assert mgr_dash.task_metrics.done_count == 1  # t_yesterday_done
+        assert mgr_dash.task_metrics.cancelled_count == 1  # t_yesterday_cancelled
+
+        # Manager assigned_task_metrics (personal assigned tasks across accessible
+        # projects p1 and p2)
+        # t_tomorrow_todo (p1), t_null_todo (p1), t_proj2 (p2) = 3 total
+        assert mgr_dash.assigned_task_metrics.total_count == 3
+        # Overdue assigned: t_proj2 (yesterday, TODO in accessible p2) = 1
+        assert mgr_dash.assigned_task_metrics.overdue_count == 1
+
+        # Check ADMIN dashboard
+        adm_dash = get_dashboard_metrics(session, admin)
+        assert adm_dash.project_metrics.total_count == 3
+        assert adm_dash.project_metrics.managed_total_count == 3
+        assert adm_dash.task_metrics is not None
+        assert adm_dash.task_metrics.total_count == 8  # all 8 tasks across all projects
+        # Overdue in entire system: t_yesterday_todo (p1), t_proj2 (p2), t_proj3 (p3) = 3
+        assert adm_dash.task_metrics.overdue_count == 3
+
+
+def test_postgres_dashboard_query_count_invariance(
+    database: sessionmaker[Session],
+) -> None:
+    manager = Actor(uuid4(), "MANAGER")
+
+    def seed_fixture(prefix: str, project_count: int, tasks_per_project: int) -> None:
+        with database() as session:
+            for i in range(project_count):
+                p = Project(
+                    key=f"{prefix}{i}",
+                    name=f"Project {prefix} {i}",
+                    status=ProjectStatus.ACTIVE if i % 2 == 0 else ProjectStatus.DRAFT,
+                    creator_employee_id=manager.employee_id,
+                )
+                p.memberships.append(
+                    ProjectMembership(
+                        employee_id=manager.employee_id,
+                        role=ProjectRole.PROJECT_MANAGER if i == 0 else ProjectRole.CONTRIBUTOR,
+                    )
+                )
+                session.add(p)
+                session.flush()
+
+                for j in range(tasks_per_project):
+                    t = Task(
+                        project_id=p.id,
+                        number=j + 1,
+                        title=f"Task {j}",
+                        status=TaskStatus.TODO if j % 2 == 0 else TaskStatus.DONE,
+                        priority=TaskPriority.MEDIUM,
+                        assignee_employee_id=manager.employee_id if j == 0 else None,
+                        creator_employee_id=manager.employee_id,
+                        due_date=date.today() - timedelta(days=1) if j == 0 else None,
+                    )
+                    session.add(t)
+            session.commit()
+
+    def count_queries() -> int:
+        query_count = 0
+
+        def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+            nonlocal query_count
+            query_count += 1
+
+        engine = database().get_bind()
+        event.listen(engine, "before_cursor_execute", before_cursor_execute)
+        try:
+            with database() as session:
+                dash = get_dashboard_metrics(session, manager)
+                assert len(dash.recent_projects) <= 5
+                assert len(dash.recent_assigned_tasks) <= 5
+        finally:
+            event.remove(engine, "before_cursor_execute", before_cursor_execute)
+        return query_count
+
+    # Small fixture: 2 projects, 3 tasks per project (6 tasks total)
+    seed_fixture("SMPG", 2, 3)
+    small_queries = count_queries()
+
+    # Clear and populate large fixture: 8 projects, 10 tasks per project (80 tasks total)
+    with database() as session:
+        session.execute(delete(Task))
+        session.execute(delete(ProjectMembership))
+        session.execute(delete(Project))
+        session.commit()
+
+    seed_fixture("LRPG", 8, 10)
+    large_queries = count_queries()
+
+    # Exact statement count invariance: query count MUST NOT grow with scale (O(1))
+    assert small_queries == large_queries
+    assert small_queries == 6  # Exactly 6 SQL statements
+
+
+def test_postgres_revocation_isolation_and_manager_authority_reduction(
+    database: sessionmaker[Session],
+) -> None:
+    member = Actor(uuid4(), "MEMBER")
+    manager = Actor(uuid4(), "MANAGER")
+    other_mgr = Actor(uuid4(), "MANAGER")
+
+    with database() as session:
+        # Project 1: ACTIVE. manager is PROJECT_MANAGER,
+        # other_mgr is PROJECT_MANAGER, member is CONTRIBUTOR.
+        p1 = Project(
+            key="PGREV1",
+            name="PG Revocation Proj 1",
+            status=ProjectStatus.ACTIVE,
+            creator_employee_id=manager.employee_id,
+        )
+        p1.memberships.append(
+            ProjectMembership(employee_id=manager.employee_id, role=ProjectRole.PROJECT_MANAGER)
+        )
+        p1.memberships.append(
+            ProjectMembership(employee_id=other_mgr.employee_id, role=ProjectRole.PROJECT_MANAGER)
+        )
+        p1.memberships.append(
+            ProjectMembership(employee_id=member.employee_id, role=ProjectRole.CONTRIBUTOR)
+        )
+
+        # Project 2: ACTIVE. other_mgr is PROJECT_MANAGER,
+        # manager is CONTRIBUTOR, member is CONTRIBUTOR.
+        p2 = Project(
+            key="PGREV2",
+            name="PG Revocation Proj 2",
+            status=ProjectStatus.ACTIVE,
+            creator_employee_id=other_mgr.employee_id,
+        )
+        p2.memberships.append(
+            ProjectMembership(employee_id=other_mgr.employee_id, role=ProjectRole.PROJECT_MANAGER)
+        )
+        p2.memberships.append(
+            ProjectMembership(employee_id=manager.employee_id, role=ProjectRole.CONTRIBUTOR)
+        )
+        p2.memberships.append(
+            ProjectMembership(employee_id=member.employee_id, role=ProjectRole.CONTRIBUTOR)
+        )
+
+        session.add_all([p1, p2])
+        session.flush()
+
+        # Task 1 assigned to member in P1 (overdue)
+        t1 = Task(
+            project_id=p1.id,
+            number=1,
+            title="Member Task in PG P1",
+            status=TaskStatus.TODO,
+            priority=TaskPriority.HIGH,
+            assignee_employee_id=member.employee_id,
+            creator_employee_id=manager.employee_id,
+            due_date=date.today() - timedelta(days=1),
+        )
+        # Task 2 assigned to manager in P1
+        t2 = Task(
+            project_id=p1.id,
+            number=2,
+            title="Manager Task in PG P1",
+            status=TaskStatus.IN_PROGRESS,
+            priority=TaskPriority.MEDIUM,
+            assignee_employee_id=manager.employee_id,
+            creator_employee_id=manager.employee_id,
+        )
+        # Task 3 assigned to member in P2
+        t3 = Task(
+            project_id=p2.id,
+            number=1,
+            title="Member Task in PG P2",
+            status=TaskStatus.TODO,
+            priority=TaskPriority.LOW,
+            assignee_employee_id=member.employee_id,
+            creator_employee_id=other_mgr.employee_id,
+        )
+
+        session.add_all([t1, t2, t3])
+        session.commit()
+
+    with database() as session:
+        # 1. Baseline verification
+        mem_dash = get_dashboard_metrics(session, member)
+        assert mem_dash.project_metrics.total_count == 2
+        assert mem_dash.assigned_task_metrics.total_count == 2
+        assert mem_dash.assigned_task_metrics.overdue_count == 1
+        assert len(mem_dash.recent_assigned_tasks) == 2
+
+        mgr_dash = get_dashboard_metrics(session, manager)
+        assert mgr_dash.project_metrics.total_count == 2
+        assert mgr_dash.project_metrics.managed_total_count == 1
+        assert mgr_dash.task_metrics is not None
+        assert mgr_dash.task_metrics.total_count == 2
+        assert mgr_dash.assigned_task_metrics.total_count == 1
+
+        # 2. Document and test normal membership removal behavior
+        # Normal removal via remove_member must fail closed with MEMBER_HAS_ASSIGNED_TASKS
+        with pytest.raises(WorkError) as exc_info:
+            remove_member(session, manager, p1.id, member.employee_id)
+        assert exc_info.value.code == "MEMBER_HAS_ASSIGNED_TASKS"
+
+        # 3. Test aggregate's defense against stale assignment without adding a product backdoor:
+        # Directly delete member's ProjectMembership from p1, leaving t1 still assigned
+        mem_record = session.scalar(
+            select(ProjectMembership).where(
+                ProjectMembership.project_id == p1.id,
+                ProjectMembership.employee_id == member.employee_id,
+            )
+        )
+        assert mem_record is not None
+        session.delete(mem_record)
+        session.commit()
+
+        # Verify fixture genuinely retains the assignment after membership removal
+        refreshed_t1 = session.scalar(select(Task).where(Task.id == t1.id))
+        assert refreshed_t1 is not None
+        assert refreshed_t1.assignee_employee_id == member.employee_id
+
+        # Prove the next dashboard aggregate excludes that task and project
+        mem_dash_after = get_dashboard_metrics(session, member)
+        assert mem_dash_after.project_metrics.total_count == 1  # p1 excluded, only p2 remains
+        assert mem_dash_after.assigned_task_metrics.total_count == 1  # t1 excluded, only t3 in p2
+        assert (
+            mem_dash_after.assigned_task_metrics.overdue_count == 0
+        )  # t1 was overdue, now excluded
+        assert len(mem_dash_after.recent_assigned_tasks) == 1
+        assert mem_dash_after.recent_assigned_tasks[0].id == t3.id
+
+        # 4. Manager authority reduction:
+        # Reduce manager's authority in p1 from PROJECT_MANAGER to CONTRIBUTOR
+        change_member_role(session, other_mgr, p1.id, manager.employee_id, ProjectRole.CONTRIBUTOR)
+
+        # Prove manager loses managed totals while preserving
+        # accessible-project and personal-work scopes
+        mgr_dash_after = get_dashboard_metrics(session, manager)
+        assert (
+            mgr_dash_after.project_metrics.total_count == 2
+        )  # still accessible (contributor in p1 & p2)
+        assert mgr_dash_after.project_metrics.managed_total_count == 0  # lost managed total
+        assert mgr_dash_after.project_metrics.managed_active_count == 0
+        assert mgr_dash_after.task_metrics is not None
+        assert mgr_dash_after.task_metrics.total_count == 0  # no managed tasks
+        assert mgr_dash_after.assigned_task_metrics.total_count == 1  # t2 personal task preserved
+        assert len(mgr_dash_after.recent_assigned_tasks) == 1
+        assert mgr_dash_after.recent_assigned_tasks[0].id == t2.id

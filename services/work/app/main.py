@@ -30,6 +30,7 @@ from app.schemas import (
     TaskResponse,
     TaskStatusRequest,
     TaskUpdateRequest,
+    WorkDashboardResponse,
 )
 from app.service import (
     Actor,
@@ -41,6 +42,7 @@ from app.service import (
     change_task_status,
     create_project,
     create_task,
+    get_dashboard_metrics,
     get_project,
     get_task,
     list_projects,
@@ -137,6 +139,18 @@ def execution_tasks(
             for task in tasks
         ],
     }
+
+
+@app.get(
+    "/internal/dashboard/metrics",
+    response_model=WorkDashboardResponse,
+    dependencies=[Depends(require_internal_service)],
+)
+def dashboard_metrics(session: SessionDependency, actor: ActorDependency) -> WorkDashboardResponse:
+    try:
+        return get_dashboard_metrics(session, actor)
+    except WorkError as error:
+        raise failure(error) from error
 
 
 @app.get(

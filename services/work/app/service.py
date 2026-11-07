@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -20,6 +20,13 @@ from app.models import (
     TaskPriority,
     TaskStatus,
     WorkOutboxEvent,
+)
+from app.schemas import (
+    DashboardTaskItem,
+    ProjectMetricsResponse,
+    ProjectResponse,
+    TaskMetricsResponse,
+    WorkDashboardResponse,
 )
 
 
@@ -662,3 +669,243 @@ def list_task_activity(
     items = rows[:first]
     more = len(rows) > first
     return ActivityPage(items, _cursor(items[-1].id) if more and items else None, more)
+
+
+def get_dashboard_metrics(session: Session, actor: Actor) -> WorkDashboardResponse:
+    today = date.today()
+    overdue_cond = (Task.due_date < today) & (
+        ~Task.status.in_([TaskStatus.DONE, TaskStatus.CANCELLED])
+    )
+
+    # 1. Project metrics
+    if actor.application_role == "ADMIN":
+        proj_row = session.execute(
+            select(
+                func.count(Project.id).label("total"),
+                func.count(case((Project.status == ProjectStatus.ACTIVE, 1))).label("active"),
+                func.count(case((Project.status == ProjectStatus.DRAFT, 1))).label("draft"),
+                func.count(case((Project.status == ProjectStatus.ARCHIVED, 1))).label("archived"),
+            )
+        ).one()
+        project_metrics = ProjectMetricsResponse(
+            total_count=proj_row.total or 0,
+            active_count=proj_row.active or 0,
+            draft_count=proj_row.draft or 0,
+            archived_count=proj_row.archived or 0,
+            managed_total_count=proj_row.total or 0,
+            managed_active_count=proj_row.active or 0,
+            managed_draft_count=proj_row.draft or 0,
+            managed_archived_count=proj_row.archived or 0,
+        )
+    else:
+        scoped_proj_row = session.execute(
+            select(
+                func.count(func.distinct(Project.id)).label("total"),
+                func.count(
+                    func.distinct(case((Project.status == ProjectStatus.ACTIVE, Project.id)))
+                ).label("active"),
+                func.count(
+                    func.distinct(case((Project.status == ProjectStatus.DRAFT, Project.id)))
+                ).label("draft"),
+                func.count(
+                    func.distinct(case((Project.status == ProjectStatus.ARCHIVED, Project.id)))
+                ).label("archived"),
+                func.count(
+                    func.distinct(
+                        case((ProjectMembership.role == ProjectRole.PROJECT_MANAGER, Project.id))
+                    )
+                ).label("managed_total"),
+                func.count(
+                    func.distinct(
+                        case(
+                            (
+                                (ProjectMembership.role == ProjectRole.PROJECT_MANAGER)
+                                & (Project.status == ProjectStatus.ACTIVE),
+                                Project.id,
+                            )
+                        )
+                    )
+                ).label("managed_active"),
+                func.count(
+                    func.distinct(
+                        case(
+                            (
+                                (ProjectMembership.role == ProjectRole.PROJECT_MANAGER)
+                                & (Project.status == ProjectStatus.DRAFT),
+                                Project.id,
+                            )
+                        )
+                    )
+                ).label("managed_draft"),
+                func.count(
+                    func.distinct(
+                        case(
+                            (
+                                (ProjectMembership.role == ProjectRole.PROJECT_MANAGER)
+                                & (Project.status == ProjectStatus.ARCHIVED),
+                                Project.id,
+                            )
+                        )
+                    )
+                ).label("managed_archived"),
+            )
+            .select_from(Project)
+            .join(ProjectMembership, ProjectMembership.project_id == Project.id)
+            .where(ProjectMembership.employee_id == actor.employee_id)
+        ).one()
+        is_manager = actor.application_role == "MANAGER"
+        project_metrics = ProjectMetricsResponse(
+            total_count=scoped_proj_row.total or 0,
+            active_count=scoped_proj_row.active or 0,
+            draft_count=scoped_proj_row.draft or 0,
+            archived_count=scoped_proj_row.archived or 0,
+            managed_total_count=(scoped_proj_row.managed_total or 0) if is_manager else None,
+            managed_active_count=(scoped_proj_row.managed_active or 0) if is_manager else None,
+            managed_draft_count=(scoped_proj_row.managed_draft or 0) if is_manager else None,
+            managed_archived_count=(scoped_proj_row.managed_archived or 0) if is_manager else None,
+        )
+
+    # 2. Scoped Task metrics (for ADMIN and MANAGER)
+    task_metrics: TaskMetricsResponse | None = None
+    if actor.application_role == "ADMIN":
+        task_row = session.execute(
+            select(
+                func.count(Task.id).label("total"),
+                func.count(case((Task.status == TaskStatus.TODO, 1))).label("todo"),
+                func.count(case((Task.status == TaskStatus.IN_PROGRESS, 1))).label("in_progress"),
+                func.count(case((Task.status == TaskStatus.BLOCKED, 1))).label("blocked"),
+                func.count(case((Task.status == TaskStatus.DONE, 1))).label("done"),
+                func.count(case((Task.status == TaskStatus.CANCELLED, 1))).label("cancelled"),
+                func.count(case((overdue_cond, 1))).label("overdue"),
+            ).select_from(Task)
+        ).one()
+        task_metrics = TaskMetricsResponse(
+            total_count=task_row.total or 0,
+            todo_count=task_row.todo or 0,
+            in_progress_count=task_row.in_progress or 0,
+            blocked_count=task_row.blocked or 0,
+            done_count=task_row.done or 0,
+            cancelled_count=task_row.cancelled or 0,
+            overdue_count=task_row.overdue or 0,
+        )
+    elif actor.application_role == "MANAGER":
+        task_row = session.execute(
+            select(
+                func.count(Task.id).label("total"),
+                func.count(case((Task.status == TaskStatus.TODO, 1))).label("todo"),
+                func.count(case((Task.status == TaskStatus.IN_PROGRESS, 1))).label("in_progress"),
+                func.count(case((Task.status == TaskStatus.BLOCKED, 1))).label("blocked"),
+                func.count(case((Task.status == TaskStatus.DONE, 1))).label("done"),
+                func.count(case((Task.status == TaskStatus.CANCELLED, 1))).label("cancelled"),
+                func.count(case((overdue_cond, 1))).label("overdue"),
+            )
+            .select_from(Task)
+            .join(
+                ProjectMembership,
+                (ProjectMembership.project_id == Task.project_id)
+                & (ProjectMembership.employee_id == actor.employee_id)
+                & (ProjectMembership.role == ProjectRole.PROJECT_MANAGER),
+            )
+        ).one()
+        task_metrics = TaskMetricsResponse(
+            total_count=task_row.total or 0,
+            todo_count=task_row.todo or 0,
+            in_progress_count=task_row.in_progress or 0,
+            blocked_count=task_row.blocked or 0,
+            done_count=task_row.done or 0,
+            cancelled_count=task_row.cancelled or 0,
+            overdue_count=task_row.overdue or 0,
+        )
+
+    # 3. Assigned Task metrics (Personal work across accessible projects)
+    if actor.application_role == "ADMIN":
+        assigned_row = session.execute(
+            select(
+                func.count(Task.id).label("total"),
+                func.count(case((Task.status == TaskStatus.TODO, 1))).label("todo"),
+                func.count(case((Task.status == TaskStatus.IN_PROGRESS, 1))).label("in_progress"),
+                func.count(case((Task.status == TaskStatus.BLOCKED, 1))).label("blocked"),
+                func.count(case((Task.status == TaskStatus.DONE, 1))).label("done"),
+                func.count(case((Task.status == TaskStatus.CANCELLED, 1))).label("cancelled"),
+                func.count(case((overdue_cond, 1))).label("overdue"),
+            )
+            .select_from(Task)
+            .where(Task.assignee_employee_id == actor.employee_id)
+        ).one()
+    else:
+        assigned_row = session.execute(
+            select(
+                func.count(Task.id).label("total"),
+                func.count(case((Task.status == TaskStatus.TODO, 1))).label("todo"),
+                func.count(case((Task.status == TaskStatus.IN_PROGRESS, 1))).label("in_progress"),
+                func.count(case((Task.status == TaskStatus.BLOCKED, 1))).label("blocked"),
+                func.count(case((Task.status == TaskStatus.DONE, 1))).label("done"),
+                func.count(case((Task.status == TaskStatus.CANCELLED, 1))).label("cancelled"),
+                func.count(case((overdue_cond, 1))).label("overdue"),
+            )
+            .select_from(Task)
+            .join(
+                ProjectMembership,
+                (ProjectMembership.project_id == Task.project_id)
+                & (ProjectMembership.employee_id == actor.employee_id),
+            )
+            .where(Task.assignee_employee_id == actor.employee_id)
+        ).one()
+
+    assigned_task_metrics = TaskMetricsResponse(
+        total_count=assigned_row.total or 0,
+        todo_count=assigned_row.todo or 0,
+        in_progress_count=assigned_row.in_progress or 0,
+        blocked_count=assigned_row.blocked or 0,
+        done_count=assigned_row.done or 0,
+        cancelled_count=assigned_row.cancelled or 0,
+        overdue_count=assigned_row.overdue or 0,
+    )
+
+    # 4. Recent projects preview (bounded to 5)
+    proj_query = select(Project).options(selectinload(Project.memberships))
+    if actor.application_role != "ADMIN":
+        proj_query = proj_query.join(
+            ProjectMembership, ProjectMembership.project_id == Project.id
+        ).where(ProjectMembership.employee_id == actor.employee_id)
+    proj_query = proj_query.order_by(Project.updated_at.desc(), Project.id.desc()).limit(5)
+    recent_projects = [
+        ProjectResponse.model_validate(p) for p in session.scalars(proj_query).unique()
+    ]
+
+    # 5. Recent assigned tasks preview (bounded to 5)
+    task_query = (
+        select(Task, Project.key.label("project_key"))
+        .join(Project, Project.id == Task.project_id)
+        .where(Task.assignee_employee_id == actor.employee_id)
+    )
+    if actor.application_role != "ADMIN":
+        task_query = task_query.join(
+            ProjectMembership,
+            (ProjectMembership.project_id == Project.id)
+            & (ProjectMembership.employee_id == actor.employee_id),
+        )
+    task_query = task_query.order_by(Task.updated_at.desc(), Task.id.desc()).limit(5)
+    recent_assigned_tasks = [
+        DashboardTaskItem(
+            id=task.id,
+            project_id=task.project_id,
+            project_key=project_key,
+            number=task.number,
+            title=task.title,
+            status=task.status,
+            priority=task.priority,
+            due_date=task.due_date,
+            created_at=task.created_at,
+            updated_at=task.updated_at,
+        )
+        for task, project_key in session.execute(task_query)
+    ]
+
+    return WorkDashboardResponse(
+        project_metrics=project_metrics,
+        task_metrics=task_metrics,
+        assigned_task_metrics=assigned_task_metrics,
+        recent_projects=recent_projects,
+        recent_assigned_tasks=recent_assigned_tasks,
+    )

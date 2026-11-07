@@ -257,4 +257,77 @@ describe("task management", () => {
     ).toBeUndefined();
     expect(container.innerHTML).not.toContain("dangerouslySetInnerHTML");
   });
+
+  it("resets pagination cursor when status, priority, or unassigned filter is changed", async () => {
+    const fetch = vi.fn().mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init.body));
+      void body;
+      return {
+        ok: true,
+        json: async () => ({
+          data: {
+            projectTasks: {
+              nodes: [
+                {
+                  id: "task-1",
+                  projectId: "project-1",
+                  reference: "OPS-1",
+                  number: 1,
+                  title: "Review",
+                  description: null,
+                  status: "TODO",
+                  priority: "HIGH",
+                  assigneeEmployeeId: null,
+                  assigneeDisplayName: null,
+                  dueDate: null,
+                  version: 1,
+                  updatedAt: "2026-10-15T00:00:00Z",
+                },
+              ],
+              pageInfo: { hasNextPage: true, endCursor: "cursor-task-1" },
+            },
+          },
+        }),
+      };
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<TaskDirectory projectId="project-1" />);
+    expect(await screen.findByText("Review")).toBeInTheDocument();
+
+    // Navigate to next page
+    const nextBtn = screen.getByRole("button", { name: "Next page" });
+    fireEvent.click(nextBtn);
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(fetch.mock.calls[1][1].body).variables).toMatchObject({
+      after: "cursor-task-1",
+    });
+
+    // Change status filter -> MUST reset after to null
+    fireEvent.change(screen.getByLabelText("Status"), {
+      target: { value: "IN_PROGRESS" },
+    });
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    expect(JSON.parse(fetch.mock.calls[2][1].body).variables).toMatchObject({
+      after: null,
+      status: "IN_PROGRESS",
+    });
+
+    // Change priority filter -> MUST reset after to null
+    fireEvent.change(screen.getByLabelText("Priority"), {
+      target: { value: "HIGH" },
+    });
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(4));
+    expect(JSON.parse(fetch.mock.calls[3][1].body).variables).toMatchObject({
+      after: null,
+      priority: "HIGH",
+    });
+
+    // Change unassigned checkbox -> MUST reset after to null
+    fireEvent.click(screen.getByLabelText(/Unassigned/i));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(5));
+    expect(JSON.parse(fetch.mock.calls[4][1].body).variables).toMatchObject({
+      after: null,
+      unassigned: true,
+    });
+  });
 });

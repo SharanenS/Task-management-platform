@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import { JobDirectory } from "@/features/jobs/job-directory";
 
 export default function JobsPage() {
-  return <JobDirectory />;
+  return (
+    <Suspense>
+      <JobDirectory />
+    </Suspense>
+  );
 }

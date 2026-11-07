@@ -77,6 +77,52 @@ describe("project management", () => {
     });
   });
 
+  it("resets pagination cursor and history when status filter is changed after navigating past page 1", async () => {
+    const fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          projects: {
+            nodes: [
+              {
+                id: "project-1",
+                key: "OPS1",
+                name: "Operations 1",
+                description: null,
+                status: "DRAFT",
+                version: 1,
+                updatedAt: "2026-10-14T00:00:00Z",
+                memberships: [],
+              },
+            ],
+            pageInfo: { hasNextPage: true, endCursor: "cursor-page-1" },
+          },
+        },
+      }),
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<ProjectDirectory role="ADMIN" />);
+    expect(await screen.findByText("Operations 1")).toBeInTheDocument();
+
+    // Navigate to next page
+    const nextBtn = screen.getByRole("button", { name: "Next" });
+    fireEvent.click(nextBtn);
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(fetch.mock.calls[1][1].body).variables).toMatchObject({
+      after: "cursor-page-1",
+    });
+
+    // Change status filter -> MUST reset cursor to null
+    fireEvent.change(screen.getByLabelText("Project status"), {
+      target: { value: "ACTIVE" },
+    });
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    expect(JSON.parse(fetch.mock.calls[2][1].body).variables).toMatchObject({
+      after: null,
+      status: "ACTIVE",
+    });
+  });
+
   it("validates, submits once, and navigates after project creation", async () => {
     let resolve!: (value: object) => void;
     const fetch = vi.fn(() => new Promise((done) => (resolve = done)));

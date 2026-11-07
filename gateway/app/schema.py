@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date, datetime
 from enum import StrEnum
 from typing import NoReturn, cast
@@ -29,12 +30,16 @@ from app.employee_client import (
     validate_eligible_employee,
 )
 from app.job_client import (
+    JobDashboardMetrics,
     JobDomainError,
     JobRecord,
     JobUnavailableError,
 )
 from app.job_client import (
     dispatch_job as job_dispatch_job,
+)
+from app.job_client import (
+    get_dashboard_metrics as job_get_dashboard_metrics,
 )
 from app.job_client import (
     get_job as job_get_job,
@@ -60,6 +65,7 @@ from app.notification_client import mark_all_read as notification_mark_all
 from app.notification_client import mark_read as notification_mark_read
 from app.notification_client import unread_count as notification_unread_count
 from app.work_client import (
+    WorkDashboardMetrics,
     WorkDomainError,
     WorkMembership,
     WorkProject,
@@ -89,6 +95,9 @@ from app.work_client import (
 )
 from app.work_client import (
     create_task as work_create_task,
+)
+from app.work_client import (
+    get_dashboard_metrics as work_get_dashboard_metrics,
 )
 from app.work_client import (
     get_project as work_get_project,
@@ -543,6 +552,67 @@ class ReportArtifact:
     row_count: int
     truncated: bool
     content: str
+
+
+@strawberry.type
+class DashboardProjectMetrics:
+    total_count: int
+    active_count: int
+    draft_count: int
+    archived_count: int
+    managed_total_count: int | None = None
+    managed_active_count: int | None = None
+    managed_draft_count: int | None = None
+    managed_archived_count: int | None = None
+
+
+@strawberry.type
+class DashboardTaskMetrics:
+    total_count: int
+    todo_count: int
+    in_progress_count: int
+    blocked_count: int
+    done_count: int
+    cancelled_count: int
+    overdue_count: int
+
+
+@strawberry.type
+class DashboardAssignedTask:
+    id: strawberry.ID
+    project_id: strawberry.ID
+    project_key: str
+    number: int
+    title: str
+    status: TaskStatus
+    priority: TaskPriority
+    due_date: date | None
+    created_at: datetime
+    updated_at: datetime
+
+
+@strawberry.type
+class DashboardJobMetrics:
+    total_count: int
+    submitted_count: int
+    queued_count: int
+    running_count: int
+    succeeded_count: int
+    failed_count: int
+    cancelled_count: int
+
+
+@strawberry.type
+class DashboardData:
+    project_metrics: DashboardProjectMetrics | None = None
+    task_metrics: DashboardTaskMetrics | None = None
+    assigned_task_metrics: DashboardTaskMetrics | None = None
+    recent_projects: list[Project] | None = None
+    recent_assigned_tasks: list[DashboardAssignedTask] | None = None
+    job_metrics: DashboardJobMetrics | None = None
+    recent_jobs: list[Job] | None = None
+    work_available: bool = True
+    job_available: bool = True
 
 
 @strawberry.input
@@ -1025,6 +1095,116 @@ class Query:
             display_name=profile.display_name,
             email=profile.email,
             role=ApplicationRole(profile.role),
+        )
+
+    @strawberry.field
+    async def dashboard(self, info: Info) -> DashboardData:
+        subject, actor = await _project_actor(info)
+
+        async def _fetch_work() -> WorkDashboardMetrics | Exception:
+            try:
+                return await work_get_dashboard_metrics(actor)
+            except Exception as err:
+                return err
+
+        async def _fetch_job() -> JobDashboardMetrics | Exception:
+            try:
+                return await job_get_dashboard_metrics(actor)
+            except Exception as err:
+                return err
+
+        work_result, job_result = await asyncio.gather(_fetch_work(), _fetch_job())
+
+        if isinstance(work_result, Exception) and isinstance(job_result, Exception):
+            raise GraphQLError(
+                "Dashboard data is temporarily unavailable.",
+                extensions={"code": "SERVICE_UNAVAILABLE"},
+            )
+
+        project_metrics = None
+        task_metrics = None
+        assigned_task_metrics = None
+        recent_projects = None
+        recent_assigned_tasks = None
+        work_available = not isinstance(work_result, Exception)
+
+        if not isinstance(work_result, Exception):
+            pm = work_result.project_metrics
+            project_metrics = DashboardProjectMetrics(
+                total_count=pm.total_count,
+                active_count=pm.active_count,
+                draft_count=pm.draft_count,
+                archived_count=pm.archived_count,
+                managed_total_count=pm.managed_total_count,
+                managed_active_count=pm.managed_active_count,
+                managed_draft_count=pm.managed_draft_count,
+                managed_archived_count=pm.managed_archived_count,
+            )
+            if work_result.task_metrics is not None:
+                tm = work_result.task_metrics
+                task_metrics = DashboardTaskMetrics(
+                    total_count=tm.total_count,
+                    todo_count=tm.todo_count,
+                    in_progress_count=tm.in_progress_count,
+                    blocked_count=tm.blocked_count,
+                    done_count=tm.done_count,
+                    cancelled_count=tm.cancelled_count,
+                    overdue_count=tm.overdue_count,
+                )
+            atm = work_result.assigned_task_metrics
+            assigned_task_metrics = DashboardTaskMetrics(
+                total_count=atm.total_count,
+                todo_count=atm.todo_count,
+                in_progress_count=atm.in_progress_count,
+                blocked_count=atm.blocked_count,
+                done_count=atm.done_count,
+                cancelled_count=atm.cancelled_count,
+                overdue_count=atm.overdue_count,
+            )
+            recent_projects = [_project(p) for p in work_result.recent_projects]
+            recent_assigned_tasks = [
+                DashboardAssignedTask(
+                    id=strawberry.ID(item.id),
+                    project_id=strawberry.ID(item.project_id),
+                    project_key=item.project_key,
+                    number=item.number,
+                    title=item.title,
+                    status=TaskStatus(item.status),
+                    priority=TaskPriority(item.priority),
+                    due_date=date.fromisoformat(item.due_date) if item.due_date else None,
+                    created_at=datetime.fromisoformat(item.created_at),
+                    updated_at=datetime.fromisoformat(item.updated_at),
+                )
+                for item in work_result.recent_assigned_tasks
+            ]
+
+        job_metrics = None
+        recent_jobs = None
+        job_available = not isinstance(job_result, Exception)
+
+        if not isinstance(job_result, Exception):
+            jm = job_result.job_metrics
+            job_metrics = DashboardJobMetrics(
+                total_count=jm.total_count,
+                submitted_count=jm.submitted_count,
+                queued_count=jm.queued_count,
+                running_count=jm.running_count,
+                succeeded_count=jm.succeeded_count,
+                failed_count=jm.failed_count,
+                cancelled_count=jm.cancelled_count,
+            )
+            recent_jobs = [_job_value(j) for j in job_result.recent_jobs]
+
+        return DashboardData(
+            project_metrics=project_metrics,
+            task_metrics=task_metrics,
+            assigned_task_metrics=assigned_task_metrics,
+            recent_projects=recent_projects,
+            recent_assigned_tasks=recent_assigned_tasks,
+            job_metrics=job_metrics,
+            recent_jobs=recent_jobs,
+            work_available=work_available,
+            job_available=job_available,
         )
 
     @strawberry.field
