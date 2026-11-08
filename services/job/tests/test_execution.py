@@ -140,6 +140,40 @@ def test_success_settles_attempt_and_result_atomically(session: Session) -> None
     assert job.result_row_count == 1 and job.completed_at is not None
 
 
+def test_worker_settlement_with_unavailable_exporter(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.observability import BoundedOTLPTraceExporter, telemetry
+
+    failing_exporter = BoundedOTLPTraceExporter(
+        endpoint="http://127.0.0.1:59999/unreachable", service_name="job"
+    )
+    monkeypatch.setattr(telemetry, "exporter", failing_exporter)
+
+    actor, job = submitted(session)
+    dispatch_job(session, actor, job.id, job.version, Publisher())
+    attempt = claim_job(session, job.id)
+    assert attempt is not None
+
+    # Settle success with failing exporter
+    settle_success(
+        session,
+        job.id,
+        attempt.id,
+        content="reference,title\nT-1,Resilient\n",
+        content_type="text/csv; charset=utf-8",
+        checksum="b" * 64,
+        row_count=1,
+        truncated=False,
+        lease_token=attempt.execution_lease_token,
+        execution_fence=attempt.execution_fence,
+    )
+    session.refresh(job)
+    session.refresh(attempt)
+    assert (job.status, attempt.status) == (JobStatus.SUCCEEDED, AttemptStatus.SUCCEEDED)
+    assert job.result_row_count == 1 and job.completed_at is not None
+
+
 def test_celery_task_commits_report_result_and_terminal_event_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -315,20 +349,17 @@ def test_celery_publisher_sends_only_job_identifier_with_confirms() -> None:
     celery = CeleryStub()
     identifier = uuid.uuid4()
     CeleryPublisher(celery).publish(identifier)  # type: ignore[arg-type]
-    assert celery.calls == [
-        (
-            TASK_NAME,
-            {
-                "args": [str(identifier)],
-                "queue": QUEUE_NAME,
-                "routing_key": ROUTING_KEY,
-                "serializer": "json",
-                "retry": False,
-                "delivery_mode": 2,
-                "confirm_publish": True,
-            },
-        )
-    ]
+    assert len(celery.calls) == 1
+    call_task, call_kwargs = celery.calls[0]
+    assert call_task == TASK_NAME
+    assert call_kwargs["args"] == [str(identifier)]
+    assert call_kwargs["queue"] == QUEUE_NAME
+    assert call_kwargs["routing_key"] == ROUTING_KEY
+    assert call_kwargs["serializer"] == "json"
+    assert call_kwargs["retry"] is False
+    assert call_kwargs["delivery_mode"] == 2
+    assert call_kwargs["confirm_publish"] is True
+    assert "headers" in call_kwargs
 
 
 @pytest.mark.parametrize(

@@ -84,6 +84,8 @@ class WorkflowExecution(Base):
         index=True,
     )
     resulting_job_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    correlation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    traceparent: Mapped[str | None] = mapped_column(String(64), nullable=True)
     failure_classification: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True

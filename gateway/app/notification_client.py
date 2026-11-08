@@ -5,6 +5,7 @@ import httpx
 
 from app.config import settings
 from app.employee_client import EmployeeProfile
+from app.observability import get_tracing_headers
 
 
 class NotificationDomainError(Exception):
@@ -73,6 +74,7 @@ async def _request(
                 headers={
                     "X-Internal-Service-Key": settings.notification_internal_service_key,
                     "X-Actor-Employee-Id": actor.id,
+                    **get_tracing_headers(),
                 },
                 params=params,
             )

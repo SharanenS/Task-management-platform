@@ -64,6 +64,7 @@ from app.notification_client import list_notifications as notification_list
 from app.notification_client import mark_all_read as notification_mark_all
 from app.notification_client import mark_read as notification_mark_read
 from app.notification_client import unread_count as notification_unread_count
+from app.operations_client import get_operations_summary
 from app.work_client import (
     WorkDashboardMetrics,
     WorkDomainError,
@@ -851,6 +852,63 @@ def _job_value(value: JobRecord, attempts: list[JobAttempt] | None = None) -> Jo
     )
 
 
+@strawberry.type
+class DependencyHealthSummary:
+    name: str
+    status: str
+    latency_ms: float | None
+    message: str | None
+
+
+@strawberry.type
+class ServiceHealthSummary:
+    service_name: str
+    status: str
+    version: str | None
+    uptime_seconds: float | None
+    checked_at: str
+    dependencies: list[DependencyHealthSummary]
+
+
+@strawberry.type
+class JobOperationsSummary:
+    pending_count: int
+    running_count: int
+    completed_count: int
+    failed_count: int
+    cancelled_count: int
+    exhausted_count: int
+    oldest_pending_age_seconds: float | None
+    recent_failures_count: int
+    measured_at: str
+
+
+@strawberry.type
+class QueueObservationSummary:
+    queue_name: str
+    messages_ready: int | None
+    messages_unacknowledged: int | None
+    consumers_count: int | None
+    measured_at: str
+
+
+@strawberry.type
+class TelemetryToolLink:
+    name: str
+    url: str
+    description: str
+
+
+@strawberry.type
+class OperationsSummary:
+    generated_at: str
+    overall_status: str
+    services: list[ServiceHealthSummary]
+    job_operations: JobOperationsSummary
+    queues: list[QueueObservationSummary]
+    telemetry_tools: list[TelemetryToolLink]
+
+
 async def _project_actor(info: Info) -> tuple[str, EmployeeProfile]:
     try:
         identity = token_validator.validate(info.context["authorization"])
@@ -1060,6 +1118,63 @@ def _raise_notification_error(error: Exception) -> NoReturn:
 
 @strawberry.type
 class Query:
+    @strawberry.field
+    async def operations_summary(self, info: Info) -> OperationsSummary:
+        await _admin_subject(info)
+        data = await get_operations_summary()
+        return OperationsSummary(
+            generated_at=data.generated_at,
+            overall_status=data.overall_status,
+            services=[
+                ServiceHealthSummary(
+                    service_name=s.service_name,
+                    status=s.status,
+                    version=s.version,
+                    uptime_seconds=s.uptime_seconds,
+                    checked_at=s.checked_at,
+                    dependencies=[
+                        DependencyHealthSummary(
+                            name=d.name,
+                            status=d.status,
+                            latency_ms=d.latency_ms,
+                            message=d.message,
+                        )
+                        for d in s.dependencies
+                    ],
+                )
+                for s in data.services
+            ],
+            job_operations=JobOperationsSummary(
+                pending_count=data.job_operations.pending_count,
+                running_count=data.job_operations.running_count,
+                completed_count=data.job_operations.completed_count,
+                failed_count=data.job_operations.failed_count,
+                cancelled_count=data.job_operations.cancelled_count,
+                exhausted_count=data.job_operations.exhausted_count,
+                oldest_pending_age_seconds=data.job_operations.oldest_pending_age_seconds,
+                recent_failures_count=data.job_operations.recent_failures_count,
+                measured_at=data.job_operations.measured_at,
+            ),
+            queues=[
+                QueueObservationSummary(
+                    queue_name=q.queue_name,
+                    messages_ready=q.messages_ready,
+                    messages_unacknowledged=q.messages_unacknowledged,
+                    consumers_count=q.consumers_count,
+                    measured_at=q.measured_at,
+                )
+                for q in data.queues
+            ],
+            telemetry_tools=[
+                TelemetryToolLink(
+                    name=t.name,
+                    url=t.url,
+                    description=t.description,
+                )
+                for t in data.telemetry_tools
+            ],
+        )
+
     @strawberry.field
     def system_info(self) -> SystemInfo:
         """Public, non-sensitive gateway metadata; not aggregate service health."""

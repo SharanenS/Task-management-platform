@@ -119,3 +119,102 @@ def test_terminal_event_publication_preserves_exact_ownership(
     assert values["routing_key"] == domain_event_publisher.ROUTING_KEY
     session.refresh(event)
     assert event.status == DomainEventStatus.PUBLISHED
+
+
+def test_terminal_event_publication_propagates_persisted_traceparent(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    event = create_event(session)
+    event.correlation_id = "bounded-job-correlation-456"
+    event.traceparent = "00-5bf92f3577b34da6a3ce929d0e0e4736-00e067aa0ba902b7-01"
+    session.commit()
+
+    published: list[tuple[dict[str, object], dict[str, object]]] = []
+    exported_spans = []
+
+    @contextmanager
+    def sessions() -> Generator[Session]:
+        yield session
+
+    class Connection:
+        def __init__(self, *_: object, **__: object) -> None:
+            pass
+
+        def __enter__(self) -> "Connection":
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+    class Producer:
+        def __init__(self, _: object) -> None:
+            pass
+
+        def publish(self, body: dict[str, object], **values: object) -> None:
+            published.append((body, values))
+
+    from app.observability import telemetry
+
+    monkeypatch.setattr(domain_event_publisher, "SessionLocal", sessions)
+    monkeypatch.setattr(domain_event_publisher, "Connection", Connection)
+    monkeypatch.setattr(domain_event_publisher, "Producer", Producer)
+    monkeypatch.setattr(telemetry, "export_span", lambda s: exported_spans.append(s))
+
+    assert domain_event_publisher.publish_once() == 1
+    assert len(published) == 1
+    _, values = published[0]
+    headers = values.get("headers", {})
+    assert headers.get("x-correlation-id") == "bounded-job-correlation-456"
+    assert "traceparent" in headers
+    assert headers["traceparent"].startswith("00-5bf92f3577b34da6a3ce929d0e0e4736-")
+    assert len(exported_spans) == 1
+    span = exported_spans[0]
+    assert span.trace_id == "5bf92f3577b34da6a3ce929d0e0e4736"
+    assert span.parent_span_id == "00e067aa0ba902b7"
+
+
+def test_domain_event_publish_with_unavailable_exporter(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    event = create_event(session)
+    event.correlation_id = "bounded-job-correlation-789"
+    event.traceparent = "00-5bf92f3577b34da6a3ce929d0e0e4736-00e067aa0ba902b7-01"
+    session.commit()
+
+    published: list[tuple[dict[str, object], dict[str, object]]] = []
+
+    @contextmanager
+    def sessions() -> Generator[Session]:
+        yield session
+
+    class Connection:
+        def __init__(self, *_: object, **__: object) -> None:
+            pass
+
+        def __enter__(self) -> "Connection":
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+    class Producer:
+        def __init__(self, _: object) -> None:
+            pass
+
+        def publish(self, body: dict[str, object], **values: object) -> None:
+            published.append((body, values))
+
+    from app.observability import BoundedOTLPTraceExporter, telemetry
+
+    failing_exporter = BoundedOTLPTraceExporter(
+        endpoint="http://127.0.0.1:59999/unreachable", service_name="job"
+    )
+    monkeypatch.setattr(telemetry, "exporter", failing_exporter)
+    monkeypatch.setattr(domain_event_publisher, "SessionLocal", sessions)
+    monkeypatch.setattr(domain_event_publisher, "Connection", Connection)
+    monkeypatch.setattr(domain_event_publisher, "Producer", Producer)
+
+    assert domain_event_publisher.publish_once() == 1
+    assert len(published) == 1
+    session.refresh(event)
+    assert event.status == DomainEventStatus.PUBLISHED

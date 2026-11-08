@@ -1,0 +1,38 @@
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+scrape_configs:
+  - job_name: "gateway"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["gateway:8000"]
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/gateway_token
+
+  - job_name: "employee"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["employee:8020"]
+
+  - job_name: "work"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["work:8030"]
+
+  - job_name: "job"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["job:8040"]
+
+  - job_name: "workflow"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["workflow:8050"]
+
+  - job_name: "notification"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["notification:8060"]
+

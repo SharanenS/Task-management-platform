@@ -82,6 +82,8 @@ class Job(Base):
     execution_generation: Mapped[int] = mapped_column(Integer, default=0)
     retry_exhausted: Mapped[bool] = mapped_column(Boolean, default=False)
     manual_retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    correlation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    traceparent: Mapped[str | None] = mapped_column(String(64), nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True
@@ -128,6 +130,8 @@ class OutboxEvent(Base):
         Enum(PublicationStatus, name="publication_status")
     )
     attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    correlation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    traceparent: Mapped[str | None] = mapped_column(String(64), nullable=True)
     available_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
@@ -207,6 +211,8 @@ class JobDomainEvent(Base):
         default=DomainEventStatus.PENDING,
     )
     attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    correlation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    traceparent: Mapped[str | None] = mapped_column(String(64), nullable=True)
     available_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )

@@ -231,3 +231,12 @@ class WorkDashboardResponse(BaseModel):
     assigned_task_metrics: TaskMetricsResponse
     recent_projects: list[ProjectResponse]
     recent_assigned_tasks: list[DashboardTaskItem]
+
+
+class WorkOutboxSummaryResponse(BaseModel):
+    pending_count: int
+    in_flight_count: int
+    published_count: int
+    failed_count: int
+    oldest_pending_age_seconds: float | None
+    measured_at: str

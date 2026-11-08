@@ -1,0 +1,42 @@
+query OperationsSummary {
+  operationsSummary {
+    generatedAt
+    overallStatus
+    services {
+      serviceName
+      status
+      version
+      uptimeSeconds
+      checkedAt
+      dependencies {
+        name
+        status
+        latencyMs
+        message
+      }
+    }
+    jobOperations {
+      pendingCount
+      runningCount
+      completedCount
+      failedCount
+      cancelledCount
+      exhaustedCount
+      oldestPendingAgeSeconds
+      recentFailuresCount
+      measuredAt
+    }
+    queues {
+      queueName
+      messagesReady
+      messagesUnacknowledged
+      consumersCount
+      measuredAt
+    }
+    telemetryTools {
+      name
+      url
+      description
+    }
+  }
+}

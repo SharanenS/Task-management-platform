@@ -5,6 +5,7 @@ import httpx
 
 from app.config import settings
 from app.employee_client import EmployeeProfile
+from app.observability import get_tracing_headers
 
 
 class WorkflowDomainError(Exception):
@@ -106,6 +107,7 @@ async def _request(
         "X-Actor-Application-Role": actor.role,
         "X-Actor-Project-Ids": ",".join(project_ids),
         "X-Actor-Managed-Project-Ids": ",".join(managed_project_ids),
+        **get_tracing_headers(),
     }
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:

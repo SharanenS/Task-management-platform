@@ -135,3 +135,46 @@ def test_admin_retry_requires_admin_and_eligible_terminal_job() -> None:
     )
     assert ineligible.status_code == 409
     assert ineligible.json()["detail"]["code"] == "JOB_NOT_RETRYABLE"
+
+
+def test_operations_summary_and_metrics() -> None:
+    api = client()
+    assert api.get("/internal/operations/summary").status_code == 403
+
+    resp = api.get(
+        "/internal/operations/summary",
+        headers={"X-Internal-Service-Key": settings.internal_service_key},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "pending_count" in data
+    assert "running_count" in data
+    assert "completed_count" in data
+    assert "failed_count" in data
+    assert "exhausted_count" in data
+    assert "measured_at" in data
+
+    m_resp = api.get("/metrics")
+    assert m_resp.status_code == 200
+    assert "http_requests_total" in m_resp.text
+
+
+def test_celery_publisher_exports_span_and_injects_tracing_headers() -> None:
+    from unittest.mock import MagicMock
+
+    from app.publisher import CeleryPublisher
+
+    mock_celery = MagicMock()
+    pub = CeleryPublisher(mock_celery)
+    test_job_id = uuid.uuid4()
+    test_event_id = uuid.uuid4()
+
+    pub.publish(test_job_id, test_event_id)
+    assert mock_celery.send_task.called
+    call_args = mock_celery.send_task.call_args
+    assert call_args[0][0] == "job.execute_project_task_export"
+    assert call_args[1]["args"] == [str(test_job_id)]
+    assert call_args[1]["task_id"] == str(test_event_id)
+    tracing_headers = call_args[1].get("headers", {})
+    assert "traceparent" in tracing_headers
+    assert tracing_headers["traceparent"].startswith("00-")

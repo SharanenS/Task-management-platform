@@ -1,7 +1,7 @@
 import base64
 import binascii
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from uuid import UUID
 
 from sqlalchemy import case, func, or_, select
@@ -19,7 +19,14 @@ from app.models import (
     TaskComment,
     TaskPriority,
     TaskStatus,
+    WorkEventStatus,
     WorkOutboxEvent,
+)
+from app.observability import (
+    get_correlation_id,
+    get_traceparent,
+    parse_traceparent,
+    validate_correlation_id,
 )
 from app.schemas import (
     DashboardTaskItem,
@@ -27,7 +34,16 @@ from app.schemas import (
     ProjectResponse,
     TaskMetricsResponse,
     WorkDashboardResponse,
+    WorkOutboxSummaryResponse,
 )
+
+
+def _current_trace_metadata() -> tuple[str | None, str | None]:
+    raw_cid = get_correlation_id()
+    cid = validate_correlation_id(raw_cid) if raw_cid else None
+    tp = get_traceparent()
+    valid_tp: str | None = tp if (tp and parse_traceparent(tp)) else None
+    return cid, valid_tp
 
 
 class WorkError(Exception):
@@ -522,6 +538,7 @@ def assign_task(
         },
     )
     if assignee_employee_id is not None and assignee_employee_id != actor.employee_id:
+        cid, tp = _current_trace_metadata()
         session.add(
             WorkOutboxEvent(
                 event_type="TASK_ASSIGNED",
@@ -531,6 +548,8 @@ def assign_task(
                 actor_employee_id=actor.employee_id,
                 recipient_employee_id=assignee_employee_id,
                 task_version=task.version,
+                correlation_id=cid,
+                traceparent=tp,
             )
         )
     session.commit()
@@ -588,6 +607,7 @@ def change_task_status(
         {"from": previous.value, "to": status.value, "version": task.version},
     )
     if status == TaskStatus.DONE:
+        cid, tp = _current_trace_metadata()
         session.add(
             WorkOutboxEvent(
                 event_type="TASK_COMPLETED",
@@ -596,6 +616,8 @@ def change_task_status(
                 task_id=task.id,
                 actor_employee_id=actor.employee_id,
                 task_version=task.version,
+                correlation_id=cid,
+                traceparent=tp,
             )
         )
     session.commit()
@@ -908,4 +930,40 @@ def get_dashboard_metrics(session: Session, actor: Actor) -> WorkDashboardRespon
         assigned_task_metrics=assigned_task_metrics,
         recent_projects=recent_projects,
         recent_assigned_tasks=recent_assigned_tasks,
+    )
+
+
+def get_operations_summary(session: Session) -> WorkOutboxSummaryResponse:
+    now = datetime.now(UTC)
+    stmt = select(
+        func.count(case((WorkOutboxEvent.status == WorkEventStatus.PENDING, 1))).label("pending"),
+        func.count(case((WorkOutboxEvent.status == WorkEventStatus.IN_FLIGHT, 1))).label(
+            "in_flight"
+        ),
+        func.count(case((WorkOutboxEvent.status == WorkEventStatus.PUBLISHED, 1))).label(
+            "published"
+        ),
+        func.count(case((WorkOutboxEvent.status == WorkEventStatus.FAILED, 1))).label("failed"),
+    ).select_from(WorkOutboxEvent)
+    row = session.execute(stmt).one()
+
+    oldest_pending = session.scalar(
+        select(WorkOutboxEvent.created_at)
+        .where(WorkOutboxEvent.status.in_([WorkEventStatus.PENDING, WorkEventStatus.IN_FLIGHT]))
+        .order_by(WorkOutboxEvent.created_at.asc())
+        .limit(1)
+    )
+    oldest_pending_age = None
+    if oldest_pending:
+        if oldest_pending.tzinfo is None:
+            oldest_pending = oldest_pending.replace(tzinfo=UTC)
+        oldest_pending_age = max(0.0, (now - oldest_pending).total_seconds())
+
+    return WorkOutboxSummaryResponse(
+        pending_count=row.pending or 0,
+        in_flight_count=row.in_flight or 0,
+        published_count=row.published or 0,
+        failed_count=row.failed or 0,
+        oldest_pending_age_seconds=oldest_pending_age,
+        measured_at=now.isoformat(),
     )
