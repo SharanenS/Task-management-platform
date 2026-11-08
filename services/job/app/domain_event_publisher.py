@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db import SessionLocal
 from app.models import DomainEventStatus, JobDomainEvent
+from app.observability import format_traceparent, parse_traceparent, telemetry
 
 EXCHANGE = Exchange("job.domain", type="direct", durable=True)
 ROUTING_KEY = "job.report.terminal.v1"
@@ -98,29 +99,56 @@ def publish_once() -> int:
         for event in events:
             token = event.lease_token or ""
             try:
-                with Connection(settings.rabbitmq_url, connect_timeout=5) as connection:
-                    Producer(connection).publish(
-                        {
-                            "eventId": str(event.id),
-                            "schemaVersion": event.schema_version,
-                            "eventType": event.event_type,
-                            "recipientEmployeeId": str(event.recipient_employee_id),
-                            "projectId": str(event.project_id) if event.project_id else None,
-                            "reportId": str(event.job_id),
-                            "reportType": "PROJECT_TASK_EXPORT",
-                            "occurredAt": event.created_at.isoformat(),
-                        },
-                        exchange=EXCHANGE,
-                        routing_key=ROUTING_KEY,
-                        serializer="json",
-                        declare=[EXCHANGE],
-                        delivery_mode=2,
-                        retry=False,
-                        confirm_publish=True,
-                    )
+                parent_trace_id = None
+                parent_span_id = None
+                if getattr(event, "traceparent", None):
+                    parsed = parse_traceparent(event.traceparent)
+                    if parsed:
+                        parent_trace_id, parent_span_id, _ = parsed
+                span = telemetry.start_span(
+                    "publish_job_domain_event",
+                    parent_trace_id=parent_trace_id,
+                    parent_span_id=parent_span_id,
+                    attributes={
+                        "messaging.system": "rabbitmq",
+                        "messaging.destination": EXCHANGE.name,
+                        "messaging.routing_key": ROUTING_KEY,
+                        "event.id": str(event.id),
+                        "event.type": event.event_type,
+                        "job.id": str(event.job_id),
+                    },
+                )
+                with span:
+                    headers = {
+                        "x-correlation-id": getattr(event, "correlation_id", None) or str(event.id),
+                        "traceparent": format_traceparent(span.trace_id, span.span_id),
+                    }
+                    with Connection(settings.rabbitmq_url, connect_timeout=5) as connection:
+                        Producer(connection).publish(
+                            {
+                                "eventId": str(event.id),
+                                "schemaVersion": event.schema_version,
+                                "eventType": event.event_type,
+                                "recipientEmployeeId": str(event.recipient_employee_id),
+                                "projectId": str(event.project_id) if event.project_id else None,
+                                "reportId": str(event.job_id),
+                                "reportType": "PROJECT_TASK_EXPORT",
+                                "occurredAt": event.created_at.isoformat(),
+                            },
+                            headers=headers,
+                            exchange=EXCHANGE,
+                            routing_key=ROUTING_KEY,
+                            serializer="json",
+                            declare=[EXCHANGE],
+                            delivery_mode=2,
+                            retry=False,
+                            confirm_publish=True,
+                        )
                 settle_success(session, event.id, token)
             except Exception:
                 settle_failure(session, event.id, token)
+            finally:
+                telemetry.flush()
         return len(events)
 
 

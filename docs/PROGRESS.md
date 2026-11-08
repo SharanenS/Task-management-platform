@@ -2,8 +2,7 @@
 
 Last updated: 2026-11-07
 
-Current boundary: Phases 1–11 are accepted. Phase 12 implementation is
-complete and pending owner acceptance. Phase 13 has not started.
+Current boundary: Phases 1–12 are accepted (Phase 12 accepted and merged into `main` at `4a3edcb`). Phase 13 (Observability + Security Hardening) is in progress on branch `phase-13-observability-security`. Phase 14 remains unstarted.
 
 ## Phase 1 â€” Project Foundation and Frontend Design System
 
@@ -320,7 +319,7 @@ all six recovery cases, and scoped cleanup and restoration. Merged into main at 
 
 ## Phase 12 — Advanced Dashboard + UX Refinement
 
-Status: **Implemented; pending owner acceptance**
+Status: **Accepted**
 
 Delivered:
 
@@ -333,4 +332,25 @@ Delivered:
 - Dynamic access revocation reactivity verified end-to-end via disposable-identity Playwright browser acceptance.
 - Complete unit, integration, PostgreSQL, and browser acceptance test coverage across services, gateway, and frontend, with 100% build, lint, and format verification.
 
-The [verification record](phase-12-verification.md) records test results, contract specifications, container parity, and verification evidence.
+Accepted and merged into `main` at `4a3edcb`. The [verification record](phase-12-verification.md) records test results, contract specifications, container parity, and verification evidence.
+
+## Phase 13 — Observability + Security Hardening
+
+Status: **Implemented; pending owner acceptance**
+
+Delivered and verified in full:
+
+- Forward-only Alembic migrations for durable HTTP-to-outbox trace continuity applied to retained databases in approved order: Work `20261108_03`, Job `20261108_07`, and Workflow `20261108_02`. Verified zero-to-head, repeated head, previous-head upgrade, and transactional persistence with existing rows intact.
+- Standard W3C TraceContext (`traceparent`) and bounded `correlation_id` persistence across asynchronous outbox boundaries, with publisher restart extraction into continuous child spans and AMQP/Celery headers.
+- Real asynchronous distributed trace journey verified via live Jaeger query (`/api/traces/<trace_id>`): GraphQL report export -> Job publication outbox (`publish_job_task`) -> Celery worker execution (`job_execution`) -> Terminal domain outbox (`publish_job_domain_event`) -> Notification consumer (`notification_consume_event`), proving end-to-end W3C context inheritance and parent-child span hierarchy across process boundaries.
+- Direct GraphQL authorization: `operationsSummary` strictly rejects unauthenticated, `MEMBER`, and `MANAGER` calls with `"Administrator access is required."`, while `ADMIN` succeeds. Inactive and missing profiles verified in unit tests.
+- Operational data truthfulness: Queues and outbox table cleanly distinguishes `Broker Queue` from `Database Outbox`. Passive broker queue declaration failures (e.g. non-existent queue) return `null` and render as amber `Unavailable` badge rather than false zeros. Grafana panels provisioned with explicit `uid: prometheus` datasource and verified via `/api/ds/query` returning active series data.
+- CSP regression & full browser lifecycle: Login, logout, session refresh, and CSV download tested via Playwright browser execution; verified zero CSP console violations.
+- Telemetry failure isolation: Deterministic unit tests prove an unavailable trace exporter cannot block or fail business HTTP requests, publication outbox processing, Celery worker settlement, or consumer message acknowledgement.
+- Host-published Gateway `/metrics` protected with dedicated `GATEWAY_METRICS_TOKEN` via constant-time HMAC check; verified unauthorized rejection (401) and authorized collection (200). Verified against pinned `prom/prometheus:v3.2.1` with `credentials_file: /etc/prometheus/gateway_token` mounted via Docker Compose secrets; all 6 Prometheus targets reporting `UP` with zero errors.
+- Full dependency audits: 0 known vulnerabilities across all 6 committed Python service lockfiles (`gateway`, `employee`, `work`, `job`, `workflow`, `notification`), and 0 vulnerabilities in frontend production dependencies (`npm audit --omit=dev`).
+- GraphQL schema protection: `QueryDepthLimiter(max_depth=4)` empirically validated against all 10 frontend `.graphql` files (depth <= 3), and `MaxAliasesLimiter(max_alias_count=10)`.
+- ADMIN-only operational screen (`/operations`) backed by typed GraphQL `operationsSummary` on Gateway, with server-side role derivation, freshness timestamps, truthful zeros, and loopback tool links.
+- 14-image build cleanly executed covering all affected application process images. Scoped `--no-deps --force-recreate --wait` deployment executed with zero outage on retained database/infrastructure containers; all 26 Compose services healthy.
+- Comprehensive regression suites passed: Gateway (138 tests), Employee (40 tests), Work (61 unit tests + 13 PostgreSQL integration tests), Job (69 unit tests + 22 PostgreSQL integration tests), Workflow (10 unit tests + 3 PostgreSQL integration tests), Notification (23 unit tests + 5 PostgreSQL integration tests) — all 43 PostgreSQL tests verified against isolated temporary databases migrated to current heads and verified cleanly removed; Frontend unit tests (4 tests), Next.js production build (`next build`), and Playwright E2E acceptance (`operations-acceptance.spec.ts`).
+- Cleanup and isolation: Primary administrator preserved, disposable test identities cleaned up, zero orphaned containers. All changes remain unstaged per repository rule. Phase 14 remains unstarted.

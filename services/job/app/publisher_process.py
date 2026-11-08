@@ -1,6 +1,7 @@
 import signal
 import time
 from collections.abc import Callable
+from typing import Any
 
 from sqlalchemy import text
 
@@ -17,7 +18,7 @@ def request_stop(*_: object) -> None:
     stopping = True
 
 
-def publish_batch(adapter: object) -> int:
+def publish_batch(adapter: Any) -> int:
     with SessionLocal() as session:
         events = claim_publications(session)
     for event in events:
@@ -25,7 +26,15 @@ def publish_batch(adapter: object) -> int:
         if token is None:
             continue
         try:
-            adapter.publish(event.job_id, event.id)  # type: ignore[attr-defined]
+            try:
+                adapter.publish(
+                    event.job_id,
+                    event.id,
+                    traceparent=getattr(event, "traceparent", None),
+                    correlation_id=getattr(event, "correlation_id", None),
+                )
+            except TypeError:
+                adapter.publish(event.job_id, event.id)
         except PublishFailure as error:
             with SessionLocal() as session:
                 settle_publication_failure(session, event.id, token, error.classification)

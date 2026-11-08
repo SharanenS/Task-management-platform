@@ -122,3 +122,27 @@ class JobMetricsResponse(BaseModel):
 class JobDashboardResponse(BaseModel):
     job_metrics: JobMetricsResponse
     recent_jobs: list[JobResponse]
+
+
+class JobQueueSummary(BaseModel):
+    queue_name: str
+    messages_ready: int | None = None
+    messages_unacknowledged: int | None = None
+    consumers_count: int | None = None
+    measured_at: str
+
+
+class JobOperationsSummaryResponse(BaseModel):
+    pending_count: int
+    running_count: int
+    completed_count: int
+    failed_count: int
+    cancelled_count: int
+    exhausted_count: int
+    oldest_pending_age_seconds: float | None
+    recent_failures_count: int
+    measured_at: str
+    queues: list[JobQueueSummary]
+    publication_pending_count: int
+    publication_failed_count: int
+    publication_reconciliation_count: int

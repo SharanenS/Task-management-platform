@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     job_internal_service_key: str = "development-only-placeholder"
     workflow_internal_service_key: str = "development-only-placeholder"
     notification_internal_service_key: str = "development-only-placeholder"
+    gateway_metrics_token: str = "development-metrics-token"
 
 
 settings = Settings()

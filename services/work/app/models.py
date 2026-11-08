@@ -185,6 +185,8 @@ class WorkOutboxEvent(Base):
     task_id: Mapped[uuid.UUID] = mapped_column(index=True)
     actor_employee_id: Mapped[uuid.UUID] = mapped_column(index=True)
     recipient_employee_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True, index=True)
+    correlation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    traceparent: Mapped[str | None] = mapped_column(String(64), nullable=True)
     task_version: Mapped[int] = mapped_column(Integer)
     status: Mapped[WorkEventStatus] = mapped_column(
         Enum(WorkEventStatus, name="work_event_status"), default=WorkEventStatus.PENDING, index=True

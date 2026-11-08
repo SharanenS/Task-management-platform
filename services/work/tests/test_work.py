@@ -2,13 +2,15 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.db import Base
-from app.main import actor_context, failure, require_internal_service
+from app.config import settings
+from app.db import Base, get_session
+from app.main import actor_context, app, failure, require_internal_service
 from app.models import Project, ProjectMembership, ProjectRole, ProjectStatus
 from app.schemas import ProjectCreateRequest, ProjectUpdateRequest
 from app.service import (
@@ -402,3 +404,25 @@ def test_database_models_do_not_copy_employee_profile_fields() -> None:
     forbidden = {"display_name", "email", "username", "active"}
     assert membership_columns.isdisjoint(forbidden)
     assert project_columns.isdisjoint(forbidden)
+
+
+def test_work_operations_summary_and_metrics(session: Session) -> None:
+    app.dependency_overrides[get_session] = lambda: session
+    client = TestClient(app)
+    assert client.get("/internal/operations/summary").status_code == 403
+
+    resp = client.get(
+        "/internal/operations/summary",
+        headers={"X-Internal-Service-Key": settings.internal_service_key},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "pending_count" in data
+    assert "in_flight_count" in data
+    assert "published_count" in data
+    assert "failed_count" in data
+    assert "measured_at" in data
+
+    m_resp = client.get("/metrics")
+    assert m_resp.status_code == 200
+    assert "http_requests_total" in m_resp.text

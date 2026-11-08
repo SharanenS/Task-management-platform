@@ -21,7 +21,21 @@ from app.models import (
     WorkflowExecution,
     WorkflowRule,
 )
+from app.observability import (
+    get_correlation_id,
+    get_traceparent,
+    parse_traceparent,
+    validate_correlation_id,
+)
 from app.schemas import RuleCreate
+
+
+def _current_trace_metadata() -> tuple[str | None, str | None]:
+    raw_cid = get_correlation_id()
+    cid = validate_correlation_id(raw_cid) if raw_cid else None
+    tp = get_traceparent()
+    valid_tp: str | None = tp if (tp and parse_traceparent(tp)) else None
+    return cid, valid_tp
 
 
 class WorkflowError(Exception):
@@ -250,9 +264,15 @@ def receive_event(session: Session, payload: dict[str, object]) -> list[Workflow
         source = existing
     if not supported or source.status == InboxStatus.QUARANTINED:
         return []
+    cid, tp = _current_trace_metadata()
     executions = [
         WorkflowExecution(
-            rule_id=rule.id, source_event_id=event_id, project_id=project_id, task_id=task_id
+            rule_id=rule.id,
+            source_event_id=event_id,
+            project_id=project_id,
+            task_id=task_id,
+            correlation_id=cid,
+            traceparent=tp,
         )
         for rule in session.scalars(
             select(WorkflowRule).where(
@@ -292,12 +312,17 @@ def submit_pending_actions(session: Session) -> int:
             session.commit()
             continue
         try:
+            req_headers = {
+                "X-Workflow-Service-Key": settings.job_workflow_service_key,
+                "X-Workflow-Actor-Employee-Id": str(rule.creator_employee_id),
+            }
+            if execution.correlation_id:
+                req_headers["X-Correlation-ID"] = execution.correlation_id
+            if execution.traceparent:
+                req_headers["traceparent"] = execution.traceparent
             response = httpx.post(
                 f"{settings.job_service_url}/internal/workflow/jobs",
-                headers={
-                    "X-Workflow-Service-Key": settings.job_workflow_service_key,
-                    "X-Workflow-Actor-Employee-Id": str(rule.creator_employee_id),
-                },
+                headers=req_headers,
                 json={
                     "job_type": "PROJECT_TASK_EXPORT",
                     "payload": {

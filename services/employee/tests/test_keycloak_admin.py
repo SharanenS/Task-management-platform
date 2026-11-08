@@ -1,6 +1,7 @@
 import httpx
 import pytest
 
+from app.config import settings
 from app.keycloak_admin import KeycloakAdmin, KeycloakCollisionError, KeycloakUnavailableError
 
 
@@ -24,8 +25,8 @@ def test_token_uses_client_credentials_and_bounded_timeout(monkeypatch: pytest.M
     assert observed["timeout"] == 5.0
     assert observed["data"] == {
         "grant_type": "client_credentials",
-        "client_id": "taskspace-employee-admin",
-        "client_secret": "development-only-placeholder",
+        "client_id": settings.keycloak_admin_client_id,
+        "client_secret": settings.keycloak_admin_client_secret,
     }
 
 

@@ -452,6 +452,8 @@ services:
       JOB_INTERNAL_SERVICE_KEY: ${JOB_INTERNAL_SERVICE_KEY:?Set JOB_INTERNAL_SERVICE_KEY in .env}
       WORKFLOW_INTERNAL_SERVICE_KEY: ${WORKFLOW_INTERNAL_SERVICE_KEY:?Set WORKFLOW_INTERNAL_SERVICE_KEY in .env}
       NOTIFICATION_INTERNAL_SERVICE_KEY: ${NOTIFICATION_INTERNAL_SERVICE_KEY:?Set NOTIFICATION_INTERNAL_SERVICE_KEY in .env}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318/v1/traces}
+      GATEWAY_METRICS_TOKEN: ${GATEWAY_METRICS_TOKEN:?Set GATEWAY_METRICS_TOKEN in .env}
     ports:
       - "127.0.0.1:${GATEWAY_PORT:-8010}:8000"
     depends_on:
@@ -474,6 +476,67 @@ services:
       retries: 5
       start_period: 10s
     init: true
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.64.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      COLLECTOR_ZIPKIN_HOST_PORT: ""
+    ports:
+      - "127.0.0.1:${JAEGER_PORT:-16686}:16686"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:14269/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    secrets:
+      - source: gateway_metrics_token
+        target: /etc/prometheus/gateway_token
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:9090/-/healthy || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
     restart: unless-stopped
 
   frontend:
@@ -515,3 +578,9 @@ volumes:
   rabbitmq_data:
   workflow_data:
   notification_data:
+  prometheus_data:
+  grafana_data:
+
+secrets:
+  gateway_metrics_token:
+    environment: GATEWAY_METRICS_TOKEN

@@ -5,6 +5,7 @@ import httpx
 
 from app.config import settings
 from app.employee_client import EmployeeProfile
+from app.observability import get_tracing_headers
 
 
 class JobUnavailableError(Exception):
@@ -153,6 +154,7 @@ async def _request(
                     "X-Internal-Service-Key": settings.job_internal_service_key,
                     "X-Actor-Employee-Id": actor.id,
                     "X-Actor-Application-Role": actor.role,
+                    **get_tracing_headers(),
                 },
                 params=params,
                 json=json,

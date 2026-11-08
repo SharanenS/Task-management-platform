@@ -58,6 +58,27 @@ def test_assignment_duplicate_and_post_commit_retry_are_idempotent(boundary: Ses
     consumer.handle(body, first)
     consumer.handle(body, retry)
     assert first.acked and retry.acked
+
+
+def test_consumer_ack_with_unavailable_exporter(
+    boundary: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.observability import BoundedOTLPTraceExporter, telemetry
+
+    failing_exporter = BoundedOTLPTraceExporter(
+        endpoint="http://127.0.0.1:59999/unreachable", service_name="notification"
+    )
+    monkeypatch.setattr(telemetry, "exporter", failing_exporter)
+
+    event_id, recipient = uuid4(), uuid4()
+    body = task_event(recipient, event_id)
+    msg = Message()
+    msg.headers = {"traceparent": "00-5bf92f3577b34da6a3ce929d0e0e4736-00e067aa0ba902b7-01"}
+
+    consumer.handle(body, msg)
+    assert msg.acked
+    stmt = select(Notification).where(Notification.source_event_id == event_id)
+    assert boundary.scalar(stmt) is not None
     notifications = list(boundary.scalars(select(Notification)))
     assert len(notifications) == 1 and notifications[0].recipient_employee_id == recipient
     assert "credential" not in notifications[0].message

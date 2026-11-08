@@ -20,12 +20,29 @@ from app.models import (
     OutboxEvent,
     PublicationStatus,
 )
+from app.observability import (
+    get_correlation_id,
+    get_traceparent,
+    parse_traceparent,
+    validate_correlation_id,
+)
 from app.schemas import (
     JobDashboardResponse,
     JobMetricsResponse,
+    JobOperationsSummaryResponse,
+    JobQueueSummary,
     JobResponse,
     JobSubmissionRequest,
 )
+
+
+def _current_trace_metadata() -> tuple[str | None, str | None]:
+    raw_cid = get_correlation_id()
+    cid = validate_correlation_id(raw_cid) if raw_cid else None
+    tp = get_traceparent()
+    valid_tp: str | None = tp if (tp and parse_traceparent(tp)) else None
+    return cid, valid_tp
+
 
 MAX_PAYLOAD_BYTES = 1024
 TRANSITIONS: dict[JobStatus, frozenset[JobStatus]] = {
@@ -79,12 +96,15 @@ def _add_terminal_event(session: Session, job: Job, event_type: str) -> None:
         )
         is None
     ):
+        _, current_tp = _current_trace_metadata()
         session.add(
             JobDomainEvent(
                 job_id=job.id,
                 event_type=event_type,
                 recipient_employee_id=job.submitter_employee_id,
                 project_id=job.related_project_id,
+                correlation_id=job.correlation_id,
+                traceparent=current_tp or job.traceparent,
             )
         )
 
@@ -122,6 +142,7 @@ def submit_job(session: Session, actor: Actor, body: JobSubmissionRequest) -> Jo
         if existing.request_fingerprint != fingerprint:
             raise JobError("IDEMPOTENCY_CONFLICT", "The idempotency key is already in use.", 409)
         return existing
+    cid, tp = _current_trace_metadata()
     job = Job(
         job_type=JobType.PROJECT_TASK_EXPORT,
         status=JobStatus.SUBMITTED,
@@ -130,6 +151,8 @@ def submit_job(session: Session, actor: Actor, body: JobSubmissionRequest) -> Jo
         payload=payload,
         request_fingerprint=fingerprint,
         idempotency_key=body.idempotency_key,
+        correlation_id=cid,
+        traceparent=tp,
     )
     session.add(job)
     try:
@@ -281,6 +304,9 @@ def dispatch_job(
     job.status = JobStatus.QUEUED
     job.execution_generation = 1
     job.version += 1
+    cid, tp = _current_trace_metadata()
+    outbox_cid = job.correlation_id or cid
+    outbox_tp = job.traceparent or tp
     session.add(
         OutboxEvent(
             job_id=job.id,
@@ -288,6 +314,8 @@ def dispatch_job(
             schema_version=1,
             execution_generation=1,
             status=PublicationStatus.PENDING,
+            correlation_id=outbox_cid,
+            traceparent=outbox_tp,
         )
     )
     try:
@@ -561,6 +589,8 @@ def settle_failure(
                 execution_generation=job.execution_generation,
                 status=PublicationStatus.PENDING,
                 available_at=current + timedelta(seconds=delay),
+                correlation_id=job.correlation_id,
+                traceparent=job.traceparent,
             )
         )
     else:
@@ -623,6 +653,8 @@ def recover_expired_executions(
                     execution_generation=job.execution_generation,
                     status=PublicationStatus.PENDING,
                     available_at=current,
+                    correlation_id=job.correlation_id,
+                    traceparent=job.traceparent,
                 )
             )
         job.version += 1
@@ -666,6 +698,8 @@ def admin_retry_job(
             job_id=job.id,
             execution_generation=job.execution_generation,
             status=PublicationStatus.PENDING,
+            correlation_id=job.correlation_id,
+            traceparent=job.traceparent,
         )
     )
     try:
@@ -730,4 +764,104 @@ def get_dashboard_metrics(session: Session, actor: Actor) -> JobDashboardRespons
             cancelled_count=row.cancelled or 0,
         ),
         recent_jobs=recent_jobs,
+    )
+
+
+def get_operations_summary(session: Session) -> JobOperationsSummaryResponse:
+    now = datetime.now(UTC)
+    stmt = select(
+        func.count(Job.id).label("total"),
+        func.count(case((Job.status == JobStatus.SUBMITTED, 1))).label("submitted"),
+        func.count(case((Job.status == JobStatus.QUEUED, 1))).label("queued"),
+        func.count(case((Job.status == JobStatus.RUNNING, 1))).label("running"),
+        func.count(case((Job.status == JobStatus.SUCCEEDED, 1))).label("succeeded"),
+        func.count(case((Job.status == JobStatus.FAILED, 1))).label("failed"),
+        func.count(case((Job.status == JobStatus.CANCELLED, 1))).label("cancelled"),
+        func.count(case((Job.retry_exhausted.is_(True), 1))).label("exhausted"),
+    ).select_from(Job)
+    row = session.execute(stmt).one()
+
+    since_24h = now - timedelta(hours=24)
+    recent_failures = (
+        session.scalar(
+            select(func.count(Job.id)).where(
+                Job.status == JobStatus.FAILED,
+                Job.completed_at >= since_24h,
+            )
+        )
+        or 0
+    )
+
+    oldest_pending_job = session.scalar(
+        select(Job.created_at)
+        .where(Job.status.in_([JobStatus.SUBMITTED, JobStatus.QUEUED]))
+        .order_by(Job.created_at.asc())
+        .limit(1)
+    )
+    oldest_pending_age = None
+    if oldest_pending_job:
+        if oldest_pending_job.tzinfo is None:
+            oldest_pending_job = oldest_pending_job.replace(tzinfo=UTC)
+        oldest_pending_age = max(0.0, (now - oldest_pending_job).total_seconds())
+
+    pub_stmt = select(
+        func.count(case((OutboxEvent.status == PublicationStatus.PENDING, 1))).label("pending"),
+        func.count(case((OutboxEvent.status == PublicationStatus.FAILED, 1))).label("failed"),
+        func.count(
+            case((OutboxEvent.status == PublicationStatus.RECONCILIATION_REQUIRED, 1))
+        ).label("reconciliation"),
+    ).select_from(OutboxEvent)
+    pub_row = session.execute(pub_stmt).one()
+
+    queues: list[JobQueueSummary] = []
+    try:
+        from app.celery_app import celery_app
+
+        with celery_app.connection_for_read() as conn:
+            for q_name in [
+                "job.execution",
+                "celery",
+                "notification.report.terminal",
+                "notification.task.assigned",
+                "workflow.task.completed",
+            ]:
+                try:
+                    with conn.channel() as ch:
+                        _, msg_cnt, cons_cnt = ch.queue_declare(queue=q_name, passive=True)
+                        queues.append(
+                            JobQueueSummary(
+                                queue_name=q_name,
+                                messages_ready=msg_cnt,
+                                messages_unacknowledged=0,
+                                consumers_count=cons_cnt,
+                                measured_at=now.isoformat(),
+                            )
+                        )
+                except Exception:
+                    queues.append(
+                        JobQueueSummary(
+                            queue_name=q_name,
+                            messages_ready=None,
+                            messages_unacknowledged=None,
+                            consumers_count=None,
+                            measured_at=now.isoformat(),
+                        )
+                    )
+    except Exception:
+        pass
+
+    return JobOperationsSummaryResponse(
+        pending_count=(row.submitted or 0) + (row.queued or 0),
+        running_count=row.running or 0,
+        completed_count=row.succeeded or 0,
+        failed_count=row.failed or 0,
+        cancelled_count=row.cancelled or 0,
+        exhausted_count=row.exhausted or 0,
+        oldest_pending_age_seconds=oldest_pending_age,
+        recent_failures_count=recent_failures,
+        measured_at=now.isoformat(),
+        queues=queues,
+        publication_pending_count=pub_row.pending or 0,
+        publication_failed_count=pub_row.failed or 0,
+        publication_reconciliation_count=pub_row.reconciliation or 0,
     )

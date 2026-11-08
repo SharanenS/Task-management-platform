@@ -232,6 +232,46 @@ export async function provisionDisposableMember(
   return identity;
 }
 
+export async function provisionDisposableManager(
+  page: Page,
+  marker: string,
+  protectedSubject: string,
+): Promise<OwnedIdentity> {
+  const temporaryPassword = process.env.PHASE4_E2E_TEMP_PASSWORD;
+  if (!temporaryPassword)
+    throw new Error("Disposable identity provisioning is not configured.");
+  const safe = marker
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9-]/g, "")
+    .slice(-18);
+  const identity: OwnedIdentity = {
+    username: `p13-mgr-${safe}`,
+    email: `p13-mgr-${safe}@example.invalid`,
+  };
+  const result = await gql(
+    page,
+    "mutation($input:ProvisionEmployeeInput!){provisionEmployee(input:$input){id}}",
+    {
+      input: {
+        idempotencyKey: crypto.randomUUID(),
+        username: identity.username,
+        email: identity.email,
+        displayName: identity.username,
+        role: "MANAGER",
+        active: true,
+        temporaryPassword,
+      },
+    },
+  );
+  if (result.errors) throw new Error("Disposable manager provisioning failed.");
+  identity.employeeId = checkedUuid(
+    result.data.provisionEmployee.id,
+    "provisioned Employee ID",
+  );
+  recordIdentity(identity, protectedSubject);
+  return identity;
+}
+
 export async function cleanupOwnedIdentity(
   cleanup: Cleanup,
   identity: OwnedIdentity,

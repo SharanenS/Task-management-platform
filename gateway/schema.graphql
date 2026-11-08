@@ -101,6 +101,13 @@ scalar Date
 """Date with time (isoformat)"""
 scalar DateTime
 
+type DependencyHealthSummary {
+  name: String!
+  status: String!
+  latencyMs: Float
+  message: String
+}
+
 type EligibleEmployee {
   id: ID!
   displayName: String!
@@ -183,6 +190,18 @@ type JobConnection {
   pageInfo: PageInfo!
 }
 
+type JobOperationsSummary {
+  pendingCount: Int!
+  runningCount: Int!
+  completedCount: Int!
+  failedCount: Int!
+  cancelledCount: Int!
+  exhaustedCount: Int!
+  oldestPendingAgeSeconds: Float
+  recentFailuresCount: Int!
+  measuredAt: String!
+}
+
 type JobPublication {
   id: ID!
   status: PublicationStatus!
@@ -259,6 +278,15 @@ enum NotificationType {
   TASK_ASSIGNED
   REPORT_SUCCEEDED
   REPORT_FAILED
+}
+
+type OperationsSummary {
+  generatedAt: String!
+  overallStatus: String!
+  services: [ServiceHealthSummary!]!
+  jobOperations: JobOperationsSummary!
+  queues: [QueueObservationSummary!]!
+  telemetryTools: [TelemetryToolLink!]!
 }
 
 type PageInfo {
@@ -339,6 +367,7 @@ enum PublicationStatus {
 }
 
 type Query {
+  operationsSummary: OperationsSummary!
   systemInfo: SystemInfo!
   me: Employee!
   dashboard: DashboardData!
@@ -366,6 +395,14 @@ type Query {
   taskActivity(projectId: ID!, taskId: ID!, first: Int! = 20, after: String = null): TaskActivityConnection!
 }
 
+type QueueObservationSummary {
+  queueName: String!
+  messagesReady: Int
+  messagesUnacknowledged: Int
+  consumersCount: Int
+  measuredAt: String!
+}
+
 type ReportArtifact {
   reportId: ID!
   filename: String!
@@ -374,6 +411,15 @@ type ReportArtifact {
   rowCount: Int!
   truncated: Boolean!
   content: String!
+}
+
+type ServiceHealthSummary {
+  serviceName: String!
+  status: String!
+  version: String
+  uptimeSeconds: Float
+  checkedAt: String!
+  dependencies: [DependencyHealthSummary!]!
 }
 
 input SubmitProjectTaskExportInput {
@@ -472,6 +518,12 @@ enum TaskStatus {
   BLOCKED
   DONE
   CANCELLED
+}
+
+type TelemetryToolLink {
+  name: String!
+  url: String!
+  description: String!
 }
 
 input UpdateProjectInput {

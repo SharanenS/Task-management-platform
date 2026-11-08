@@ -4,6 +4,7 @@ from typing import Any
 import httpx
 
 from app.config import settings
+from app.observability import get_tracing_headers
 
 
 class EmployeeForbiddenError(Exception):
@@ -105,6 +106,7 @@ async def _admin_request(
                 headers={
                     "X-Internal-Service-Key": settings.internal_service_key,
                     "X-Actor-Subject": actor_subject,
+                    **get_tracing_headers(),
                 },
                 params=params,
                 json=json,
@@ -258,7 +260,10 @@ async def get_employee(subject: str) -> EmployeeProfile:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(
                 f"{settings.employee_service_url}/internal/employees/by-subject/{subject}",
-                headers={"X-Internal-Service-Key": settings.internal_service_key},
+                headers={
+                    "X-Internal-Service-Key": settings.internal_service_key,
+                    **get_tracing_headers(),
+                },
             )
     except httpx.HTTPError as error:
         raise EmployeeUnavailableError from error

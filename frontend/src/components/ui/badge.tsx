@@ -4,7 +4,9 @@ export function Badge({
   className,
   tone = "neutral",
   ...props
-}: ComponentProps<"span"> & { tone?: "neutral" | "success" | "warning" }) {
+}: ComponentProps<"span"> & {
+  tone?: "neutral" | "success" | "warning" | "danger";
+}) {
   return (
     <span
       className={cn(
@@ -13,6 +15,7 @@ export function Badge({
           "bg-muted text-muted-foreground": tone === "neutral",
           "bg-emerald-50 text-emerald-800": tone === "success",
           "bg-amber-50 text-amber-800": tone === "warning",
+          "bg-rose-50 text-rose-800": tone === "danger",
         },
         className,
       )}

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db import SessionLocal
 from app.models import WorkEventStatus, WorkOutboxEvent
+from app.observability import format_traceparent, parse_traceparent, telemetry
 
 EXCHANGE = Exchange("work.domain", type="direct", durable=True)
 ROUTING_KEYS = {
@@ -97,20 +98,49 @@ def publish_once() -> int:
                     "taskVersion": event.task_version,
                     "occurredAt": event.created_at.isoformat(),
                 }
-                with Connection(settings.rabbitmq_url, connect_timeout=5) as connection:
-                    Producer(connection).publish(
-                        payload,
-                        exchange=EXCHANGE,
-                        routing_key=ROUTING_KEYS[event.event_type],
-                        serializer="json",
-                        declare=[EXCHANGE],
-                        delivery_mode=2,
-                        retry=False,
-                        confirm_publish=True,
+                parent_trace_id = None
+                parent_span_id = None
+                if event.traceparent:
+                    parsed = parse_traceparent(event.traceparent)
+                    if parsed:
+                        parent_trace_id, parent_span_id, _ = parsed
+                span = telemetry.start_span(
+                    "publish_work_event",
+                    parent_trace_id=parent_trace_id,
+                    parent_span_id=parent_span_id,
+                    attributes={
+                        "messaging.system": "rabbitmq",
+                        "messaging.destination": EXCHANGE.name,
+                        "messaging.routing_key": ROUTING_KEYS[event.event_type],
+                        "event.id": str(event.id),
+                        "event.type": event.event_type,
+                    },
+                )
+                with span:
+                    headers = {
+                        "x-correlation-id": event.correlation_id or str(event.id),
+                        "traceparent": format_traceparent(span.trace_id, span.span_id),
+                    }
+                    with Connection(settings.rabbitmq_url, connect_timeout=5) as connection:
+                        Producer(connection).publish(
+                            payload,
+                            headers=headers,
+                            exchange=EXCHANGE,
+                            routing_key=ROUTING_KEYS[event.event_type],
+                            serializer="json",
+                            declare=[EXCHANGE],
+                            delivery_mode=2,
+                            retry=False,
+                            confirm_publish=True,
+                        )
+                    settle_success(session, event.id, event.lease_token or "")
+                    telemetry.logger.info(
+                        "work_event_published", event_id=str(event.id), event_type=event.event_type
                     )
-                settle_success(session, event.id, event.lease_token or "")
             except Exception:
                 settle_failure(session, event.id, event.lease_token or "")
+            finally:
+                telemetry.flush()
             session.commit()
         return len(events)
 

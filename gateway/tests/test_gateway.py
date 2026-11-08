@@ -95,7 +95,10 @@ def test_health(path: str, status: str) -> None:
 
 
 def test_schema_export_matches_runtime() -> None:
-    assert Path("schema.graphql").read_text(encoding="utf-8") == schema.as_str() + "\n"
+    schema_path = Path("schema.graphql")
+    if not schema_path.exists():
+        schema_path = Path(__file__).parents[1] / "schema.graphql"
+    assert schema_path.read_text(encoding="utf-8") == schema.as_str() + "\n"
 
 
 def test_invalid_queries_are_sanitized() -> None:

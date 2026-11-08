@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   Menu,
   Palette,
+  ShieldCheck,
   Users,
   Workflow,
   X,
@@ -47,6 +48,12 @@ const navigation: Array<{
     label: "Publications",
     href: "/jobs/publications",
     icon: Activity,
+    adminOnly: true,
+  },
+  {
+    label: "Operations",
+    href: "/operations",
+    icon: ShieldCheck,
     adminOnly: true,
   },
 ];
