@@ -1,0 +1,400 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-and-unit:
+    name: Static Analysis & Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: "**/requirements.lock"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r gateway/requirements.lock \
+                      -r services/employee/requirements.lock \
+                      -r services/work/requirements.lock \
+                      -r services/job/requirements.lock \
+                      -r services/workflow/requirements.lock \
+                      -r services/notification/requirements.lock
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: "frontend/package-lock.json"
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
+
+      - name: Run static analysis checks
+        run: bash ./scripts/test-static.sh
+
+      - name: Run backend & frontend unit test suites (with JUnit XML verification)
+        run: bash ./scripts/test-unit.sh
+
+      - name: Verify Next.js production build
+        run: npm --prefix frontend run build
+
+  schema-and-codegen:
+    name: GraphQL Schema & Codegen Consistency
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: "gateway/requirements.lock"
+
+      - name: Install Gateway dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r gateway/requirements.lock
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: "frontend/package-lock.json"
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
+
+      - name: Verify non-mutating schema export and codegen synchronization
+        run: bash ./scripts/test-codegen.sh
+
+  dependency-audit:
+    name: Dependency Security Audits
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.13"
+
+      - name: Install pip-audit
+        run: pip install pip-audit==2.10.1
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        with:
+          node-version: "24"
+
+      - name: Run dependency security audits (distinguishing findings from network errors)
+        run: bash ./scripts/test-audit.sh
+
+  postgres-integration:
+    name: PostgreSQL Integration Suites
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      work-postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: work
+          POSTGRES_PASSWORD: test-work-password
+        ports:
+          - 5436:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      job-postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: job
+          POSTGRES_PASSWORD: test-job-password
+        ports:
+          - 5437:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      workflow-postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: workflow
+          POSTGRES_PASSWORD: test-workflow-password
+        ports:
+          - 5438:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      notification-postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: notification
+          POSTGRES_PASSWORD: test-notification-password
+        ports:
+          - 5439:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: "**/requirements.lock"
+
+      - name: Install Python service dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r services/work/requirements.lock \
+                      -r services/job/requirements.lock \
+                      -r services/workflow/requirements.lock \
+                      -r services/notification/requirements.lock
+
+      - name: Generate isolated CI environment for PostgreSQL regression
+        run: |
+          cat << 'EOF' > .env.ci.postgres
+          WORK_DB_PASSWORD=test-work-password
+          WORK_DB_PORT=5436
+          JOB_DB_PASSWORD=test-job-password
+          JOB_DB_PORT=5437
+          WORKFLOW_DB_PASSWORD=test-workflow-password
+          WORKFLOW_DB_PORT=5438
+          NOTIFICATION_DB_PASSWORD=test-notification-password
+          NOTIFICATION_DB_PORT=5439
+          POSTGRES_HOST=127.0.0.1
+          EOF
+
+      - name: Execute isolated PostgreSQL regression with fail-closed report validation
+        run: |
+          bash ./scripts/test-postgres.sh --isolated --env-file .env.ci.postgres --junit-dir test-results/reports/postgres
+          python scripts/verify_test_reports.py --postgres-dir test-results/reports/postgres
+          rm -f .env.ci.postgres
+
+  e2e-acceptance:
+    name: Browser Acceptance & Cross-Browser Coverage
+    needs: [static-and-unit, schema-and-codegen, postgres-integration]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.13"
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: "frontend/package-lock.json"
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
+
+      - name: Install Playwright browsers
+        run: npx --prefix frontend playwright install --with-deps chromium firefox webkit
+
+      - name: Generate isolated environment and preflight ports
+        run: |
+          CI_PROJECT="taskspace-ci-e2e-${{ github.run_id }}-${{ github.run_attempt }}"
+          echo "CI_PROJECT=${CI_PROJECT}" >> $GITHUB_ENV
+          python scripts/isolated_test_env.py generate-env --project-name "${CI_PROJECT}" --out-file .env.ci.e2e
+          python scripts/isolated_test_env.py preflight-ports --env-file .env.ci.e2e
+
+      - name: Build application process images
+        run: docker compose --env-file .env.ci.e2e -p "${CI_PROJECT}" -f compose.test.yaml build
+
+      - name: Launch isolated test environment
+        run: |
+          docker compose --env-file .env.ci.e2e -p "${CI_PROJECT}" -f compose.test.yaml up -d --wait
+          bash ./scripts/bootstrap-test-stack.sh "${CI_PROJECT}" compose.test.yaml .env.ci.e2e
+
+      - name: Execute Foundation cross-browser journey (Desktop, Firefox, WebKit, Tablet, Mobile)
+        run: |
+          bash ./scripts/test-e2e.sh --isolated --env-file .env.ci.e2e --project desktop --spec tests/e2e/foundation.spec.ts --report-path test-results/reports/playwright/foundation-desktop.json
+          bash ./scripts/test-e2e.sh --isolated --env-file .env.ci.e2e --project firefox --spec tests/e2e/foundation.spec.ts --report-path test-results/reports/playwright/foundation-firefox.json
+          bash ./scripts/test-e2e.sh --isolated --env-file .env.ci.e2e --project webkit --spec tests/e2e/foundation.spec.ts --report-path test-results/reports/playwright/foundation-webkit.json
+
+      - name: Execute Domain critical paths (Auth, Employee Admin, Work, Workflow, Notification/Report, Dashboard, Operations)
+        run: |
+          bash ./scripts/test-e2e.sh --isolated --env-file .env.ci.e2e --project desktop --spec "tests/e2e/authentication.spec.ts tests/e2e/project-management.spec.ts tests/e2e/task-management.spec.ts tests/e2e/employee-administration.spec.ts tests/e2e/workflow-automation.spec.ts tests/e2e/notification-report-lifecycle.spec.ts tests/e2e/dashboard-acceptance.spec.ts tests/e2e/operations-acceptance.spec.ts" --report-path test-results/reports/playwright/domain.json
+
+      - name: Validate machine-readable test reports (Zero-skip fail-closed policy)
+        run: |
+          python scripts/verify_test_reports.py --playwright-file test-results/reports/playwright/foundation-desktop.json --playwright-min-tests 3
+          python scripts/verify_test_reports.py --playwright-file test-results/reports/playwright/foundation-firefox.json --playwright-min-tests 3
+          python scripts/verify_test_reports.py --playwright-file test-results/reports/playwright/foundation-webkit.json --playwright-min-tests 3
+          python scripts/verify_test_reports.py --playwright-file test-results/reports/playwright/domain.json --playwright-min-tests 8
+
+      - name: Teardown isolated test stack with positive ownership verification
+        if: always()
+        run: |
+          python scripts/isolated_test_env.py verify-teardown --project-name "${CI_PROJECT}" --compose-file compose.test.yaml
+          docker compose --env-file .env.ci.e2e -p "${CI_PROJECT}" -f compose.test.yaml down -v
+          rm -f .env.ci.e2e
+
+  reliability-and-recovery:
+    name: Serial Reliability & Fault Recovery Suites
+    needs: [static-and-unit, schema-and-codegen, postgres-integration]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.13"
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: "frontend/package-lock.json"
+
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
+
+      - name: Install Playwright Chromium
+        run: npx --prefix frontend playwright install --with-deps chromium
+
+      - name: Generate dedicated recovery isolated environment and preflight ports
+        run: |
+          CI_REC_PROJECT="taskspace-ci-rec-${{ github.run_id }}-${{ github.run_attempt }}"
+          echo "CI_REC_PROJECT=${CI_REC_PROJECT}" >> $GITHUB_ENV
+          python scripts/isolated_test_env.py generate-env --project-name "${CI_REC_PROJECT}" --out-file .env.ci.recovery
+          python scripts/isolated_test_env.py preflight-ports --env-file .env.ci.recovery
+
+      - name: Build recovery application process images
+        run: docker compose --env-file .env.ci.recovery -p "${CI_REC_PROJECT}" -f compose.test.yaml build
+
+      - name: Launch dedicated isolated recovery stack
+        run: |
+          docker compose --env-file .env.ci.recovery -p "${CI_REC_PROJECT}" -f compose.test.yaml up -d --wait
+          bash ./scripts/bootstrap-test-stack.sh "${CI_REC_PROJECT}" compose.test.yaml .env.ci.recovery
+
+      - name: Execute serial recovery: Gateway outage and recovery
+        run: |
+          bash ./scripts/test-e2e.sh --isolated --recovery --env-file .env.ci.recovery --project desktop --spec tests/e2e/docker-recovery.spec.ts --report-path test-results/reports/playwright/recovery-docker.json
+
+      - name: Execute serial recovery: Job execution and worker recovery
+        run: |
+          bash ./scripts/test-e2e.sh --isolated --recovery --env-file .env.ci.recovery --project desktop --spec tests/e2e/job-recovery.spec.ts --report-path test-results/reports/playwright/recovery-job.json
+
+      - name: Execute serial recovery: Workflow automation and broker recovery
+        run: |
+          bash ./scripts/test-e2e.sh --isolated --recovery --env-file .env.ci.recovery --project desktop --spec tests/e2e/workflow-recovery.spec.ts --report-path test-results/reports/playwright/recovery-workflow.json
+
+      - name: Execute serial recovery: Notification and report pipeline recovery
+        run: |
+          bash ./scripts/test-e2e.sh --isolated --recovery --env-file .env.ci.recovery --project desktop --spec tests/e2e/notification-report-recovery.spec.ts --report-path test-results/reports/playwright/recovery-notification.json
+
+      - name: Validate per-spec machine-readable test reports (Zero-skip fail-closed policy)
+        run: |
+          python scripts/verify_test_reports.py --playwright-file test-results/reports/playwright/recovery-docker.json --playwright-min-tests 1
+          python scripts/verify_test_reports.py --playwright-file test-results/reports/playwright/recovery-job.json --playwright-min-tests 1
+          python scripts/verify_test_reports.py --playwright-file test-results/reports/playwright/recovery-workflow.json --playwright-min-tests 5
+          python scripts/verify_test_reports.py --playwright-file test-results/reports/playwright/recovery-notification.json --playwright-min-tests 6
+
+      - name: Teardown recovery test stack with positive ownership verification
+        if: always()
+        run: |
+          python scripts/isolated_test_env.py verify-teardown --project-name "${CI_REC_PROJECT}" --compose-file compose.test.yaml
+          docker compose --env-file .env.ci.recovery -p "${CI_REC_PROJECT}" -f compose.test.yaml down -v
+          rm -f .env.ci.recovery
+
+  quality-gate:
+    name: Phase 14 Quality Gate
+    if: always()
+    needs:
+      - static-and-unit
+      - schema-and-codegen
+      - dependency-audit
+      - postgres-integration
+      - e2e-acceptance
+      - reliability-and-recovery
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all required jobs succeeded
+        run: |
+          RESULTS=(
+            "${{ needs.static-and-unit.result }}"
+            "${{ needs.schema-and-codegen.result }}"
+            "${{ needs.dependency-audit.result }}"
+            "${{ needs.postgres-integration.result }}"
+            "${{ needs.e2e-acceptance.result }}"
+            "${{ needs.reliability-and-recovery.result }}"
+          )
+          NAMES=(
+            "static-and-unit"
+            "schema-and-codegen"
+            "dependency-audit"
+            "postgres-integration"
+            "e2e-acceptance"
+            "reliability-and-recovery"
+          )
+          FAILED=0
+          for i in "${!RESULTS[@]}"; do
+            res="${RESULTS[$i]}"
+            name="${NAMES[$i]}"
+            echo "Gate Check: Job '${name}' status = '${res}'"
+            if [ "$res" != "success" ]; then
+              echo "ERROR: Mandatory CI job '${name}' did not succeed (status: ${res})!" >&2
+              FAILED=1
+            fi
+          done
+          if [ "$FAILED" -ne 0 ]; then
+            echo "Phase 14 Quality Gate FAILED." >&2
+            exit 1
+          fi
+          echo "Phase 14 Quality Gate PASSED: All 6 mandatory CI jobs succeeded."

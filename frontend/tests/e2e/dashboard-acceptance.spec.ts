@@ -16,6 +16,8 @@ import {
 } from "./notification-report-acceptance-support";
 
 const env = process.env;
+const baseURL = env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3010";
+const rootURL = new URL("/", baseURL).toString();
 const enabled =
   env.DEV_USER_USERNAME &&
   env.DEV_USER_PASSWORD &&
@@ -52,7 +54,7 @@ async function firstLogin(page: Page, identity: OwnedIdentity) {
   await page.locator("#password-new").fill(env.PHASE4_E2E_PASSWORD!);
   await page.locator("#password-confirm").fill(env.PHASE4_E2E_PASSWORD!);
   await page.getByRole("button", { name: /submit/i }).click();
-  await expect(page).toHaveURL("http://localhost:3010/");
+  await expect(page).toHaveURL(rootURL);
 }
 
 test.describe("Phase 12: Advanced Dashboard + UX Refinement Acceptance", () => {
@@ -80,7 +82,7 @@ test.describe("Phase 12: Advanced Dashboard + UX Refinement Acceptance", () => {
       console.log("MULTI_ROLE_ENV_READY");
       await page.goto("/sign-in");
       await signIn(page, env.DEV_USER_USERNAME!, env.DEV_USER_PASSWORD!);
-      await expect(page).toHaveURL("http://localhost:3010/");
+      await expect(page).toHaveURL(rootURL);
 
       const adminProfile = await gql(page, "query{me{id role}}");
       expect(adminProfile.errors).toBeUndefined();
@@ -290,7 +292,7 @@ test.describe("Phase 12: Advanced Dashboard + UX Refinement Acceptance", () => {
 
       // Browser History: Back to Dashboard
       await page.goBack();
-      await expect(page).toHaveURL("http://localhost:3010/");
+      await expect(page).toHaveURL(rootURL);
       await expect(
         page.getByRole("heading", {
           level: 1,
@@ -304,7 +306,7 @@ test.describe("Phase 12: Advanced Dashboard + UX Refinement Acceptance", () => {
 
       // Browser History: Back to Dashboard
       await page.goBack();
-      await expect(page).toHaveURL("http://localhost:3010/");
+      await expect(page).toHaveURL(rootURL);
       await expect(
         page.getByRole("heading", {
           level: 1,
@@ -349,7 +351,7 @@ test.describe("Phase 12: Advanced Dashboard + UX Refinement Acceptance", () => {
       // 4. Admin Acceptance
       await logout(page);
       await signIn(page, env.DEV_USER_USERNAME!, env.DEV_USER_PASSWORD!);
-      await expect(page).toHaveURL("http://localhost:3010/");
+      await expect(page).toHaveURL(rootURL);
       await expect(
         page.getByRole("heading", {
           level: 1,
@@ -404,7 +406,7 @@ test.describe("Phase 12: Advanced Dashboard + UX Refinement Acceptance", () => {
       // Member signs back in: Dashboard should now reflect 0 accessible projects
       await logout(page);
       await signIn(page, memberIdentity.username, env.PHASE4_E2E_PASSWORD!);
-      await expect(page).toHaveURL("http://localhost:3010/");
+      await expect(page).toHaveURL(rootURL);
       // Accessible projects total should now be 0
       const totalProjectsCard = page.getByRole("link", {
         name: /Accessible/i,

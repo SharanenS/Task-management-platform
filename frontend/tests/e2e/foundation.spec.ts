@@ -13,18 +13,16 @@ test.beforeEach(async ({ page }) => {
   await page.locator("#username").fill(process.env.DEV_USER_USERNAME!);
   await page.locator("#password").fill(process.env.DEV_USER_PASSWORD!);
   await page.locator("#kc-login").click();
-  await expect(page).toHaveURL("http://localhost:3010/");
+  const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3010";
+  await expect(page).toHaveURL(new URL("/", baseURL).toString());
 });
 
 test("real GraphQL connection and responsive navigation", async ({ page }) => {
   await expect(
-    page.getByRole("heading", { name: "Make room for great work." }),
+    page.getByRole("heading", { name: /Welcome back,/ }),
   ).toBeVisible();
   await expect(
-    page.getByText("Gateway connected", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByText("The overview below uses sample data", { exact: false }),
+    page.getByText("Workspace Overview", { exact: false }),
   ).toBeVisible();
   expect(
     await page.evaluate(
@@ -43,7 +41,10 @@ test("real GraphQL connection and responsive navigation", async ({ page }) => {
     await expect(navigationButton).toBeFocused();
     await navigationButton.click();
   }
-  await page.getByRole("link", { name: "System status", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("link", { name: "System status", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Gateway is reachable" }),
   ).toBeVisible();

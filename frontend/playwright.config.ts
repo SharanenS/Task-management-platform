@@ -7,6 +7,8 @@ export default defineConfig({
   },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
+    { name: "firefox", use: { ...devices["Desktop Firefox"] } },
+    { name: "webkit", use: { ...devices["Desktop Safari"] } },
     {
       name: "tablet",
       use: {
@@ -19,5 +21,15 @@ export default defineConfig({
       use: { ...devices["iPhone 13"], defaultBrowserType: "chromium" },
     },
   ],
-  reporter: "list",
+  reporter: [
+    ["list"],
+    [
+      "json",
+      {
+        outputFile:
+          process.env.PLAYWRIGHT_REPORT_PATH ??
+          "../test-reports/playwright/report.json",
+      },
+    ],
+  ],
 });

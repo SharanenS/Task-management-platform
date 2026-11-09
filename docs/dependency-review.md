@@ -61,3 +61,13 @@ Phase 10 reuses the reviewed FastAPI, SQLAlchemy, Alembic, psycopg, Pydantic,
 HTTPX, Kombu, and AMQP package families. Workflow Service has its own pinned lock;
 Work Service adds Kombu and its AMQP transport dependencies for the dedicated
 task-event publisher. No new frontend dependency was introduced.
+
+Phase 14 introduces no new production runtime dependencies for Python or frontend.
+`pip-audit` 2.10.1 is used as verification tooling to inspect all six locked
+Python dependency manifests (`gateway`, `services/employee`, `services/work`,
+`services/job`, `services/workflow`, `services/notification`); all six report
+zero known vulnerabilities. The production npm audit (`npm audit --omit=dev`)
+reports zero vulnerabilities. The full npm development audit retains the 12
+documented tooling-only `braces` entries in repository-controlled Code Generator
+and Next.js ESLint paths. Playwright 1.64.0 adds Firefox 157.0 and WebKit 27.2
+local browser binaries for cross-browser verification without modifying package locks.

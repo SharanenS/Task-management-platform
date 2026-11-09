@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
+import { getIsolatedRecoveryHelper } from "./isolated-recovery-helper";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -14,15 +15,26 @@ export function uuid(value: string, label: string): string {
 }
 
 export function compose(args: string[]): string {
+  const helper = getIsolatedRecoveryHelper();
+  const fullArgs = helper.buildComposeArgs(args[0], ...args.slice(1));
   try {
-    return execFileSync("docker", ["compose", ...args], {
-      cwd: "..",
+    return execFileSync("docker", fullArgs, {
+      cwd: helper.getRepoRoot(),
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       env: process.env,
     });
   } catch {
     throw new Error("The scoped Compose operation failed.");
+  }
+}
+
+export function composeService(operation: "start" | "stop", service: string) {
+  const helper = getIsolatedRecoveryHelper();
+  if (operation === "stop") {
+    helper.stopService(service);
+  } else {
+    helper.startService(service);
   }
 }
 

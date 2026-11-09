@@ -1,12 +1,5 @@
-import { execFile } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
-import { test, expect } from "@playwright/test";
-
-const execute = promisify(execFile);
-const composeFile = fileURLToPath(
-  new URL("../../../compose.yaml", import.meta.url),
-);
+import { expect, test } from "@playwright/test";
+import { getIsolatedRecoveryHelper } from "./isolated-recovery-helper";
 
 test("real gateway container outage and recovery", async ({
   page,
@@ -19,21 +12,26 @@ test("real gateway container outage and recovery", async ({
     "Opt-in, isolated Docker recovery check",
   );
   test.setTimeout(90_000);
-  const compose = (action: string) =>
-    execute("docker", ["compose", "-f", composeFile, action, "gateway"], {
-      timeout: 30_000,
-    });
+
+  const helper = getIsolatedRecoveryHelper();
+  const baseURL = helper.getBaseUrl();
+  const gatewayReadyUrl = new URL(
+    "/health/ready",
+    helper.getGatewayUrl(),
+  ).toString();
+
   await page.goto("/system");
   await page.getByRole("link", { name: "Sign in" }).click();
   await page.locator("#username").fill(process.env.DEV_USER_USERNAME!);
   await page.locator("#password").fill(process.env.DEV_USER_PASSWORD!);
   await page.locator("#kc-login").click();
-  await expect(page).toHaveURL("http://localhost:3010/system");
+  await expect(page).toHaveURL(new URL("/system", baseURL).toString());
   await expect(
     page.getByRole("heading", { name: "Gateway is reachable" }),
   ).toBeVisible();
+
   try {
-    await compose("stop");
+    helper.stopService("gateway");
     await page.getByRole("button", { name: "Refresh status" }).click();
     await expect(page.getByRole("main").getByRole("alert")).toContainText(
       "Gateway unavailable",
@@ -47,14 +45,14 @@ test("real gateway container outage and recovery", async ({
       fullPage: true,
     });
   } finally {
-    await compose("start");
+    helper.startService("gateway");
+    await helper.waitForHealthy("gateway", 45_000).catch(() => undefined);
   }
+
   await expect
     .poll(async () => {
       try {
-        return (
-          await page.request.get("http://127.0.0.1:8010/health/ready")
-        ).ok();
+        return (await page.request.get(gatewayReadyUrl)).ok();
       } catch {
         return false;
       }
