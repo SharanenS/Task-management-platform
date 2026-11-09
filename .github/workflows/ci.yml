@@ -323,19 +323,19 @@ jobs:
           docker compose --env-file .env.ci.recovery -p "${CI_REC_PROJECT}" -f compose.test.yaml up -d --wait
           bash ./scripts/bootstrap-test-stack.sh "${CI_REC_PROJECT}" compose.test.yaml .env.ci.recovery
 
-      - name: Execute serial recovery: Gateway outage and recovery
+      - name: "Execute serial recovery: Gateway outage and recovery"
         run: |
           bash ./scripts/test-e2e.sh --isolated --recovery --env-file .env.ci.recovery --project desktop --spec tests/e2e/docker-recovery.spec.ts --report-path test-results/reports/playwright/recovery-docker.json
 
-      - name: Execute serial recovery: Job execution and worker recovery
+      - name: "Execute serial recovery: Job execution and worker recovery"
         run: |
           bash ./scripts/test-e2e.sh --isolated --recovery --env-file .env.ci.recovery --project desktop --spec tests/e2e/job-recovery.spec.ts --report-path test-results/reports/playwright/recovery-job.json
 
-      - name: Execute serial recovery: Workflow automation and broker recovery
+      - name: "Execute serial recovery: Workflow automation and broker recovery"
         run: |
           bash ./scripts/test-e2e.sh --isolated --recovery --env-file .env.ci.recovery --project desktop --spec tests/e2e/workflow-recovery.spec.ts --report-path test-results/reports/playwright/recovery-workflow.json
 
-      - name: Execute serial recovery: Notification and report pipeline recovery
+      - name: "Execute serial recovery: Notification and report pipeline recovery"
         run: |
           bash ./scripts/test-e2e.sh --isolated --recovery --env-file .env.ci.recovery --project desktop --spec tests/e2e/notification-report-recovery.spec.ts --report-path test-results/reports/playwright/recovery-notification.json
 
