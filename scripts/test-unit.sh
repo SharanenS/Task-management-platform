@@ -12,6 +12,23 @@ elif [[ -f "${REPO_ROOT}/.venv/Scripts/python.exe" ]]; then
     PYTHON="${REPO_ROOT}/.venv/Scripts/python.exe"
 fi
 
+get_service_python() {
+    local svc="$1"
+    local svc_name
+    svc_name="$(basename "${svc}")"
+    if [[ -f "${REPO_ROOT}/${svc}/.venv/bin/python" ]]; then
+        echo "${REPO_ROOT}/${svc}/.venv/bin/python"
+    elif [[ -f "${REPO_ROOT}/.venv/${svc_name}/bin/python" ]]; then
+        echo "${REPO_ROOT}/.venv/${svc_name}/bin/python"
+    elif [[ -f "${REPO_ROOT}/${svc}/.venv/Scripts/python.exe" ]]; then
+        echo "${REPO_ROOT}/${svc}/.venv/Scripts/python.exe"
+    elif [[ -f "${REPO_ROOT}/.venv/${svc_name}/Scripts/python.exe" ]]; then
+        echo "${REPO_ROOT}/.venv/${svc_name}/Scripts/python.exe"
+    else
+        echo "${PYTHON}"
+    fi
+}
+
 REPORT_DIR="${REPO_ROOT}/test-results/reports/unit"
 mkdir -p "${REPORT_DIR}"
 
@@ -19,12 +36,25 @@ echo "=============================================="
 echo "Running Backend Pytest Unit Suites"
 echo "=============================================="
 
-"${PYTHON}" -m pytest gateway/tests -v --tb=short --junitxml="${REPORT_DIR}/pytest-gateway.xml"
-"${PYTHON}" -m pytest services/employee/tests -v --tb=short --junitxml="${REPORT_DIR}/pytest-employee.xml"
-"${PYTHON}" -m pytest services/work/tests --ignore=services/work/tests/test_postgres.py -v --tb=short --junitxml="${REPORT_DIR}/pytest-work.xml"
-"${PYTHON}" -m pytest services/job/tests --ignore=services/job/tests/test_postgres.py -v --tb=short --junitxml="${REPORT_DIR}/pytest-job.xml"
-"${PYTHON}" -m pytest services/workflow/tests --ignore=services/workflow/tests/test_postgres.py -v --tb=short --junitxml="${REPORT_DIR}/pytest-workflow.xml"
-"${PYTHON}" -m pytest services/notification/tests --ignore=services/notification/tests/test_postgres.py -v --tb=short --junitxml="${REPORT_DIR}/pytest-notification.xml"
+run_service_pytest() {
+    local svc="$1"
+    local report_file="$2"
+    shift 2
+    local extra_args=("$@")
+    local svc_python
+    svc_python="$(get_service_python "${svc}")"
+    (
+        cd "${REPO_ROOT}/${svc}"
+        "${svc_python}" -m pytest tests -v --tb=short --junitxml="${REPORT_DIR}/${report_file}" "${extra_args[@]}"
+    )
+}
+
+run_service_pytest "gateway" "pytest-gateway.xml"
+run_service_pytest "services/employee" "pytest-employee.xml"
+run_service_pytest "services/work" "pytest-work.xml" --ignore=tests/test_postgres.py
+run_service_pytest "services/job" "pytest-job.xml" --ignore=tests/test_postgres.py
+run_service_pytest "services/workflow" "pytest-workflow.xml" --ignore=tests/test_postgres.py
+run_service_pytest "services/notification" "pytest-notification.xml" --ignore=tests/test_postgres.py
 
 echo ""
 echo "=============================================="

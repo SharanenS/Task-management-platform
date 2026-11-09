@@ -19,25 +19,47 @@ try {
     Write-Host "Running Backend Pytest Unit Suites" -ForegroundColor Cyan
     Write-Host "==============================================" -ForegroundColor Cyan
 
+    function Get-ServicePython {
+        param([string]$svc)
+        $svcDir = Join-Path $repositoryRoot $svc
+        $svcWinVenv = Join-Path $svcDir ".venv\Scripts\python.exe"
+        if (Test-Path -LiteralPath $svcWinVenv) {
+            return $svcWinVenv
+        }
+        $svcBaseName = Split-Path $svc -Leaf
+        $rootNamedVenv = Join-Path $repositoryRoot ".venv\$svcBaseName\Scripts\python.exe"
+        if (Test-Path -LiteralPath $rootNamedVenv) {
+            return $rootNamedVenv
+        }
+        return $python
+    }
+
     $backendSuites = @(
-        @{ Name = "Gateway"; Path = "gateway/tests"; Report = "pytest-gateway.xml"; Ignore = $null },
-        @{ Name = "Employee"; Path = "services/employee/tests"; Report = "pytest-employee.xml"; Ignore = $null },
-        @{ Name = "Work"; Path = "services/work/tests"; Report = "pytest-work.xml"; Ignore = "services/work/tests/test_postgres.py" },
-        @{ Name = "Job"; Path = "services/job/tests"; Report = "pytest-job.xml"; Ignore = "services/job/tests/test_postgres.py" },
-        @{ Name = "Workflow"; Path = "services/workflow/tests"; Report = "pytest-workflow.xml"; Ignore = "services/workflow/tests/test_postgres.py" },
-        @{ Name = "Notification"; Path = "services/notification/tests"; Report = "pytest-notification.xml"; Ignore = "services/notification/tests/test_postgres.py" }
+        @{ Name = "Gateway"; Svc = "gateway"; Report = "pytest-gateway.xml"; Ignore = $null },
+        @{ Name = "Employee"; Svc = "services/employee"; Report = "pytest-employee.xml"; Ignore = $null },
+        @{ Name = "Work"; Svc = "services/work"; Report = "pytest-work.xml"; Ignore = "tests/test_postgres.py" },
+        @{ Name = "Job"; Svc = "services/job"; Report = "pytest-job.xml"; Ignore = "tests/test_postgres.py" },
+        @{ Name = "Workflow"; Svc = "services/workflow"; Report = "pytest-workflow.xml"; Ignore = "tests/test_postgres.py" },
+        @{ Name = "Notification"; Svc = "services/notification"; Report = "pytest-notification.xml"; Ignore = "tests/test_postgres.py" }
     )
 
     foreach ($suite in $backendSuites) {
-        Write-Host "`n--> Suite: $($suite.Name) ($($suite.Path))" -ForegroundColor Yellow
+        Write-Host "`n--> Suite: $($suite.Name) ($($suite.Svc))" -ForegroundColor Yellow
         $junitPath = Join-Path $reportDir $suite.Report
-        $pytestArgs = @($suite.Path, "-v", "--tb=short", "--junitxml=$junitPath")
+        $svcPython = Get-ServicePython $suite.Svc
+        $pytestArgs = @("tests", "-v", "--tb=short", "--junitxml=$junitPath")
         if ($suite.Ignore) {
             $pytestArgs += "--ignore=$($suite.Ignore)"
         }
-        & $python -m pytest @pytestArgs
-        if ($LASTEXITCODE -ne 0) {
-            throw "Unit test suite failed for $($suite.Name)."
+        Push-Location (Join-Path $repositoryRoot $suite.Svc)
+        try {
+            & $svcPython -m pytest @pytestArgs
+            if ($LASTEXITCODE -ne 0) {
+                throw "Unit test suite failed for $($suite.Name)."
+            }
+        }
+        finally {
+            Pop-Location
         }
     }
 
