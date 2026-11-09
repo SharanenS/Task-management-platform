@@ -32,6 +32,7 @@ try {
         "gateway/requirements.lock",
         "services/employee/requirements.lock",
         "services/work/requirements.lock",
+        "services/work/requirements-test.lock",
         "services/job/requirements.lock",
         "services/workflow/requirements.lock",
         "services/notification/requirements.lock"
