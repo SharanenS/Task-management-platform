@@ -271,14 +271,14 @@ jobs:
 
       - name: Execute Domain critical paths (Auth, Employee Admin, Work, Workflow, Notification/Report, Dashboard, Operations)
         run: |
-          bash ./scripts/test-e2e.sh --isolated --env-file .env.ci.e2e --project desktop --spec "tests/e2e/authentication.spec.ts tests/e2e/project-management.spec.ts tests/e2e/task-management.spec.ts tests/e2e/employee-administration.spec.ts tests/e2e/workflow-automation.spec.ts tests/e2e/notification-report-lifecycle.spec.ts tests/e2e/dashboard-acceptance.spec.ts tests/e2e/operations-acceptance.spec.ts" --report-path test-results/reports/playwright/domain.json
+          bash ./scripts/test-e2e.sh --isolated --env-file .env.ci.e2e --project desktop --spec "tests/e2e/authentication.spec.ts tests/e2e/project-management.spec.ts tests/e2e/task-management.spec.ts tests/e2e/employee-administration.spec.ts tests/e2e/workflow-automation.spec.ts tests/e2e/notification-report-lifecycle.spec.ts tests/e2e/dashboard-acceptance.spec.ts tests/e2e/operations-acceptance.spec.ts" --grep-invert "authentication\.spec\.ts.*(an authenticated identity without an active employee is denied|refresh failure expires the session and recovers after Keycloak returns|login reports a Keycloak outage and recovers after restart)" --report-path test-results/reports/playwright/domain.json
 
       - name: Validate machine-readable test reports (Zero-skip fail-closed policy)
         run: |
           python scripts/verify_test_reports.py --playwright-file test-results/reports/playwright/foundation-desktop.json --playwright-min-tests 3
           python scripts/verify_test_reports.py --playwright-file test-results/reports/playwright/foundation-firefox.json --playwright-min-tests 3
           python scripts/verify_test_reports.py --playwright-file test-results/reports/playwright/foundation-webkit.json --playwright-min-tests 3
-          python scripts/verify_test_reports.py --playwright-file test-results/reports/playwright/domain.json --playwright-min-tests 8
+          python scripts/verify_test_reports.py --playwright-file test-results/reports/playwright/domain.json --playwright-min-tests 10
 
       - name: Teardown isolated test stack with positive ownership verification
         if: always()

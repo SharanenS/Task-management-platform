@@ -236,6 +236,21 @@ describe("IsolatedRecoveryHelper Fail-Closed Validation", () => {
       ),
     ).toBe(true);
 
+    helper.stopService("work", 0);
+    expect(
+      executedCommands.some(
+        (cmd) =>
+          cmd[0] === "docker" &&
+          cmd.includes("compose") &&
+          cmd.includes("-p") &&
+          cmd.includes("taskspace-rec-verified") &&
+          cmd.includes("stop") &&
+          cmd.includes("-t") &&
+          cmd.includes("0") &&
+          cmd.includes("work"),
+      ),
+    ).toBe(true);
+
     helper.pauseService("work");
     expect(
       executedCommands.some(

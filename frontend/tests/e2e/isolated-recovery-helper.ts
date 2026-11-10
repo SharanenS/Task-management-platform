@@ -248,9 +248,12 @@ export class IsolatedRecoveryHelper {
     return { id: containerId, name };
   }
 
-  public stopService(service: string): void {
+  public stopService(service: string, timeoutSeconds?: number): void {
     const container = this.resolveContainer(service);
-    const stopArgs = this.buildComposeArgs("stop", service);
+    const stopArgs =
+      timeoutSeconds !== undefined
+        ? this.buildComposeArgs("stop", "-t", String(timeoutSeconds), service)
+        : this.buildComposeArgs("stop", service);
     this.executor("docker", stopArgs);
 
     // Verify container actually stopped

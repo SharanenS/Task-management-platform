@@ -11,6 +11,7 @@ source "${SCRIPT_DIR}/load-env.sh"
 PROJECT="desktop"
 SPEC=""
 GREP=""
+GREP_INVERT=""
 BASE_URL=""
 ENV_FILE=""
 ISOLATED=0
@@ -79,6 +80,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --grep=*)
             GREP="${1#*=}"
+            shift
+            ;;
+        --grep-invert)
+            GREP_INVERT="$2"
+            shift 2
+            ;;
+        --grep-invert=*)
+            GREP_INVERT="${1#*=}"
             shift
             ;;
         --dry-run)
@@ -166,6 +175,9 @@ if [ -n "${SPEC}" ]; then
 fi
 if [ -n "${GREP}" ]; then
     ARGS+=("-g" "${GREP}")
+fi
+if [ -n "${GREP_INVERT}" ]; then
+    ARGS+=("--grep-invert" "${GREP_INVERT}")
 fi
 
 if [ "${DRY_RUN:-0}" -eq 1 ]; then

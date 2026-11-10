@@ -68,49 +68,119 @@ test("expired execution recovers after recovery-process outage", async ({
       { id: jobId, version: submitted.version },
     );
 
-    await expect
-      .poll(
-        async () =>
-          (
-            await gql(
+    let publicationStatus = "UNKNOWN";
+    try {
+      await expect
+        .poll(
+          async () => {
+            const res = await gql(
               "query J($id: ID!) { job(id: $id) { publication { status } } }",
-              {
-                id: jobId,
-              },
-            )
-          ).data.job.publication.status,
-      )
-      .toBe("PUBLISHED");
+              { id: jobId },
+            );
+            publicationStatus =
+              res?.data?.job?.publication?.status ?? "UNKNOWN";
+            return publicationStatus;
+          },
+          { timeout: 30_000, message: "JOB_PUBLICATION_DID_NOT_SETTLE" },
+        )
+        .toBe("PUBLISHED");
+    } catch {
+      throw new Error(
+        `PUBLICATION_FAILURE: Outbox event publication did not settle (status='${publicationStatus}').`,
+      );
+    }
 
     helper.pauseService("work");
     helper.startService("job-worker");
 
-    await expect
-      .poll(
-        async () =>
-          (
-            await gql(
-              "query J($id: ID!) { job(id: $id) { status attempts { status leaseExpiresAt } } }",
-              { id: jobId },
-            )
-          ).data.job,
-        { timeout: 30_000 },
-      )
-      .toMatchObject({ status: "RUNNING", attempts: [{ status: "RUNNING" }] });
+    let runningJobSnapshot:
+      | {
+          status?: string;
+          publication?: { status?: string };
+          attempts?: Array<{ status?: string; leaseExpiresAt?: string }>;
+        }
+      | undefined;
 
-    helper.stopService("job-worker");
+    try {
+      await expect
+        .poll(
+          async () => {
+            const res = await gql(
+              "query J($id: ID!) { job(id: $id) { status publication { status } attempts { status leaseExpiresAt } } }",
+              { id: jobId },
+            );
+            runningJobSnapshot = res?.data?.job;
+            return runningJobSnapshot;
+          },
+          { timeout: 30_000, message: "WORKER_CLAIM_TIMEOUT" },
+        )
+        .toMatchObject({
+          status: "RUNNING",
+          attempts: [{ status: "RUNNING" }],
+        });
+    } catch {
+      const pubStatus =
+        runningJobSnapshot?.publication?.status ?? publicationStatus;
+      const currentJobStatus = runningJobSnapshot?.status ?? "UNKNOWN";
+      const attemptCount = runningJobSnapshot?.attempts?.length ?? 0;
+      const firstAttemptStatus =
+        runningJobSnapshot?.attempts?.[0]?.status ?? "NONE";
+
+      if (pubStatus !== "PUBLISHED") {
+        throw new Error(
+          `PUBLICATION_FAILURE: Publication was not PUBLISHED when verifying worker claim (status='${pubStatus}').`,
+        );
+      }
+      throw new Error(
+        `WORKER_CLAIM_FAILURE: Worker failed to claim job into RUNNING state (jobStatus='${currentJobStatus}', attempts=${attemptCount}, firstAttemptStatus='${firstAttemptStatus}').`,
+      );
+    }
+
+    // Confirm exact run-owned Job has a persisted RUNNING attempt before stopping the worker
+    expect(runningJobSnapshot?.status).toBe("RUNNING");
+    expect(runningJobSnapshot?.attempts).toHaveLength(1);
+    expect(runningJobSnapshot?.attempts?.[0]?.status).toBe("RUNNING");
+    expect(runningJobSnapshot?.attempts?.[0]?.leaseExpiresAt).toBeTruthy();
+
+    helper.stopService("job-worker", 0);
     helper.unpauseService("work");
 
-    const claimed = await gql(
-      "query J($id: ID!) { job(id: $id) { status attempts { status leaseExpiresAt } } }",
-      { id: jobId },
-    );
-    expect(claimed.data.job.status).toBe("RUNNING");
-    expect(claimed.data.job.attempts).toHaveLength(1);
+    let claimed:
+      | {
+          data?: {
+            job?: {
+              status: string;
+              attempts: Array<{ status: string; leaseExpiresAt: string }>;
+            };
+          };
+        }
+      | undefined;
+
+    await expect
+      .poll(
+        async () => {
+          claimed = await gql(
+            "query J($id: ID!) { job(id: $id) { status attempts { status leaseExpiresAt } } }",
+            { id: jobId },
+          );
+          return claimed?.data?.job;
+        },
+        { timeout: 15_000, message: "PERSISTED_RUNNING_CLAIM_TIMEOUT" },
+      )
+      .toMatchObject({
+        status: "RUNNING",
+        attempts: [{ status: "RUNNING" }],
+      });
+
+    expect(claimed!.data!.job!.status).toBe("RUNNING");
+    expect(claimed!.data!.job!.attempts).toHaveLength(1);
+    expect(claimed!.data!.job!.attempts[0].status).toBe("RUNNING");
+    const leaseExpiresAt = claimed!.data!.job!.attempts[0].leaseExpiresAt;
+    expect(leaseExpiresAt).toBeTruthy();
 
     await expect
       .poll(() => Date.now(), { timeout: 45_000 })
-      .toBeGreaterThan(Date.parse(claimed.data.job.attempts[0].leaseExpiresAt));
+      .toBeGreaterThan(Date.parse(leaseExpiresAt));
 
     helper.startService("job-recovery");
     await helper.waitForHealthy("job-recovery");

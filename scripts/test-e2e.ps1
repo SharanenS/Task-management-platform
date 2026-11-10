@@ -2,6 +2,7 @@ param(
     [string]$Project = "desktop",
     [string]$Spec = "",
     [string]$Grep = "",
+    [string]$GrepInvert = "",
     [string]$BaseUrl = "",
     [string]$EnvFile = "",
     [switch]$Isolated,
@@ -120,6 +121,10 @@ try {
     if ($Grep) {
         $arguments += "-g"
         $arguments += $Grep
+    }
+    if ($GrepInvert) {
+        $arguments += "--grep-invert"
+        $arguments += $GrepInvert
     }
 
     if ($DryRun) {
