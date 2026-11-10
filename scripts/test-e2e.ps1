@@ -7,7 +7,8 @@ param(
     [switch]$Isolated,
     [switch]$IncludeAuth,
     [switch]$Recovery,
-    [string]$ReportPath = "test-results/reports/playwright/report.json"
+    [string]$ReportPath = "test-results/reports/playwright/report.json",
+    [switch]$DryRun
 )
 
 $ErrorActionPreference = "Stop"
@@ -33,8 +34,11 @@ try {
                 [System.Environment]::SetEnvironmentVariable($k, $v)
             }
         }
+        if (-not $settings.ContainsKey("FRONTEND_PORT") -or -not $settings["FRONTEND_PORT"]) {
+            throw "FRONTEND_PORT must be defined in isolated environment file: $EnvFile"
+        }
         if (-not $BaseUrl) {
-            $frontendPort = if ($settings.ContainsKey("FRONTEND_PORT")) { $settings["FRONTEND_PORT"] } else { "3110" }
+            $frontendPort = $settings["FRONTEND_PORT"]
             $BaseUrl = "http://localhost:$frontendPort"
         }
     } else {
@@ -116,6 +120,15 @@ try {
     if ($Grep) {
         $arguments += "-g"
         $arguments += $Grep
+    }
+
+    if ($DryRun) {
+        Write-Host "Dry-run E2E validation successful ($Project):" -ForegroundColor Green
+        Write-Host "  BASE_URL=$BaseUrl"
+        Write-Host "  PLAYWRIGHT_BASE_URL=$env:PLAYWRIGHT_BASE_URL"
+        Write-Host "  PLAYWRIGHT_REPORT_PATH=$env:PLAYWRIGHT_REPORT_PATH"
+        Write-Host "  ARGS: $($arguments -join ' ')"
+        return
     }
 
     Write-Host "Running Playwright E2E suite ($Project) against $BaseUrl..." -ForegroundColor Cyan

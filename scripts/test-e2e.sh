@@ -5,13 +5,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
 
+# shellcheck source=scripts/load-env.sh
+source "${SCRIPT_DIR}/load-env.sh"
+
 PROJECT="desktop"
 SPEC=""
+GREP=""
 BASE_URL=""
 ENV_FILE=""
 ISOLATED=0
 INCLUDE_AUTH=0
 RECOVERY=0
+DRY_RUN=0
 REPORT_PATH="test-results/reports/playwright/report.json"
 
 while [[ $# -gt 0 ]]; do
@@ -76,6 +81,10 @@ while [[ $# -gt 0 ]]; do
             GREP="${1#*=}"
             shift
             ;;
+        --dry-run)
+            DRY_RUN=1
+            shift
+            ;;
         *)
             if [ -z "${SPEC}" ] && [[ "$1" == *.spec.ts* ]]; then
                 SPEC="$1"
@@ -94,25 +103,20 @@ if [ "${ISOLATED}" -eq 1 ]; then
         exit 1
     fi
     echo "Running Playwright E2E in FAIL-CLOSED ISOLATED mode using ${ENV_FILE}"
-    set -a
-    # shellcheck disable=SC1090
-    source "${ENV_FILE}"
-    set +a
+    load_env_file "${ENV_FILE}"
+    if [ -z "${FRONTEND_PORT:-}" ]; then
+        echo "ERROR: FRONTEND_PORT must be defined in isolated environment file: ${ENV_FILE}" >&2
+        exit 1
+    fi
     if [ -z "${BASE_URL}" ]; then
-        BASE_URL="http://localhost:${FRONTEND_PORT:-3110}"
+        BASE_URL="http://localhost:${FRONTEND_PORT}"
     fi
     INCLUDE_AUTH=1
 else
     if [ -n "${ENV_FILE}" ] && [ -f "${ENV_FILE}" ]; then
-        set -a
-        # shellcheck disable=SC1090
-        source "${ENV_FILE}"
-        set +a
+        load_env_file "${ENV_FILE}"
     elif [ -f ".env" ]; then
-        set -a
-        # shellcheck disable=SC1090
-        source ".env"
-        set +a
+        load_env_file ".env"
     fi
     if [ -z "${BASE_URL}" ]; then
         BASE_URL="http://localhost:3010"
@@ -162,6 +166,15 @@ if [ -n "${SPEC}" ]; then
 fi
 if [ -n "${GREP}" ]; then
     ARGS+=("-g" "${GREP}")
+fi
+
+if [ "${DRY_RUN:-0}" -eq 1 ]; then
+    echo "Dry-run E2E validation successful (${PROJECT}):"
+    echo "  BASE_URL=${BASE_URL}"
+    echo "  PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL}"
+    echo "  PLAYWRIGHT_REPORT_PATH=${PLAYWRIGHT_REPORT_PATH}"
+    echo "  ARGS: ${ARGS[*]}"
+    exit 0
 fi
 
 echo "Running Playwright E2E suite (${PROJECT}) against ${BASE_URL}..."
