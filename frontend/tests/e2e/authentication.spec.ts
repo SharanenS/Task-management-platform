@@ -14,16 +14,17 @@ function startKeycloakAndWait() {
 }
 
 async function signIn(page: Page) {
+  const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3010";
   await page.goto("/");
   await expect(page).toHaveURL(/\/sign-in\?returnTo=%2F$/);
   await page.getByRole("link", { name: "Sign in" }).click();
   await page.locator("#username").fill(username!);
   await page.locator("#password").fill(password!);
   await page.locator("#kc-login").click();
-  await expect(page).toHaveURL("http://localhost:3010/");
+  await expect(page).toHaveURL(new URL("/", baseURL).toString());
   await expect(
-    page.getByRole("heading", { name: "Make room for great work." }),
-  ).toBeVisible();
+    page.getByRole("heading", { name: /Welcome back,/ }),
+  ).toBeVisible({ timeout: 15_000 });
 }
 
 test("an unauthenticated protected route redirects to sign in", async ({
@@ -82,8 +83,8 @@ test.describe("Docker-backed authentication", () => {
     await page.waitForTimeout(65_000);
     await page.reload();
     await expect(
-      page.getByRole("heading", { name: "Make room for great work." }),
-    ).toBeVisible();
+      page.getByRole("heading", { name: /Welcome back,/ }),
+    ).toBeVisible({ timeout: 15_000 });
     expect(
       await page.evaluate(() =>
         Object.keys(localStorage).concat(Object.keys(sessionStorage)),
@@ -104,7 +105,8 @@ test("an authenticated identity without an active employee is denied", async ({
   await page.locator("#username").fill(username!);
   await page.locator("#password").fill(password!);
   await page.locator("#kc-login").click();
-  await expect(page).toHaveURL("http://localhost:3010/access-denied");
+  const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3010";
+  await expect(page).toHaveURL(new URL("/access-denied", baseURL).toString());
   await expect(
     page.getByRole("heading", { name: "Workspace access unavailable" }),
   ).toBeVisible();
@@ -127,7 +129,10 @@ test("refresh failure expires the session and recovers after Keycloak returns", 
       stdio: "ignore",
     });
     await page.goto(`/system?refreshFailure=${Date.now()}`);
-    await expect(page).toHaveURL("http://localhost:3010/session-expired");
+    const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3010";
+    await expect(page).toHaveURL(
+      new URL("/session-expired", baseURL).toString(),
+    );
     await expect(
       page.getByRole("heading", { name: "Your session has expired" }),
     ).toBeVisible();

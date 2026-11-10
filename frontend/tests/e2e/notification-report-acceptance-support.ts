@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import type { Page } from "@playwright/test";
+import { getIsolatedRecoveryHelper } from "./isolated-recovery-helper";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -20,9 +21,11 @@ export function runMarker(prefix = "P11"): string {
 }
 
 export function compose(args: string[]): string {
+  const helper = getIsolatedRecoveryHelper();
+  const fullArgs = helper.buildComposeArgs(args[0], ...args.slice(1));
   try {
-    return execFileSync("docker", ["compose", ...args], {
-      cwd: "..",
+    return execFileSync("docker", fullArgs, {
+      cwd: helper.getRepoRoot(),
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       env: process.env,
@@ -35,7 +38,12 @@ export function compose(args: string[]): string {
 export function composeService(operation: "start" | "stop", service: string) {
   if (!SERVICE_PATTERN.test(service))
     throw new Error("Invalid Compose service name.");
-  compose([operation, service]);
+  const helper = getIsolatedRecoveryHelper();
+  if (operation === "stop") {
+    helper.stopService(service);
+  } else {
+    helper.startService(service);
+  }
 }
 
 export function sql(

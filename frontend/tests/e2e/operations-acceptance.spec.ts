@@ -25,6 +25,9 @@ import {
 } from "./notification-report-acceptance-support";
 
 const env = process.env;
+const baseURL = env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3010";
+const rootURL = new URL("/", baseURL).toString();
+const operationsURL = new URL("/operations", baseURL).toString();
 const enabled =
   Boolean(env.DEV_USER_USERNAME) &&
   Boolean(env.DEV_USER_PASSWORD) &&
@@ -132,7 +135,7 @@ test.describe("Phase 13: Observability + Security Hardening Acceptance", () => {
 
       // Sign in as Admin first to provision disposable test identities
       await signIn(page, admin.username, adminPassword);
-      await expect(page).toHaveURL("http://localhost:3010/");
+      await expect(page).toHaveURL(rootURL);
 
       // Direct GraphQL query as Admin MUST succeed
       const adminGqlResult = await gql(page, OPERATIONS_SUMMARY_QUERY);
@@ -171,7 +174,7 @@ test.describe("Phase 13: Observability + Security Hardening Acceptance", () => {
       // -------------------------------------------------------------
       // 2a. MEMBER
       await firstSignInDisposable(page, memberIdentity);
-      await expect(page).toHaveURL("http://localhost:3010/");
+      await expect(page).toHaveURL(rootURL);
 
       // Nav link hidden
       await expect(
@@ -193,7 +196,7 @@ test.describe("Phase 13: Observability + Security Hardening Acceptance", () => {
 
       // 2b. MANAGER
       await firstSignInDisposable(page, managerIdentity);
-      await expect(page).toHaveURL("http://localhost:3010/");
+      await expect(page).toHaveURL(rootURL);
 
       // Nav link hidden
       await expect(
@@ -217,14 +220,14 @@ test.describe("Phase 13: Observability + Security Hardening Acceptance", () => {
       // 3. Admin operational dashboard UI & data truthfulness
       // -------------------------------------------------------------
       await signIn(page, admin.username, adminPassword);
-      await expect(page).toHaveURL("http://localhost:3010/");
+      await expect(page).toHaveURL(rootURL);
 
       const navOperationsLink = page.getByRole("link", {
         name: /^Operations$/i,
       });
       await expect(navOperationsLink).toBeVisible();
       await navOperationsLink.click();
-      await expect(page).toHaveURL("http://localhost:3010/operations");
+      await expect(page).toHaveURL(operationsURL);
 
       // Verify header, operational status badge, and freshness indicator
       await expect(
@@ -336,6 +339,7 @@ test.describe("Phase 13: Observability + Security Hardening Acceptance", () => {
       await page.setViewportSize({ width: 1280, height: 800 });
 
       // Keyboard focus
+      await expect(refreshButton).toBeEnabled();
       await refreshButton.focus();
       await expect(refreshButton).toBeFocused();
 
@@ -497,11 +501,12 @@ test.describe("Phase 13: Observability + Security Hardening Acceptance", () => {
       expect(traceId).toHaveLength(32);
 
       // Query Jaeger API for the exact distributed trace
+      const jaegerPort = process.env.JAEGER_UI_PORT ?? "16686";
       await expect
         .poll(
           async () => {
             const resp = await page.request.get(
-              `http://127.0.0.1:16686/api/traces/${traceId}`,
+              `http://127.0.0.1:${jaegerPort}/api/traces/${traceId}`,
             );
             if (!resp.ok()) return 0;
             const body = (await resp.json()) as {
@@ -521,7 +526,7 @@ test.describe("Phase 13: Observability + Security Hardening Acceptance", () => {
         .toBeGreaterThanOrEqual(5);
 
       const jaegerResp = await page.request.get(
-        `http://127.0.0.1:16686/api/traces/${traceId}`,
+        `http://127.0.0.1:${jaegerPort}/api/traces/${traceId}`,
       );
       expect(jaegerResp.ok()).toBe(true);
       const jaegerData = (await jaegerResp.json()) as {

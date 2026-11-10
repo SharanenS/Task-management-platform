@@ -61,3 +61,16 @@ Phase 10 reuses the reviewed FastAPI, SQLAlchemy, Alembic, psycopg, Pydantic,
 HTTPX, Kombu, and AMQP package families. Workflow Service has its own pinned lock;
 Work Service adds Kombu and its AMQP transport dependencies for the dedicated
 task-event publisher. No new frontend dependency was introduced.
+
+Phase 14 introduces no new production runtime dependencies for Python or frontend.
+Work Service unit tests use Starlette's `TestClient` (`from fastapi.testclient import TestClient`),
+which requires HTTPX. In isolated environments, the pinned test overlay `services/work/requirements-test.lock`
+(`httpx==0.28.1`, `httpcore==1.0.9`, `certifi==2026.10.19`, matching the reviewed versions across
+all other services) is installed alongside `requirements.lock` (`pip install -r requirements.lock -r requirements-test.lock`).
+`pip-audit` 2.10.1 is used as verification tooling to inspect all locked Python dependency
+manifests (`gateway`, `services/employee`, `services/work`, `services/work/requirements-test.lock`,
+`services/job`, `services/workflow`, `services/notification`); all report zero known vulnerabilities. The production npm audit (`npm audit --omit=dev`)
+reports zero vulnerabilities. The full npm development audit retains the 12
+documented tooling-only `braces` entries in repository-controlled Code Generator
+and Next.js ESLint paths. Playwright 1.64.0 adds Firefox 157.0 and WebKit 27.2
+local browser binaries for cross-browser verification without modifying package locks.

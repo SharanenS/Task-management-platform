@@ -294,3 +294,32 @@ respective models, migrations, and PostgreSQL schemas.
 Celery supplies bounded local worker execution and Kombu supplies durable AMQP
 routing and publisher confirmation. RabbitMQ is internal-only in Compose. The
 local transport is not production TLS. No Celery result backend is configured.
+
+## Testing and CI/CD Architecture — Phase 14
+
+### Isolated Test Environment
+To guarantee that continuous integration and local verification suites never mutate,
+pollute, or interrupt retained development databases or running developer containers:
+
+1. **Unique Project Namespaces**:
+   - Automated test stacks use distinct Compose project names (`taskspace-test`, `taskspace-ci-${GITHUB_RUN_ID}`) which automatically prefix all container names, networks, and named volumes (`<project>_work_data`, `<project>_job_data`, etc.).
+   - Explicit non-colliding loopback port assignments (`3110`, `8110`, `8180`, `5535`-`5539`, `6480`, `9190`, `3101`, `16786`) prevent port collisions with the running development stack (`3010`, `8010`, `8080`, `5435`-`5439`, etc.).
+
+2. **Ephemeral Identity & Secrets Isolation**:
+   - Test suites generate unique, uncommitted credentials in the process environment.
+   - Keys, tokens, and database passwords are masked and never written to repository files or CI log output.
+   - Keycloak OIDC clients and test profiles are provisioned idempotently by `scripts/bootstrap-test-stack.ps1` / `.sh`.
+
+3. **Isolated PostgreSQL Regression**:
+   - Integration suites for Work, Job, Workflow, and Notification services execute against ephemeral, uniquely named temporary databases (`<service>_test_p14_<uuid>`).
+   - Every run verifies Alembic migrations from zero to head, repeated head idempotency, and drops the temporary database cleanly in guaranteed `finally` cleanup handlers.
+
+4. **Cross-Browser Verification**:
+   - Playwright is configured across Chromium (`desktop`), Firefox (`firefox`), WebKit (`webkit`), and responsive viewport dimensions (`tablet` at 768px, `mobile` at 390px) to verify multi-engine layout, navigation, and accessibility.
+
+5. **GitHub Actions Quality Gates**:
+   - `.github/workflows/ci.yml` implements least-privilege permissions (`contents: read`).
+   - All third-party actions are pinned to verified immutable full-length commit SHAs.
+   - Caching is keyed strictly to committed lockfiles (`requirements.lock`, `package-lock.json`).
+   - Concurrency groups cancel superseded in-progress runs on branch updates.
+   - Test failure artifacts are sanitized (no credentials, tokens, or `.env` files) with bounded 7-day retention.

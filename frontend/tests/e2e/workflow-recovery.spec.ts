@@ -1,9 +1,9 @@
-import { execFileSync } from "node:child_process";
 import { expect, test, type Page } from "@playwright/test";
 
 import {
   Cleanup,
   compose,
+  composeService,
   deleteJob,
   discoverOwnedExecutionJobs,
   sql,
@@ -17,12 +17,13 @@ const password = process.env.DEV_USER_PASSWORD;
 const enabled =
   process.env.RUN_WORKFLOW_RECOVERY_E2E === "1" && username && password;
 async function signIn(page: Page) {
+  const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3110";
   await page.goto("/sign-in");
   await page.getByRole("link", { name: "Sign in" }).click();
   await page.locator("#username").fill(username!);
   await page.locator("#password").fill(password!);
   await page.locator("#kc-login").click();
-  await expect(page).toHaveURL("http://localhost:3010/");
+  await expect(page).toHaveURL(new URL("/", baseURL).toString());
 }
 async function gql(page: Page, query: string, variables: object = {}) {
   return (
@@ -92,10 +93,7 @@ test.describe("Workflow serial outage and recovery", () => {
         await expect(page).toHaveURL(/\/workflows\/[0-9a-f-]+$/);
         ruleId = page.url().split("/").at(-1)!;
         uuid(ruleId, "workflow rule ID");
-        execFileSync("docker", ["compose", "stop", service], {
-          cwd: "..",
-          stdio: "pipe",
-        });
+        composeService("stop", service);
         await page.goto(`/projects/${projectId}/tasks/${taskId}`);
         await page.getByRole("button", { name: "DONE" }).click();
         await expect(
@@ -134,10 +132,7 @@ test.describe("Workflow serial outage and recovery", () => {
           );
           expect(successfulDuringOutage).toBe("0");
         }
-        execFileSync("docker", ["compose", "start", service], {
-          cwd: "..",
-          stdio: "pipe",
-        });
+        composeService("start", service);
         await waitForHealthy(service);
         if (service === "rabbitmq") {
           await waitForHealthy("work-event-publisher");
@@ -212,7 +207,7 @@ test.describe("Workflow serial outage and recovery", () => {
         const discoveredJobIds = new Set<string>();
         const discoveredJobKeys = new Set<string>();
         await cleanup.stage(`restore ${service}`, () => {
-          compose(["start", service]);
+          composeService("start", service);
         });
         await cleanup.stage(`wait for ${service} health`, () =>
           waitForHealthy(service),

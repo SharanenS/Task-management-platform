@@ -11,7 +11,8 @@ async function signIn(page: Page) {
   await page.locator("#username").fill(username!);
   await page.locator("#password").fill(password!);
   await page.locator("#kc-login").click();
-  await expect(page).toHaveURL("http://localhost:3010/");
+  const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3010";
+  await expect(page).toHaveURL(new URL("/", baseURL).toString());
 }
 
 test.describe("Docker-backed project management", () => {

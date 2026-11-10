@@ -1,8 +1,8 @@
 # Project progress
 
-Last updated: 2026-11-07
+Last updated: 2026-11-09
 
-Current boundary: Phases 1–12 are accepted (Phase 12 accepted and merged into `main` at `4a3edcb`). Phase 13 (Observability + Security Hardening) is in progress on branch `phase-13-observability-security`. Phase 14 remains unstarted.
+Current boundary: Phases 1–13 are accepted (Phase 13 accepted and merged into `main` at `cc9ccd3`). Phase 14 (Comprehensive Testing + CI/CD) is implemented pending owner acceptance on branch `phase-14-testing-ci`. Phase 15 remains unstarted.
 
 ## Phase 1 â€” Project Foundation and Frontend Design System
 
@@ -336,7 +336,7 @@ Accepted and merged into `main` at `4a3edcb`. The [verification record](phase-12
 
 ## Phase 13 — Observability + Security Hardening
 
-Status: **Implemented; pending owner acceptance**
+Status: **Accepted**
 
 Delivered and verified in full:
 
@@ -353,4 +353,55 @@ Delivered and verified in full:
 - ADMIN-only operational screen (`/operations`) backed by typed GraphQL `operationsSummary` on Gateway, with server-side role derivation, freshness timestamps, truthful zeros, and loopback tool links.
 - 14-image build cleanly executed covering all affected application process images. Scoped `--no-deps --force-recreate --wait` deployment executed with zero outage on retained database/infrastructure containers; all 26 Compose services healthy.
 - Comprehensive regression suites passed: Gateway (138 tests), Employee (40 tests), Work (61 unit tests + 13 PostgreSQL integration tests), Job (69 unit tests + 22 PostgreSQL integration tests), Workflow (10 unit tests + 3 PostgreSQL integration tests), Notification (23 unit tests + 5 PostgreSQL integration tests) — all 43 PostgreSQL tests verified against isolated temporary databases migrated to current heads and verified cleanly removed; Frontend unit tests (4 tests), Next.js production build (`next build`), and Playwright E2E acceptance (`operations-acceptance.spec.ts`).
-- Cleanup and isolation: Primary administrator preserved, disposable test identities cleaned up, zero orphaned containers. All changes remain unstaged per repository rule. Phase 14 remains unstarted.
+- Cleanup and isolation: Primary administrator preserved, disposable test identities cleaned up, zero orphaned containers. Merged into `main` at `cc9ccd3`.
+
+## Phase 14 — Comprehensive Testing + CI/CD
+
+Status: **Implemented and Verified in Full; Ready for Owner Push and Remote CI**
+
+Delivered and verified in full:
+
+- **Unified Test Inventory & Entry Points**:
+  - Implemented reproducible developer entry points in `scripts/`:
+    - `scripts/test-static.ps1` / `.sh`: Ruff linting, Ruff formatting check, strict MyPy across Gateway and 5 backend services, Prettier check, ESLint, and TypeScript (`tsc --noEmit`). Verified 0 issues across all tools.
+    - `scripts/test-unit.ps1` / `.sh`: Full unit suites across Gateway (138), Employee (40), Work (61), Job (69), Workflow (10), Notification (23), and Frontend Vitest component/route suites (84 tests across 16 files, including non-mutating isolated recovery helper validation). Total: 425 pure unit/component tests passed. Generates and verifies machine-readable JUnit XML reports with zero unexpected skips.
+    - `scripts/test-codegen.ps1` / `.sh` & `scripts/verify_codegen.py`: Non-mutating verification exporting Gateway schema and generating frontend GraphQL types into an in-memory/temporary location and asserting 0 drift without modifying working-tree files.
+    - `scripts/test-audit.ps1` / `.sh`: Dependency security audits across npm production dependencies (`npm audit --omit=dev`: 0 vulnerabilities) and all 6 Python service lockfiles (`pip-audit -r requirements.lock`: 0 known vulnerabilities). Retains documented 12 tooling `braces` entries in repository-controlled dev dependencies. Distinct from container base OS image scanners.
+    - `scripts/test-postgres.ps1` / `.sh` & `scripts/run_postgres_regression.py`: Automated PostgreSQL integration testing across Work (13), Job (22), Workflow (3), and Notification (5) with unique temporary databases, zero-to-head migration, repeated-head idempotency, and guaranteed database dropping. Verified 43/43 passed against isolated test databases with 0 leftover databases.
+    - `scripts/test-e2e.ps1` / `.sh`: Playwright runner with single worker, zero retries, credential isolation, and fail-closed isolated mode support.
+- **Fail-Closed Isolated Test Environment & Teardown Protection**:
+  - Created `compose.test.yaml` with loopback port offsets (`3110`, `8110`, `8180`, `5535`-`5539`, `6480`, `9190`, `3101`, `16786`), named test volumes, explicit image builds for all 14 process images, and ephemeral credentials.
+  - Implemented `scripts/isolated_test_env.py`: Ephemeral test environment generation with cryptographically random secrets, port collision preflight on `127.0.0.1` failing closed on collisions, and teardown with positive ownership verification ensuring containers and volumes strictly carry `com.docker.compose.project == <exact_run_id>`.
+  - Implemented `scripts/bootstrap-test-stack.ps1` / `.sh` for isolated Keycloak OIDC client configuration and employee profile provisioning.
+- **Isolated Stack Acceptance & Multi-Engine Coverage**:
+  - Successfully built, launched, bootstrapped, and tested isolated Compose stack `taskspace-p14b-68d8df45` with generated credentials on loopback offset ports:
+    - Cross-browser foundation (`foundation.spec.ts`): 15 tests (3 desktop Chromium, 3 Firefox, 3 WebKit, 3 tablet, 3 mobile) passed (15/15).
+    - Prior desktop domain acceptance: 2 tests (`project-management.spec.ts` and `task-management.spec.ts`) passed (2/2).
+    - Missing required domain acceptance: 8 tests passed (8/8) covering `authentication.spec.ts` (3 tests: unauthenticated route redirect, full login/GraphQL/logout journey, 65-second real access token expiration and session refresh), `employee-administration.spec.ts` (1 test: ADMIN provisions, governs, and deactivates disposable employee), `workflow-automation.spec.ts` (1 test: task completion triggers workflow rule, execution, and completed job), `notification-report-lifecycle.spec.ts` (1 test: report completion creates private persistent notification), `dashboard-acceptance.spec.ts` (1 test: multi-role scope, viewports, dynamic project/task metrics, navigation, session revocation), and `operations-acceptance.spec.ts` (1 test: observability, direct GraphQL authorization, distributed tracing across all 6 services via Jaeger on port 16786).
+    - Total non-outage isolated Playwright tests: 25 passed, 0 failed, 0 errors, 0 skipped.
+- **Serial Isolated Recovery Acceptance (`taskspace-rec-24695464`)**:
+  - Executed dedicated serial recovery run with 1 worker and 0 retries across all 4 CI recovery specs:
+    - `docker-recovery.spec.ts`: 1 passed (stop/start `gateway`; verified frontend displays sanitized alert and recovers).
+    - `job-recovery.spec.ts`: 1 passed (stop/start `job-worker` and `job-recovery`, pause/unpause `work`; injected lease expiry reported truthfully; job recovers, sweeps execution fence generation, and completes).
+    - `workflow-recovery.spec.ts`: 5 passed (sequential stop/start of `rabbitmq`, `work-event-publisher`, `workflow-consumer`, `workflow`, and `job`; asserts durable outbox accumulation and exactly 1 completed execution/job).
+    - `notification-report-recovery.spec.ts`: 6 passed (sequential stop/start of `rabbitmq`, `work-event-publisher`, `notification-consumer`, `notification`, `job-domain-publisher`, and `job-worker`; asserts durable outbox retry and delivery of persistent notification).
+    - Total isolated recovery tests: 13 passed, 0 failed, 0 errors, 0 skipped. Separate machine-readable reports (`recovery-docker.json`, `recovery-job.json`, `recovery-workflow.json`, `recovery-notification.json`) verified with minimum test assertions.
+- **Unfiltered Operations CSP Verification Rerun**:
+  - Updated `frontend/Dockerfile` (`ARG OIDC_ISSUER`), `compose.test.yaml` (`frontend.build.args.OIDC_ISSUER`), and `frontend/next.config.ts` (dynamic exact loopback origin parsing).
+  - Verified served header: `default-src 'self' blob: http://localhost:8180 http://127.0.0.1:8180; connect-src 'self' blob: http://localhost:8000 http://127.0.0.1:8000 http://localhost:8180 http://127.0.0.1:8180 ...; form-action 'self' http://localhost:8180 http://127.0.0.1:8180`.
+  - Executed `operations-acceptance.spec.ts` with unfiltered console listener: **1/1 passed with zero CSP console violations** without path suppression.
+- **Teardown & Resource Protection**:
+  - Positive resource ownership pre-teardown verification confirmed 26 containers and 10 volumes belonging exclusively to the test projects. Clean teardown via `down -v` verified zero leftover test resources. Ephemeral `.env.test.*` permanently deleted.
+  - All 26 development services in project `enterprise-task-platform-phase2` remained continuously healthy, running, and untouched throughout both isolated test runs.
+- **Reconciled Grand Total (507 Test Executions)**:
+  - 425 Pure Unit/Component tests (341 Python backend across 6 services + 84 Vitest frontend)
+  - 43 Isolated PostgreSQL integration tests
+  - 25 Isolated non-outage Playwright tests
+  - 13 Isolated serial recovery tests
+  - 1 Clean unfiltered CSP operations acceptance rerun
+  - (10 Validator fixture assertions in `test_report_validator.py` tested separately)
+- **GitHub Actions CI Pipeline**:
+  - Authored `.github/workflows/ci.yml` with minimal permissions (`permissions: contents: read`), third-party actions pinned to verified immutable commit SHAs, lockfile-based caching, concurrency control, and separate parallel/staged jobs (`preflight`, `unit-test`, `build`, `isolated-integration`, `reliability-and-recovery`, `ci-gate`).
+- **Current Boundary**:
+  - Remote GitHub Actions CI run pending owner manual push.
+  - All changes remain unstaged per repository rule. Phase 15 remains unstarted.

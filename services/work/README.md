@@ -38,3 +38,19 @@ environment:
 ..\..\.venv\Scripts\python.exe -m ruff format --check .
 ..\..\.venv\Scripts\python.exe -m mypy app
 ```
+
+To run in a clean, dedicated service virtual environment:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\pip install -r requirements.lock -r requirements-test.lock
+.\.venv\Scripts\python.exe -m pytest tests
+```
+
+On Linux/macOS:
+
+```bash
+python3 -m venv .venv
+./.venv/bin/pip install -r requirements.lock -r requirements-test.lock
+./.venv/bin/python -m pytest tests
+```

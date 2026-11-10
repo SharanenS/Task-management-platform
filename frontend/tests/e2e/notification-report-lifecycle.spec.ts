@@ -223,10 +223,13 @@ test.describe("Phase 11 responsive notification and report lifecycle", () => {
     let taskId: string | undefined;
     const primary = protectedAdministrator();
     try {
+      const baseURL =
+        process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3010";
       await signIn(page, username!, password!);
-      await expect(page).toHaveURL("http://localhost:3010/");
+      await expect(page).toHaveURL(new URL("/", baseURL).toString());
       const me = await gql(page, "query{me{id}}");
       employeeId = checkedUuid(me.data.me.id, "current Employee ID");
+      await gql(page, "mutation { markAllNotificationsRead { updatedCount } }");
       const created = await gql(
         page,
         "mutation($input:CreateProjectInput!){createProject(input:$input){id}}",

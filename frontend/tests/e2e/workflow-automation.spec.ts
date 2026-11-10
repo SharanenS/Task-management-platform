@@ -4,13 +4,32 @@ import { expect, test, type Page } from "@playwright/test";
 const username = process.env.DEV_USER_USERNAME;
 const password = process.env.DEV_USER_PASSWORD;
 const enabled = process.env.RUN_WORKFLOW_E2E === "1" && username && password;
+function docker(args: string[]) {
+  const composeArgs = ["compose"];
+  if (process.env.COMPOSE_PROJECT_NAME) {
+    composeArgs.push("-p", process.env.COMPOSE_PROJECT_NAME);
+  }
+  if (process.env.COMPOSE_FILE) {
+    composeArgs.push("-f", process.env.COMPOSE_FILE);
+  }
+  if (process.env.COMPOSE_ENV_FILES) {
+    composeArgs.push("--env-file", process.env.COMPOSE_ENV_FILES);
+  }
+  return execFileSync("docker", [...composeArgs, ...args], {
+    cwd: "..",
+    stdio: "pipe",
+    env: process.env,
+  });
+}
+
 async function signIn(page: Page) {
+  const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3010";
   await page.goto("/sign-in");
   await page.getByRole("link", { name: "Sign in" }).click();
   await page.locator("#username").fill(username!);
   await page.locator("#password").fill(password!);
   await page.locator("#kc-login").click();
-  await expect(page).toHaveURL("http://localhost:3010/");
+  await expect(page).toHaveURL(new URL("/", baseURL).toString());
 }
 async function gql(page: Page, query: string, variables: object = {}) {
   return (
@@ -117,60 +136,45 @@ test.describe("Docker-backed workflow automation", () => {
       ).toBe(true);
     } finally {
       if (ruleId && projectId) {
-        execFileSync(
-          "docker",
-          [
-            "compose",
-            "exec",
-            "-T",
-            "workflow",
-            "python",
-            "-m",
-            "app.development_cleanup",
-            "--rule-id",
-            ruleId,
-            "--expected-project-id",
-            projectId,
-            "--expected-name",
-            ruleName,
-          ],
-          { cwd: "..", stdio: "pipe" },
-        );
+        docker([
+          "exec",
+          "-T",
+          "workflow",
+          "python",
+          "-m",
+          "app.development_cleanup",
+          "--rule-id",
+          ruleId,
+          "--expected-project-id",
+          projectId,
+          "--expected-name",
+          ruleName,
+        ]);
       }
       if (jobId) {
-        execFileSync(
-          "docker",
-          [
-            "compose",
-            "exec",
-            "-T",
-            "job",
-            "python",
-            "-m",
-            "app.development_cleanup",
-            jobId,
-          ],
-          { cwd: "..", stdio: "pipe" },
-        );
+        docker([
+          "exec",
+          "-T",
+          "job",
+          "python",
+          "-m",
+          "app.development_cleanup",
+          jobId,
+        ]);
       }
       if (projectId) {
-        execFileSync(
-          "docker",
-          [
-            "compose",
-            "exec",
-            "-T",
-            "work",
-            "python",
-            "-m",
-            "app.development_cleanup",
-            "--project-id",
-            projectId,
-            "--expected-key",
-            projectKey,
-          ],
-          { cwd: "..", stdio: "pipe" },
-        );
+        docker([
+          "exec",
+          "-T",
+          "work",
+          "python",
+          "-m",
+          "app.development_cleanup",
+          "--project-id",
+          projectId,
+          "--expected-key",
+          projectKey,
+        ]);
       }
     }
   });

@@ -1,0 +1,591 @@
+services:
+  keycloak-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Set KEYCLOAK_DB_PASSWORD}
+    volumes:
+      - keycloak_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  employee-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: employee
+      POSTGRES_USER: employee
+      POSTGRES_PASSWORD: ${EMPLOYEE_DB_PASSWORD:?Set EMPLOYEE_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:${EMPLOYEE_DB_PORT:-5535}:5432"
+    volumes:
+      - employee_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U employee -d employee"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  work-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: work
+      POSTGRES_USER: work
+      POSTGRES_PASSWORD: ${WORK_DB_PASSWORD:?Set WORK_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:${WORK_DB_PORT:-5536}:5432"
+    volumes:
+      - work_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U work -d work"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  job-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: job
+      POSTGRES_USER: job
+      POSTGRES_PASSWORD: ${JOB_DB_PASSWORD:?Set JOB_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:${JOB_DB_PORT:-5537}:5432"
+    volumes:
+      - job_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U job -d job"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  workflow-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: workflow
+      POSTGRES_USER: workflow
+      POSTGRES_PASSWORD: ${WORKFLOW_DB_PASSWORD:?Set WORKFLOW_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:${WORKFLOW_DB_PORT:-5538}:5432"
+    volumes:
+      - workflow_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workflow -d workflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  notification-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: notification
+      POSTGRES_USER: notification
+      POSTGRES_PASSWORD: ${NOTIFICATION_DB_PASSWORD:?Set NOTIFICATION_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:${NOTIFICATION_DB_PORT:-5539}:5432"
+    volumes:
+      - notification_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notification -d notification"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  session-store:
+    image: redis:8.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    ports:
+      - "127.0.0.1:${SESSION_REDIS_PORT:-6480}:6379"
+    volumes:
+      - session_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq@sha256:606d8c0d6b3c18d1da9afc53bc7cdb2a8d5486df91b5a9830e9e07626c9ae281
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:?Set RABBITMQ_USERNAME}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-jobs}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.5
+    command: ["start-dev", "--import-realm", "--health-enabled=true", "--hostname=http://localhost:${KEYCLOAK_PORT:-8180}", "--hostname-backchannel-dynamic=true"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Set KEYCLOAK_DB_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:?Set KEYCLOAK_ADMIN_USERNAME}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD}
+    ports:
+      - "127.0.0.1:${KEYCLOAK_PORT:-8180}:8080"
+    volumes:
+      - ./infrastructure/keycloak/taskspace-realm.json:/opt/keycloak/data/import/taskspace-realm.json:ro
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; grep -q '200 OK' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+    restart: unless-stopped
+
+  employee:
+    build:
+      context: ./services/employee
+    environment:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://employee:${EMPLOYEE_DB_PASSWORD}@employee-db:5432/employee
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY}
+      JOB_WORKER_SERVICE_KEY: ${JOB_WORKER_EMPLOYEE_SERVICE_KEY:?Set JOB_WORKER_EMPLOYEE_SERVICE_KEY}
+      KEYCLOAK_ADMIN_BASE_URL: http://keycloak:8080
+      KEYCLOAK_REALM: taskspace
+      KEYCLOAK_ADMIN_CLIENT_ID: taskspace-employee-admin
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?Set KEYCLOAK_ADMIN_CLIENT_SECRET}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318/v1/traces}
+    depends_on:
+      employee-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8020/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    init: true
+    restart: unless-stopped
+
+  work:
+    build:
+      context: ./services/work
+    environment:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://work:${WORK_DB_PASSWORD}@work-db:5432/work
+      INTERNAL_SERVICE_KEY: ${WORK_INTERNAL_SERVICE_KEY:?Set WORK_INTERNAL_SERVICE_KEY}
+      JOB_WORKER_SERVICE_KEY: ${JOB_WORKER_WORK_SERVICE_KEY:?Set JOB_WORKER_WORK_SERVICE_KEY}
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318/v1/traces}
+    depends_on:
+      work-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8030/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    init: true
+    restart: unless-stopped
+
+  work-event-publisher:
+    build:
+      context: ./services/work
+    command: ["python", "-m", "app.event_publisher"]
+    environment:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://work:${WORK_DB_PASSWORD}@work-db:5432/work
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+    depends_on:
+      work:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -d /proc/1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    init: true
+    restart: unless-stopped
+
+  job:
+    build:
+      context: ./services/job
+    environment:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://job:${JOB_DB_PASSWORD}@job-db:5432/job
+      INTERNAL_SERVICE_KEY: ${JOB_INTERNAL_SERVICE_KEY:?Set JOB_INTERNAL_SERVICE_KEY}
+      WORKFLOW_SERVICE_KEY: ${JOB_WORKFLOW_SERVICE_KEY:?Set JOB_WORKFLOW_SERVICE_KEY}
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318/v1/traces}
+    depends_on:
+      job-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8040/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    init: true
+    restart: unless-stopped
+
+  job-publisher:
+    build:
+      context: ./services/job
+    command: ["python", "-m", "app.publisher_process"]
+    environment:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://job:${JOB_DB_PASSWORD}@job-db:5432/job
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+    depends_on:
+      job-db:
+        condition: service_healthy
+      job:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"from app.publisher_process import health; health()\" && test -d /proc/1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    init: true
+    restart: unless-stopped
+
+  job-worker:
+    build:
+      context: ./services/job
+    command: ["celery", "-A", "app.celery_app:celery_app", "worker", "--loglevel=INFO", "--queues=job.execution", "--hostname=job-worker@%h"]
+    environment:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://job:${JOB_DB_PASSWORD}@job-db:5432/job
+      EMPLOYEE_SERVICE_URL: http://employee:8020
+      WORK_SERVICE_URL: http://work:8030
+      WORKER_EMPLOYEE_SERVICE_KEY: ${JOB_WORKER_EMPLOYEE_SERVICE_KEY:?Set JOB_WORKER_EMPLOYEE_SERVICE_KEY}
+      WORKER_WORK_SERVICE_KEY: ${JOB_WORKER_WORK_SERVICE_KEY:?Set JOB_WORKER_WORK_SERVICE_KEY}
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+    depends_on:
+      job-db:
+        condition: service_healthy
+      employee:
+        condition: service_healthy
+      work:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.celery_app:celery_app inspect ping -d job-worker@$$HOSTNAME --timeout 5 | grep -q pong"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    init: true
+    restart: unless-stopped
+
+  job-recovery:
+    build:
+      context: ./services/job
+    command: ["python", "-m", "app.recovery_process"]
+    environment:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://job:${JOB_DB_PASSWORD}@job-db:5432/job
+    depends_on:
+      job-db:
+        condition: service_healthy
+      job:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"from app.recovery_process import health; health()\" && test -d /proc/1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    init: true
+    restart: unless-stopped
+
+  job-domain-publisher:
+    build:
+      context: ./services/job
+    command: ["python", "-m", "app.domain_event_publisher"]
+    environment:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://job:${JOB_DB_PASSWORD}@job-db:5432/job
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+    depends_on:
+      job:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -d /proc/1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    init: true
+    restart: unless-stopped
+
+  workflow:
+    build:
+      context: ./services/workflow
+    environment:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://workflow:${WORKFLOW_DB_PASSWORD}@workflow-db:5432/workflow
+      INTERNAL_SERVICE_KEY: ${WORKFLOW_INTERNAL_SERVICE_KEY:?Set WORKFLOW_INTERNAL_SERVICE_KEY}
+      CONSUMER_SERVICE_KEY: ${WORKFLOW_CONSUMER_SERVICE_KEY:?Set WORKFLOW_CONSUMER_SERVICE_KEY}
+      JOB_SERVICE_URL: http://job:8040
+      JOB_INTERNAL_SERVICE_KEY: ${JOB_INTERNAL_SERVICE_KEY:?Set JOB_INTERNAL_SERVICE_KEY}
+      JOB_WORKFLOW_SERVICE_KEY: ${JOB_WORKFLOW_SERVICE_KEY:?Set JOB_WORKFLOW_SERVICE_KEY}
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318/v1/traces}
+    depends_on:
+      workflow-db:
+        condition: service_healthy
+      job:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8050/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    init: true
+    restart: unless-stopped
+
+  workflow-consumer:
+    build:
+      context: ./services/workflow
+    command: ["python", "-m", "app.consumer"]
+    environment:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://workflow:${WORKFLOW_DB_PASSWORD}@workflow-db:5432/workflow
+      JOB_SERVICE_URL: http://job:8040
+      JOB_INTERNAL_SERVICE_KEY: ${JOB_INTERNAL_SERVICE_KEY:?Set JOB_INTERNAL_SERVICE_KEY}
+      JOB_WORKFLOW_SERVICE_KEY: ${JOB_WORKFLOW_SERVICE_KEY:?Set JOB_WORKFLOW_SERVICE_KEY}
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+    depends_on:
+      workflow:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -d /proc/1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    init: true
+    restart: unless-stopped
+
+  notification:
+    build:
+      context: ./services/notification
+    environment:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://notification:${NOTIFICATION_DB_PASSWORD}@notification-db:5432/notification
+      INTERNAL_SERVICE_KEY: ${NOTIFICATION_INTERNAL_SERVICE_KEY:?Set NOTIFICATION_INTERNAL_SERVICE_KEY}
+      CONSUMER_SERVICE_KEY: ${NOTIFICATION_CONSUMER_SERVICE_KEY:?Set NOTIFICATION_CONSUMER_SERVICE_KEY}
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318/v1/traces}
+    depends_on:
+      notification-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8060/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    init: true
+    restart: unless-stopped
+
+  notification-consumer:
+    build:
+      context: ./services/notification
+    command: ["python", "-m", "app.consumer"]
+    environment:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://notification:${NOTIFICATION_DB_PASSWORD}@notification-db:5432/notification
+      RABBITMQ_URL: amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST:-jobs}
+    depends_on:
+      notification:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -d /proc/1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    init: true
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: ./gateway
+    environment:
+      APP_ENV: test
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      OIDC_ISSUER: http://localhost:${KEYCLOAK_PORT:-8180}/realms/taskspace
+      OIDC_JWKS_URL: http://keycloak:8080/realms/taskspace/protocol/openid-connect/certs
+      OIDC_AUDIENCE: taskspace-web
+      EMPLOYEE_SERVICE_URL: http://employee:8020
+      WORK_SERVICE_URL: http://work:8030
+      JOB_SERVICE_URL: http://job:8040
+      WORKFLOW_SERVICE_URL: http://workflow:8050
+      NOTIFICATION_SERVICE_URL: http://notification:8060
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY}
+      WORK_INTERNAL_SERVICE_KEY: ${WORK_INTERNAL_SERVICE_KEY:?Set WORK_INTERNAL_SERVICE_KEY}
+      JOB_INTERNAL_SERVICE_KEY: ${JOB_INTERNAL_SERVICE_KEY:?Set JOB_INTERNAL_SERVICE_KEY}
+      WORKFLOW_INTERNAL_SERVICE_KEY: ${WORKFLOW_INTERNAL_SERVICE_KEY:?Set WORKFLOW_INTERNAL_SERVICE_KEY}
+      NOTIFICATION_INTERNAL_SERVICE_KEY: ${NOTIFICATION_INTERNAL_SERVICE_KEY:?Set NOTIFICATION_INTERNAL_SERVICE_KEY}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318/v1/traces}
+      GATEWAY_METRICS_TOKEN: ${GATEWAY_METRICS_TOKEN:?Set GATEWAY_METRICS_TOKEN}
+    ports:
+      - "127.0.0.1:${GATEWAY_PORT:-8110}:8000"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      employee:
+        condition: service_healthy
+      work:
+        condition: service_healthy
+      job:
+        condition: service_healthy
+      workflow:
+        condition: service_healthy
+      notification:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    init: true
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.64.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      COLLECTOR_ZIPKIN_HOST_PORT: ""
+    ports:
+      - "127.0.0.1:${JAEGER_PORT:-16786}:16686"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:14269/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    secrets:
+      - source: gateway_metrics_token
+        target: /etc/prometheus/gateway_token
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9190}:9090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:9090/-/healthy || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3101}:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        OIDC_ISSUER: http://localhost:${KEYCLOAK_PORT:-8180}/realms/taskspace
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+      NEXT_TELEMETRY_DISABLED: 1
+      APP_BASE_URL: http://localhost:${FRONTEND_PORT:-3110}
+      OIDC_ISSUER: http://localhost:${KEYCLOAK_PORT:-8180}/realms/taskspace
+      OIDC_INTERNAL_BASE_URL: http://keycloak:8080
+      OIDC_CLIENT_ID: taskspace-web
+      OIDC_ALLOW_INSECURE_LOCAL: "true"
+      REDIS_URL: redis://session-store:6379
+      GATEWAY_URL: http://gateway:8000
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3110}:3000"
+    depends_on:
+      gateway:
+        condition: service_healthy
+      session-store:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/sign-in').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+    init: true
+    restart: unless-stopped
+
+volumes:
+  keycloak_data:
+  employee_data:
+  session_data:
+  work_data:
+  job_data:
+  rabbitmq_data:
+  workflow_data:
+  notification_data:
+  prometheus_data:
+  grafana_data:
+
+secrets:
+  gateway_metrics_token:
+    environment: GATEWAY_METRICS_TOKEN

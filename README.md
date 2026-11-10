@@ -1,8 +1,9 @@
 # Enterprise Task Platform
 
 A GraphQL-first enterprise work platform, developed in verified full-stack slices.
-Phases 1–10 are accepted. Phase 11 acceptance verification is complete.
-Phase 12 has not started.
+Phases 1–13 are accepted (Phase 13 merged into `main` at `cc9ccd3`).
+Phase 14 (Comprehensive Testing + CI/CD) is implemented pending owner acceptance
+on branch `phase-14-testing-ci`. Phase 15 has not started.
 
 Phase 2 adds a protected Taskspace shell, Keycloak Authorization Code Flow with
 PKCE, Redis-backed server sessions, an Employee Service with its own PostgreSQL
@@ -204,30 +205,33 @@ environments must use HTTPS.
 
 ## Verify
 
+Maintainable verification entry points for local and CI workflows:
+
 ```powershell
-.\.venv\Scripts\python.exe -m pytest gateway/tests
-.\.venv\Scripts\python.exe -m ruff check gateway
-.\.venv\Scripts\python.exe -m ruff format --check gateway
-.\.venv\Scripts\python.exe -m mypy gateway/app
-.\.venv\Scripts\python.exe -m pytest services/employee/tests
-.\.venv\Scripts\python.exe -m ruff check services/employee
-.\.venv\Scripts\python.exe -m ruff format --check services/employee
-.\.venv\Scripts\python.exe -m mypy services/employee/app
-.\.venv\Scripts\python.exe -m pytest services/work/tests
-.\.venv\Scripts\python.exe -m ruff check services/work
-.\.venv\Scripts\python.exe -m ruff format --check services/work
-.\.venv\Scripts\python.exe -m mypy services/work/app
-Set-Location frontend
-npm run codegen
-npm run typecheck
-npm run lint
-npm test
-npm run format:check
-npm run build
-npm audit --omit=dev
-Set-Location ..
-docker compose config --quiet
-docker compose build
+# 1. Static analysis (Ruff check/format, MyPy across all services, Prettier, ESLint, TypeScript)
+.\scripts\test-static.ps1
+
+# 2. Complete backend and frontend unit test suites (341 Python unit tests + 75 Vitest component tests)
+.\scripts\test-unit.ps1
+
+# 3. Isolated PostgreSQL integration regression (Work 13, Job 11, Workflow 10, Notification 9)
+.\scripts\test-postgres.ps1
+
+# 4. Non-mutating GraphQL schema export and TypeScript codegen consistency
+.\scripts\test-codegen.ps1
+
+# 5. Production frontend and locked Python dependency security audits
+.\scripts\test-audit.ps1
+
+# 6. Critical-path Playwright cross-browser acceptance (Chromium, Firefox, WebKit, Tablet, Mobile)
+.\scripts\test-e2e.ps1 -Project desktop -Spec tests/e2e/foundation.spec.ts -IncludeAuth
+.\scripts\test-e2e.ps1 -Project firefox -Spec tests/e2e/foundation.spec.ts -IncludeAuth
+.\scripts\test-e2e.ps1 -Project webkit -Spec tests/e2e/foundation.spec.ts -IncludeAuth
+
+# 7. Fail-closed isolated test environment preflight & execution
+python scripts/isolated_test_env.py generate-env --project-name taskspace-test-<id> --out-file .env.test
+python scripts/isolated_test_env.py preflight-ports --env-file .env.test
+.\scripts\test-postgres.ps1 -Isolated -EnvFile .env.test
 ```
 
 The Docker-backed authentication suite is opt-in and reads credentials from the

@@ -26,7 +26,19 @@ const enabled =
   process.env.KEYCLOAK_ADMIN_PASSWORD;
 
 function docker(args: string[]) {
-  const result = spawnSync("docker", ["compose", "-f", composeFile, ...args], {
+  const composeArgs = ["compose"];
+  if (process.env.COMPOSE_PROJECT_NAME) {
+    composeArgs.push("-p", process.env.COMPOSE_PROJECT_NAME);
+  }
+  if (process.env.COMPOSE_FILE) {
+    composeArgs.push("-f", process.env.COMPOSE_FILE);
+  } else {
+    composeArgs.push("-f", composeFile);
+  }
+  if (process.env.COMPOSE_ENV_FILES) {
+    composeArgs.push("--env-file", process.env.COMPOSE_ENV_FILES);
+  }
+  const result = spawnSync("docker", [...composeArgs, ...args], {
     encoding: "utf8",
     windowsHide: true,
     env: process.env,
@@ -66,8 +78,9 @@ test("ADMIN provisions, governs, and safely deactivates a disposable employee", 
   let primarySubject: string | undefined;
 
   try {
+    const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3010";
     await login(page, adminUsername!, adminPassword!);
-    await expect(page).toHaveURL("http://localhost:3010/");
+    await expect(page).toHaveURL(new URL("/", baseURL).toString());
     await page.getByRole("link", { name: "Employees", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "Employees" }),
@@ -131,7 +144,7 @@ test("ADMIN provisions, governs, and safely deactivates a disposable employee", 
     await page.locator("#password-new").fill(employeePassword!);
     await page.locator("#password-confirm").fill(employeePassword!);
     await page.getByRole("button", { name: "Submit" }).click();
-    await expect(page).toHaveURL("http://localhost:3010/");
+    await expect(page).toHaveURL(new URL("/", baseURL).toString());
     await expect(
       page.getByRole("link", { name: "Employees", exact: true }),
     ).toHaveCount(0);
@@ -154,7 +167,7 @@ test("ADMIN provisions, governs, and safely deactivates a disposable employee", 
     await logout(page);
 
     await login(page, username, employeePassword!);
-    await expect(page).not.toHaveURL("http://localhost:3010/");
+    await expect(page).not.toHaveURL(new URL("/", baseURL).toString());
     await page.context().clearCookies();
 
     await login(page, adminUsername!, adminPassword!);
@@ -165,7 +178,7 @@ test("ADMIN provisions, governs, and safely deactivates a disposable employee", 
     await logout(page);
 
     await login(page, username, employeePassword!);
-    await expect(page).toHaveURL("http://localhost:3010/");
+    await expect(page).toHaveURL(new URL("/", baseURL).toString());
     await logout(page);
 
     await login(page, adminUsername!, adminPassword!);
