@@ -2,13 +2,14 @@
   "baseline_commit": "fc8fc6f632eaca55f8e54ffdcc65b048d0e83592",
   "source_file_count": 402,
   "relocation_count": 394,
-  "unchanged_content_count": 385,
+  "unchanged_content_count": 379,
   "adapted_paths": [
     ".github/workflows/ci.yml",
     "legacy/compose.test.yaml",
     "legacy/compose.yaml",
     "legacy/experiments/portal-web/playwright.config.ts",
     "legacy/experiments/portal-web/tests/portal-ui.test.tsx",
+    "legacy/gateway/requirements.lock",
     "legacy/scripts/isolated_test_env.py",
     "legacy/scripts/test-audit.ps1",
     "legacy/scripts/test-audit.sh",
@@ -20,7 +21,12 @@
     "legacy/scripts/test-static.sh",
     "legacy/scripts/test-unit.ps1",
     "legacy/scripts/test-unit.sh",
-    "legacy/scripts/verify_codegen.py"
+    "legacy/scripts/verify_codegen.py",
+    "legacy/services/employee/requirements.lock",
+    "legacy/services/job/requirements.lock",
+    "legacy/services/notification/requirements.lock",
+    "legacy/services/work/requirements.lock",
+    "legacy/services/workflow/requirements.lock"
   ],
   "intentional_pre_s0_deletions": [
     "frontend/src/app/(protected)/design-system/page.tsx",
@@ -1637,8 +1643,8 @@
       "previous_path": "gateway/requirements.lock",
       "current_path": "legacy/gateway/requirements.lock",
       "previous_sha256": "781003cc1b1bb8ea57b61cedd8e501817b3f4c5b587df8a220871e5a500508e5",
-      "current_sha256": "781003cc1b1bb8ea57b61cedd8e501817b3f4c5b587df8a220871e5a500508e5",
-      "adapted": false
+      "current_sha256": "b5de73007736ec7f9b8c81dc461ac04d730f4c43c2856d7070224ba99fc79eb5",
+      "adapted": true
     },
     {
       "previous_path": "gateway/schema.graphql",
@@ -2001,8 +2007,8 @@
       "previous_path": "services/employee/requirements.lock",
       "current_path": "legacy/services/employee/requirements.lock",
       "previous_sha256": "be14c19ef0bdfca1eeaf1148d62d091ff36b3f551b33c027ccee1eaf392e3fa1",
-      "current_sha256": "be14c19ef0bdfca1eeaf1148d62d091ff36b3f551b33c027ccee1eaf392e3fa1",
-      "adapted": false
+      "current_sha256": "a3fef7a6a4ed0ae5a4ef609ec6b7a3bdb31c521aa56a58f3c71fde9ad6df04a8",
+      "adapted": true
     },
     {
       "previous_path": "services/employee/tests/test_admin_service.py",
@@ -2253,8 +2259,8 @@
       "previous_path": "services/job/requirements.lock",
       "current_path": "legacy/services/job/requirements.lock",
       "previous_sha256": "8363713c184d8b38e111dc14de3297f54f9e3ed9e004a1a909cf55a3128e671a",
-      "current_sha256": "8363713c184d8b38e111dc14de3297f54f9e3ed9e004a1a909cf55a3128e671a",
-      "adapted": false
+      "current_sha256": "1bb7577c3ddda7553607a7f1786f0e7dc06d99fa57485ff3bc04dd328d700ef6",
+      "adapted": true
     },
     {
       "previous_path": "services/job/tests/test_api.py",
@@ -2463,8 +2469,8 @@
       "previous_path": "services/notification/requirements.lock",
       "current_path": "legacy/services/notification/requirements.lock",
       "previous_sha256": "3b2a3049652f9d2a85433aa53e6c209d578e26f549b995a71b36281d2b475573",
-      "current_sha256": "3b2a3049652f9d2a85433aa53e6c209d578e26f549b995a71b36281d2b475573",
-      "adapted": false
+      "current_sha256": "b15e0f603f1454c6ad4be2febee78663d75d93a230d582330c0944daab0776dd",
+      "adapted": true
     },
     {
       "previous_path": "services/notification/tests/test_consumer.py",
@@ -2673,8 +2679,8 @@
       "previous_path": "services/work/requirements.lock",
       "current_path": "legacy/services/work/requirements.lock",
       "previous_sha256": "5a9c4f6f2033517929f792e91a97390d02a553744e8bb407c0d7897766daf06a",
-      "current_sha256": "5a9c4f6f2033517929f792e91a97390d02a553744e8bb407c0d7897766daf06a",
-      "adapted": false
+      "current_sha256": "1c9e9bb893da46b59347e2f9221fcbd295b616efba99b1c43271cd6bf44d3fee",
+      "adapted": true
     },
     {
       "previous_path": "services/work/tests/test_dashboard.py",
@@ -2848,8 +2854,8 @@
       "previous_path": "services/workflow/requirements.lock",
       "current_path": "legacy/services/workflow/requirements.lock",
       "previous_sha256": "3b2a3049652f9d2a85433aa53e6c209d578e26f549b995a71b36281d2b475573",
-      "current_sha256": "3b2a3049652f9d2a85433aa53e6c209d578e26f549b995a71b36281d2b475573",
-      "adapted": false
+      "current_sha256": "b15e0f603f1454c6ad4be2febee78663d75d93a230d582330c0944daab0776dd",
+      "adapted": true
     },
     {
       "previous_path": "services/workflow/tests/test_postgres.py",

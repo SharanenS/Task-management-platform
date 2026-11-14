@@ -46,11 +46,13 @@ for the current local secret values. The private root .env was retained in place
 and its unchanged hash was checked.
 
 All 402 initial source files are accounted for. There are 394 relocations,
-385 files with unchanged contents, and 17 explicit adaptations. Adaptations
+379 files with unchanged contents, and 23 explicit adaptations after the
+security follow-up below (initial S0: 385 unchanged and 17 adaptations). Adaptations
 cover CI paths and the new mandatory gate, relocated Compose bind paths, local
 verification toolchain lookup, the default report destination, and protection
 of the replacement development project from legacy recovery tooling, plus a
-targeted formatting correction in one preserved UI test.
+targeted formatting correction in one preserved UI test. Six additional
+adaptations patch the OpenTelemetry API dependency in the service lockfiles.
 
 Files already deleted in the initial dirty worktree remain deleted in the
 preserved experiment at legacy/experiments/portal-web. The 160 accepted baseline
@@ -211,3 +213,50 @@ git commit -m "refactor: establish S0 portal structure and isolate legacy"
 These commands are manual instructions only. Push, PR creation, merge and
 post-merge verification remain owner actions. S1 requires subsequent explicit
 authorization after the S0 review.
+
+## Post-commit security follow-up
+
+The first remote dependency-security job for S0 commit d354444 failed at
+Gateway's opentelemetry-api 1.45.1 pin with CVE-2026-126360. The frontend
+production audit in that job reported zero vulnerabilities. This is a dependency
+finding, not evidence that the relocation or application authorization failed.
+
+The [upstream advisory](https://github.com/open-telemetry/opentelemetry-python/security/advisories/GHSA-mf5v-w3w3-f6cg)
+identifies 1.45.2 as patched. All six service runtime lockfiles contained the same
+1.45.1 pin. Each now pins 1.45.2, with no other package changes, advisory exclusions,
+audit bypasses, application edits or timeout changes. The seventh audited lockfile,
+Work's test dependencies, did not contain that pin and was not edited.
+The relocation inventory retains original hashes and records the six additional
+intentional adaptations and current hashes.
+
+For local behavioral verification, only the patched API wheel was installed into
+.local/verification/otel-1.45.2 using pip --target --no-deps. PYTHONPATH selected
+that directory ahead of the existing local environment. Package metadata and the
+imported trace-context module path confirmed that tests used version 1.45.2.
+Existing virtual environments and running services were not upgraded.
+
+Initial restricted registry requests failed DNS resolution and are not counted
+as audits or installation successes. The download and full audit were rerun with
+normal network access. A restricted unit attempt stalled and was stopped; the
+six backend suites were rerun with normal local process access. Schema/client
+generation passed without changing generated source. All 11 structure checks
+passed with zero skips. Dependency-only changes did not require a frontend build
+or a repeat of its unchanged component suite.
+
+Backend JUnit reports under legacy/test-results/reports/security-otel were
+verified: Gateway 138, Employee 40, Work 61, Job 69, Workflow 10 and Notification 23;
+341 total, zero failures, errors or skips. PostgreSQL-only test files were excluded
+using the same boundary as the existing unit entrypoint; database integration is
+not claimed. Two suites emitted the existing Starlette/httpx deprecation warning.
+Patched wheel dependency requirements were checked against all six lockfiles.
+An initial diagnostic parser rejected an existing UTF-8 BOM; rereading the locks
+as utf-8-sig completed that check without changing their encoding.
+
+The complete legacy/scripts/test-audit.ps1 wrapper exited zero: frontend
+production dependencies and all seven Python lockfiles reported zero known
+vulnerabilities. All six runtime lockfiles resolved successfully during the audit.
+No advisory was ignored. This local result addresses the photographed dependency
+job failure; other remote jobs and the follow-up remote run remain unverified.
+Remote CI must run against the follow-up commit before merge. No remote result
+for that follow-up is claimed here. No Docker service, database, identity, queue,
+private environment file, immutable product plan or Git index was changed.
