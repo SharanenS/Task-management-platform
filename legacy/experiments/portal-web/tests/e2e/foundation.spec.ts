@@ -1,0 +1,87 @@
+import { test, expect } from "@playwright/test";
+
+test.skip(
+  process.env.RUN_AUTH_E2E !== "1" ||
+    !process.env.DEV_USER_USERNAME ||
+    !process.env.DEV_USER_PASSWORD,
+  "Phase 1 browser regression requires the Docker-backed development identity.",
+);
+
+test.beforeEach(async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "Sign in" }).click();
+  await page.locator("#username").fill(process.env.DEV_USER_USERNAME!);
+  await page.locator("#password").fill(process.env.DEV_USER_PASSWORD!);
+  await page.locator("#kc-login").click();
+  const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3010";
+  await expect(page).toHaveURL(new URL("/portals/admin", baseURL).toString());
+});
+
+test("real GraphQL connection and responsive navigation", async ({ page }) => {
+  await expect(
+    page.getByRole("heading", { name: "Your organisation, in focus." }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("admin portal", { exact: false }).first(),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBeTruthy();
+  const navigationButton = page.getByRole("button", {
+    name: "Open navigation",
+  });
+  if (await navigationButton.isVisible()) {
+    await navigationButton.click();
+    await expect(
+      page.getByRole("dialog", { name: "Navigation" }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(navigationButton).toBeFocused();
+    await navigationButton.click();
+  }
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("link", { name: "System health", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Gateway is reachable" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Enterprise Task Platform Gateway", { exact: true }),
+  ).toBeVisible();
+});
+test("connection failure and recovery", async ({ page }) => {
+  await page.goto("/system");
+  await expect(
+    page.getByRole("heading", { name: "Gateway is reachable" }),
+  ).toBeVisible();
+  await page.route("**/graphql", (route) => route.abort("failed"));
+  await page.getByRole("button", { name: "Refresh status" }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "Gateway unavailable",
+  );
+  await expect(
+    page.getByText("Gateway connected", { exact: true }),
+  ).toHaveCount(0);
+  await page.unroute("**/graphql");
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Gateway is reachable" }),
+  ).toBeVisible();
+});
+test("retired design-system bookmark opens the portal overview", async ({
+  page,
+}) => {
+  await page.goto("/design-system");
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/portals/admin");
+  await expect(
+    page.getByRole("heading", { name: "Your organisation, in focus." }),
+  ).toBeVisible();
+  await expect(page.getByText("Portal Visual Foundation")).toHaveCount(0);
+  await page.getByRole("button", { name: "Refresh overview" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Project portfolio" }),
+  ).toBeVisible();
+});

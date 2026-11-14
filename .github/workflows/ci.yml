@@ -14,7 +14,50 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  s0-structure:
+    name: Portal Structure and Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Set up Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: "3.13"
+      - name: Set up Node
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Pin application npm
+        run: npm install --global npm@11.5.1 --ignore-scripts
+      - name: Install structure verification tooling
+        run: python -m pip install ruff==0.17.0
+      - name: Install application dependencies
+        run: npm --prefix apps/web ci --ignore-scripts
+      - name: Verify structure script quality
+        run: |
+          python -m ruff check scripts tests/structure --select E,F,I --line-length 100
+          python -m ruff format --check scripts tests/structure --line-length 100
+      - name: Audit application production dependencies
+        run: npm --prefix apps/web audit --omit=dev
+      - name: Verify repository boundaries
+        run: python scripts/run_structure_tests.py
+      - name: Verify application formatting
+        run: npm --prefix apps/web run format:check
+      - name: Verify application lint
+        run: npm --prefix apps/web run lint
+      - name: Verify application types
+        run: npm --prefix apps/web run typecheck
+      - name: Build application
+        run: npm --prefix apps/web run build
+
   static-and-unit:
+    defaults:
+      run:
+        working-directory: legacy
     name: Static Analysis & Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -50,7 +93,7 @@ jobs:
         with:
           node-version: "24"
           cache: "npm"
-          cache-dependency-path: "frontend/package-lock.json"
+          cache-dependency-path: "legacy/frontend/package-lock.json"
 
       - name: Install frontend dependencies
         run: npm --prefix frontend ci
@@ -65,6 +108,9 @@ jobs:
         run: npm --prefix frontend run build
 
   schema-and-codegen:
+    defaults:
+      run:
+        working-directory: legacy
     name: GraphQL Schema & Codegen Consistency
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -77,7 +123,7 @@ jobs:
         with:
           python-version: "3.13"
           cache: "pip"
-          cache-dependency-path: "gateway/requirements.lock"
+          cache-dependency-path: "legacy/gateway/requirements.lock"
 
       - name: Install Gateway dependencies
         run: |
@@ -89,7 +135,7 @@ jobs:
         with:
           node-version: "24"
           cache: "npm"
-          cache-dependency-path: "frontend/package-lock.json"
+          cache-dependency-path: "legacy/frontend/package-lock.json"
 
       - name: Install frontend dependencies
         run: npm --prefix frontend ci
@@ -98,6 +144,9 @@ jobs:
         run: bash ./scripts/test-codegen.sh
 
   dependency-audit:
+    defaults:
+      run:
+        working-directory: legacy
     name: Dependency Security Audits
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -122,6 +171,9 @@ jobs:
         run: bash ./scripts/test-audit.sh
 
   postgres-integration:
+    defaults:
+      run:
+        working-directory: legacy
     name: PostgreSQL Integration Suites
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -222,6 +274,9 @@ jobs:
           rm -f .env.ci.postgres
 
   e2e-acceptance:
+    defaults:
+      run:
+        working-directory: legacy
     name: Browser Acceptance & Cross-Browser Coverage
     needs: [static-and-unit, schema-and-codegen, postgres-integration]
     runs-on: ubuntu-latest
@@ -240,7 +295,7 @@ jobs:
         with:
           node-version: "24"
           cache: "npm"
-          cache-dependency-path: "frontend/package-lock.json"
+          cache-dependency-path: "legacy/frontend/package-lock.json"
 
       - name: Install frontend dependencies
         run: npm --prefix frontend ci
@@ -288,6 +343,9 @@ jobs:
           rm -f .env.ci.e2e
 
   reliability-and-recovery:
+    defaults:
+      run:
+        working-directory: legacy
     name: Serial Reliability & Fault Recovery Suites
     needs: [static-and-unit, schema-and-codegen, postgres-integration]
     runs-on: ubuntu-latest
@@ -306,7 +364,7 @@ jobs:
         with:
           node-version: "24"
           cache: "npm"
-          cache-dependency-path: "frontend/package-lock.json"
+          cache-dependency-path: "legacy/frontend/package-lock.json"
 
       - name: Install frontend dependencies
         run: npm --prefix frontend ci
@@ -363,6 +421,7 @@ jobs:
     name: Phase 14 Quality Gate
     if: always()
     needs:
+      - s0-structure
       - static-and-unit
       - schema-and-codegen
       - dependency-audit
@@ -374,6 +433,7 @@ jobs:
       - name: Verify all required jobs succeeded
         run: |
           RESULTS=(
+            "${{ needs.s0-structure.result }}"
             "${{ needs.static-and-unit.result }}"
             "${{ needs.schema-and-codegen.result }}"
             "${{ needs.dependency-audit.result }}"
@@ -382,6 +442,7 @@ jobs:
             "${{ needs.reliability-and-recovery.result }}"
           )
           NAMES=(
+            "s0-structure"
             "static-and-unit"
             "schema-and-codegen"
             "dependency-audit"
@@ -403,4 +464,4 @@ jobs:
             echo "Phase 14 Quality Gate FAILED." >&2
             exit 1
           fi
-          echo "Phase 14 Quality Gate PASSED: All 6 mandatory CI jobs succeeded."
+          echo "Phase 14 Quality Gate PASSED: All 7 mandatory CI jobs succeeded."

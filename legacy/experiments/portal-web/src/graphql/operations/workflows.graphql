@@ -1,0 +1,89 @@
+query WorkflowRules(
+  $first: Int!
+  $after: String
+  $projectId: ID
+  $enabled: Boolean
+) {
+  workflowRules(
+    first: $first
+    after: $after
+    projectId: $projectId
+    enabled: $enabled
+  ) {
+    nodes {
+      id
+      projectId
+      name
+      triggerType
+      actionType
+      enabled
+      creatorEmployeeId
+      version
+      createdAt
+      updatedAt
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+
+query WorkflowRule($id: ID!) {
+  workflowRule(id: $id) {
+    id
+    projectId
+    name
+    triggerType
+    actionType
+    enabled
+    creatorEmployeeId
+    version
+    createdAt
+    updatedAt
+  }
+  workflowExecutions(first: 20, ruleId: $id) {
+    nodes {
+      id
+      ruleId
+      sourceEventId
+      projectId
+      taskId
+      status
+      resultingJobId
+      failureClassification
+      createdAt
+      updatedAt
+      completedAt
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+
+mutation CreateWorkflowRule($input: CreateWorkflowRuleInput!) {
+  createWorkflowRule(input: $input) {
+    id
+    name
+    enabled
+    version
+  }
+}
+
+mutation SetWorkflowRuleEnabled(
+  $ruleId: ID!
+  $enabled: Boolean!
+  $expectedVersion: Int!
+) {
+  setWorkflowRuleEnabled(
+    ruleId: $ruleId
+    enabled: $enabled
+    expectedVersion: $expectedVersion
+  ) {
+    id
+    enabled
+    version
+  }
+}

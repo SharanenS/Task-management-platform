@@ -1,0 +1,86 @@
+query EmployeeDirectory(
+  $first: Int!
+  $after: String
+  $search: String
+  $role: ApplicationRole
+  $active: Boolean
+) {
+  employees(
+    first: $first
+    after: $after
+    search: $search
+    role: $role
+    active: $active
+  ) {
+    nodes {
+      id
+      username
+      displayName
+      email
+      role
+      active
+      provisioningStatus
+      updatedAt
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+
+query EmployeeDetail($id: ID!) {
+  employee(id: $id) {
+    id
+    username
+    displayName
+    email
+    role
+    active
+    provisioningStatus
+    createdAt
+    updatedAt
+    version
+  }
+}
+
+mutation ProvisionEmployee($input: ProvisionEmployeeInput!) {
+  provisionEmployee(input: $input) {
+    id
+    username
+    displayName
+    email
+    role
+    active
+    provisioningStatus
+  }
+}
+
+mutation UpdateEmployeeRole($employeeId: ID!, $role: ApplicationRole!) {
+  updateEmployeeRole(employeeId: $employeeId, role: $role) {
+    id
+    role
+    active
+    provisioningStatus
+    version
+  }
+}
+
+mutation SetEmployeeActive($employeeId: ID!, $active: Boolean!) {
+  setEmployeeActive(employeeId: $employeeId, active: $active) {
+    id
+    role
+    active
+    provisioningStatus
+    version
+  }
+}
+
+mutation ReconcileEmployee($employeeId: ID!) {
+  reconcileEmployee(employeeId: $employeeId) {
+    id
+    active
+    provisioningStatus
+    version
+  }
+}

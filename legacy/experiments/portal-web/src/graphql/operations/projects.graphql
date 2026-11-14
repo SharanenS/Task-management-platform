@@ -1,0 +1,146 @@
+query ProjectDirectory(
+  $first: Int!
+  $after: String
+  $search: String
+  $status: ProjectStatus
+) {
+  projects(first: $first, after: $after, search: $search, status: $status) {
+    nodes {
+      id
+      key
+      name
+      description
+      status
+      version
+      updatedAt
+      memberships {
+        employeeId
+        role
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+
+query ProjectDetail($id: ID!) {
+  project(id: $id) {
+    id
+    key
+    name
+    description
+    status
+    creatorEmployeeId
+    version
+    createdAt
+    updatedAt
+    memberships {
+      id
+      employeeId
+      role
+      createdAt
+      displayName
+      email
+    }
+  }
+}
+
+query EligibleProjectMembers($first: Int!, $after: String, $search: String) {
+  eligibleProjectMembers(first: $first, after: $after, search: $search) {
+    nodes {
+      id
+      displayName
+      email
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+
+mutation CreateProject($input: CreateProjectInput!) {
+  createProject(input: $input) {
+    id
+    key
+    name
+    status
+    version
+  }
+}
+
+mutation UpdateProject($projectId: ID!, $input: UpdateProjectInput!) {
+  updateProject(projectId: $projectId, input: $input) {
+    id
+    name
+    description
+    version
+  }
+}
+
+mutation SetProjectStatus(
+  $projectId: ID!
+  $status: ProjectStatus!
+  $expectedVersion: Int!
+) {
+  setProjectStatus(
+    projectId: $projectId
+    status: $status
+    expectedVersion: $expectedVersion
+  ) {
+    id
+    status
+    version
+  }
+}
+
+mutation AddProjectMember(
+  $projectId: ID!
+  $employeeId: ID!
+  $role: ProjectRole!
+) {
+  addProjectMember(
+    projectId: $projectId
+    employeeId: $employeeId
+    role: $role
+  ) {
+    id
+    memberships {
+      id
+      employeeId
+      role
+    }
+  }
+}
+
+mutation UpdateProjectMemberRole(
+  $projectId: ID!
+  $employeeId: ID!
+  $role: ProjectRole!
+) {
+  updateProjectMemberRole(
+    projectId: $projectId
+    employeeId: $employeeId
+    role: $role
+  ) {
+    id
+    memberships {
+      id
+      employeeId
+      role
+    }
+  }
+}
+
+mutation RemoveProjectMember($projectId: ID!, $employeeId: ID!) {
+  removeProjectMember(projectId: $projectId, employeeId: $employeeId) {
+    id
+    memberships {
+      id
+      employeeId
+      role
+    }
+  }
+}
