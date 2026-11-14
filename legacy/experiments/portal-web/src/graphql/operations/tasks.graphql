@@ -1,0 +1,187 @@
+query ProjectTasks(
+  $projectId: ID!
+  $first: Int!
+  $after: String
+  $search: String
+  $status: TaskStatus
+  $priority: TaskPriority
+  $assigneeEmployeeId: ID
+  $unassigned: Boolean!
+) {
+  projectTasks(
+    projectId: $projectId
+    first: $first
+    after: $after
+    search: $search
+    status: $status
+    priority: $priority
+    assigneeEmployeeId: $assigneeEmployeeId
+    unassigned: $unassigned
+  ) {
+    nodes {
+      id
+      projectId
+      reference
+      number
+      title
+      description
+      status
+      priority
+      assigneeEmployeeId
+      assigneeDisplayName
+      dueDate
+      version
+      updatedAt
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+
+query ProjectTaskBoard($projectId: ID!, $laneSize: Int!) {
+  projectTaskBoard(projectId: $projectId, laneSize: $laneSize) {
+    lanes {
+      status
+      hasMore
+      tasks {
+        id
+        reference
+        title
+        status
+        priority
+        assigneeDisplayName
+        version
+      }
+    }
+  }
+}
+
+query TaskDetail($projectId: ID!, $taskId: ID!) {
+  task(projectId: $projectId, taskId: $taskId) {
+    id
+    projectId
+    reference
+    number
+    title
+    description
+    status
+    priority
+    assigneeEmployeeId
+    assigneeDisplayName
+    creatorEmployeeId
+    dueDate
+    version
+    createdAt
+    updatedAt
+  }
+  project(id: $projectId) {
+    id
+    key
+    name
+    status
+    memberships {
+      employeeId
+      role
+      displayName
+      email
+    }
+  }
+  taskComments(projectId: $projectId, taskId: $taskId, first: 25) {
+    nodes {
+      id
+      authorEmployeeId
+      authorDisplayName
+      body
+      createdAt
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+  taskActivity(projectId: $projectId, taskId: $taskId, first: 25) {
+    nodes {
+      id
+      actorEmployeeId
+      actorDisplayName
+      activityType
+      changeData
+      createdAt
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+
+mutation CreateTask($projectId: ID!, $input: CreateTaskInput!) {
+  createTask(projectId: $projectId, input: $input) {
+    id
+    reference
+    title
+    status
+    priority
+    version
+  }
+}
+
+mutation UpdateTask($projectId: ID!, $taskId: ID!, $input: UpdateTaskInput!) {
+  updateTask(projectId: $projectId, taskId: $taskId, input: $input) {
+    id
+    title
+    description
+    priority
+    dueDate
+    version
+  }
+}
+
+mutation AssignTask(
+  $projectId: ID!
+  $taskId: ID!
+  $assigneeEmployeeId: ID
+  $expectedVersion: Int!
+) {
+  assignTask(
+    projectId: $projectId
+    taskId: $taskId
+    assigneeEmployeeId: $assigneeEmployeeId
+    expectedVersion: $expectedVersion
+  ) {
+    id
+    assigneeEmployeeId
+    assigneeDisplayName
+    version
+  }
+}
+
+mutation ChangeTaskStatus(
+  $projectId: ID!
+  $taskId: ID!
+  $status: TaskStatus!
+  $expectedVersion: Int!
+) {
+  changeTaskStatus(
+    projectId: $projectId
+    taskId: $taskId
+    status: $status
+    expectedVersion: $expectedVersion
+  ) {
+    id
+    status
+    version
+  }
+}
+
+mutation AddTaskComment($projectId: ID!, $taskId: ID!, $body: String!) {
+  addTaskComment(projectId: $projectId, taskId: $taskId, body: $body) {
+    id
+    authorEmployeeId
+    authorDisplayName
+    body
+    createdAt
+  }
+}

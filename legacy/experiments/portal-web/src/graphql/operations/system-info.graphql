@@ -1,0 +1,8 @@
+query SystemInfo {
+  systemInfo {
+    name
+    version
+    environment
+    status
+  }
+}

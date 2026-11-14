@@ -1,0 +1,527 @@
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+import { expect, test, type Browser, type Page } from "@playwright/test";
+
+const composeFile = fileURLToPath(
+  new URL("../../../compose.yaml", import.meta.url),
+);
+const env = process.env;
+const enabled =
+  env.RUN_JOB_MULTI_ROLE_E2E === "1" &&
+  env.DEV_USER_USERNAME &&
+  env.DEV_USER_PASSWORD &&
+  env.PHASE4_E2E_TEMP_PASSWORD &&
+  env.PHASE4_E2E_PASSWORD &&
+  env.KEYCLOAK_ADMIN_USERNAME &&
+  env.KEYCLOAK_ADMIN_PASSWORD;
+
+type Identity = {
+  username: string;
+  email: string;
+  role: "MEMBER" | "MANAGER";
+  employeeId?: string;
+  subject?: string;
+};
+
+function docker(args: string[]) {
+  const result = spawnSync("docker", ["compose", "-f", composeFile, ...args], {
+    encoding: "utf8",
+    windowsHide: true,
+    env,
+  });
+  if (result.status !== 0)
+    throw new Error("Disposable resource command failed.");
+  return result.stdout;
+}
+
+function container(args: string[]) {
+  const result = spawnSync("docker", args, {
+    encoding: "utf8",
+    windowsHide: true,
+    env,
+  });
+  if (result.status !== 0)
+    throw new Error("Disposable container command failed.");
+  return result.stdout;
+}
+
+async function gql(page: Page, query: string, variables: object = {}) {
+  return (
+    await page.request.post("/graphql", { data: { query, variables } })
+  ).json();
+}
+
+async function authenticatedPage(
+  browser: Browser,
+  username: string,
+  password: string,
+  replacement?: string,
+) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto("http://localhost:3010/sign-in");
+  await page.getByRole("link", { name: "Sign in" }).click();
+  await page.locator("#username").fill(username);
+  await page.locator("#password").fill(password);
+  await page.locator("#kc-login").click();
+  if (replacement) {
+    await page.locator("#password-new").fill(replacement);
+    await page.locator("#password-confirm").fill(replacement);
+    await page.getByRole("button", { name: "Submit" }).click();
+  }
+  await expect(page).toHaveURL("http://localhost:3010/");
+  return { context, page };
+}
+
+test.describe.configure({ mode: "serial" });
+test("member ownership, non-owner concealment, and ADMIN override", async ({
+  browser,
+}, info) => {
+  test.skip(
+    !enabled || info.project.name !== "desktop",
+    "Opt-in Job multi-role journey requires ignored disposable credentials.",
+  );
+  test.setTimeout(240_000);
+  const marker = Date.now().toString(36).toLowerCase();
+  const identities: Identity[] = ["owner", "outsider", "manager"].map(
+    (kind) => ({
+      username: `j6-${kind}-${marker}`,
+      email: `j6-${kind}-${marker}@example.test`,
+      role: kind === "manager" ? "MANAGER" : "MEMBER",
+    }),
+  );
+  const [owner, outsider, manager] = identities;
+  const projectKey = `JA-${marker.toUpperCase()}`;
+  const idempotencyKey = `phase6-multi-role-${marker}`;
+  let projectId: string | undefined;
+  const jobIds: string[] = [];
+  let jobId: string | undefined;
+  let primarySubject: string | undefined;
+  const contexts: Array<{ close(): Promise<void> }> = [];
+
+  try {
+    const admin = await authenticatedPage(
+      browser,
+      env.DEV_USER_USERNAME!,
+      env.DEV_USER_PASSWORD!,
+    );
+    contexts.push(admin.context);
+    for (const identity of identities) {
+      const provisioned = await gql(
+        admin.page,
+        "mutation P($input: ProvisionEmployeeInput!) { provisionEmployee(input: $input) { id } }",
+        {
+          input: {
+            idempotencyKey: `phase6-${identity.username}`,
+            username: identity.username,
+            email: identity.email,
+            displayName: identity.username.replaceAll("-", " "),
+            role: identity.role,
+            active: true,
+            temporaryPassword: env.PHASE4_E2E_TEMP_PASSWORD,
+          },
+        },
+      );
+      expect(provisioned.errors).toBeUndefined();
+      identity.employeeId = provisioned.data.provisionEmployee.id;
+    }
+    const project = await gql(
+      admin.page,
+      "mutation C($input: CreateProjectInput!) { createProject(input: $input) { id version } }",
+      { input: { key: projectKey, name: `Job authorization ${marker}` } },
+    );
+    projectId = project.data.createProject.id;
+    await gql(
+      admin.page,
+      "mutation S($id: ID!, $version: Int!) { setProjectStatus(projectId: $id, status: ACTIVE, expectedVersion: $version) { id } }",
+      { id: projectId, version: project.data.createProject.version },
+    );
+    const membership = await gql(
+      admin.page,
+      "mutation A($id: ID!, $employee: ID!) { addProjectMember(projectId: $id, employeeId: $employee, role: CONTRIBUTOR) { id } }",
+      { id: projectId, employee: owner.employeeId },
+    );
+    expect(membership.errors).toBeUndefined();
+
+    for (const identity of identities) {
+      const firstLogin = await authenticatedPage(
+        browser,
+        identity.username,
+        env.PHASE4_E2E_TEMP_PASSWORD!,
+        env.PHASE4_E2E_PASSWORD!,
+      );
+      await firstLogin.context.close();
+    }
+
+    const ownerSession = await authenticatedPage(
+      browser,
+      owner.username,
+      env.PHASE4_E2E_PASSWORD!,
+    );
+    contexts.push(ownerSession.context);
+    const operation =
+      "mutation S($input: SubmitProjectTaskExportInput!) { submitProjectTaskExport(input: $input) { id status attempts { id } } }";
+    const submitted = await gql(ownerSession.page, operation, {
+      input: { projectId, includeCompleted: true, idempotencyKey },
+    });
+    expect(submitted.errors).toBeUndefined();
+    jobId = submitted.data.submitProjectTaskExport.id;
+    jobIds.push(jobId!);
+    expect(submitted.data.submitProjectTaskExport).toMatchObject({
+      status: "SUBMITTED",
+      attempts: [],
+    });
+    const dispatchOperation =
+      "mutation D($id: ID!, $version: Int!) { dispatchJob(jobId: $id, expectedVersion: $version) { id status } }";
+    const ownerList = await gql(
+      ownerSession.page,
+      "query { jobs(first: 50) { nodes { id } } }",
+    );
+    expect(ownerList.data.jobs.nodes).toContainEqual({ id: jobId });
+    const ownerDetail = await gql(
+      ownerSession.page,
+      "query J($id: ID!) { job(id: $id) { id status attempts { id } } }",
+      { id: jobId },
+    );
+    expect(ownerDetail.data.job.id).toBe(jobId);
+    expect(
+      await ownerSession.page.evaluate(() =>
+        Object.keys(localStorage).concat(Object.keys(sessionStorage)),
+      ),
+    ).toEqual([]);
+    const forged = await gql(
+      ownerSession.page,
+      'mutation { submitProjectTaskExport(input: {projectId: "00000000-0000-0000-0000-000000000000", includeCompleted: true, idempotencyKey: "forged", submitterEmployeeId: "00000000-0000-0000-0000-000000000000", role: ADMIN}) { id } }',
+    );
+    expect(forged.errors[0]).toEqual({ message: "Invalid GraphQL request." });
+
+    const outsiderSession = await authenticatedPage(
+      browser,
+      outsider.username,
+      env.PHASE4_E2E_PASSWORD!,
+    );
+    contexts.push(outsiderSession.context);
+    const outsiderList = await gql(
+      outsiderSession.page,
+      "query { jobs(first: 50) { nodes { id } } }",
+    );
+    expect(outsiderList.data.jobs.nodes).not.toContainEqual({ id: jobId });
+    const concealed = await gql(
+      outsiderSession.page,
+      "query J($id: ID!) { job(id: $id) { id } }",
+      { id: jobId },
+    );
+    expect(concealed.errors[0]).toEqual({
+      message: "The job was not found.",
+      extensions: { code: "JOB_NOT_FOUND" },
+    });
+    const deniedDispatch = await gql(outsiderSession.page, dispatchOperation, {
+      id: jobId,
+      version: 1,
+    });
+    expect(deniedDispatch.errors[0]).toEqual({
+      message: "The job was not found.",
+      extensions: { code: "JOB_NOT_FOUND" },
+    });
+    expect(
+      await outsiderSession.page.evaluate(() =>
+        Object.keys(localStorage).concat(Object.keys(sessionStorage)),
+      ),
+    ).toEqual([]);
+
+    const adminDetail = await gql(
+      admin.page,
+      "query J($id: ID!) { job(id: $id) { id status attempts { id } } }",
+      { id: jobId },
+    );
+    expect(adminDetail.data.job).toEqual({
+      id: jobId,
+      status: "SUBMITTED",
+      attempts: [],
+    });
+    docker(["stop", "job-worker"]);
+    const dispatched = await gql(ownerSession.page, dispatchOperation, {
+      id: jobId,
+      version: 1,
+    });
+    expect(dispatched.errors).toBeUndefined();
+    docker(["stop", "work"]);
+    container(["start", "enterprise-task-platform-phase2-job-worker-1"]);
+    await expect
+      .poll(
+        async () =>
+          (
+            await gql(
+              ownerSession.page,
+              "query J($id: ID!) { job(id: $id) { attempts { attemptNumber status failureCode retryable safeSummary } } }",
+              { id: jobId },
+            )
+          ).data.job.attempts,
+        { timeout: 30_000 },
+      )
+      .toContainEqual({
+        attemptNumber: 1,
+        status: "RETRY_SCHEDULED",
+        failureCode: "DEPENDENCY_UNAVAILABLE",
+        retryable: true,
+        safeSummary: "Execution will be retried.",
+      });
+    docker(["stop", "job-worker"]);
+    docker(["up", "-d", "--wait", "work"]);
+    container(["start", "enterprise-task-platform-phase2-job-worker-1"]);
+    await expect
+      .poll(
+        async () =>
+          (
+            await gql(
+              ownerSession.page,
+              "query J($id: ID!) { job(id: $id) { status } }",
+              { id: jobId },
+            )
+          ).data.job.status,
+        { timeout: 60_000 },
+      )
+      .toBe("SUCCEEDED");
+    const retried = await gql(
+      ownerSession.page,
+      "query J($id: ID!) { job(id: $id) { attempts { attemptNumber status failureCode retryable } } }",
+      { id: jobId },
+    );
+    expect(retried.data.job.attempts).toEqual([
+      {
+        attemptNumber: 1,
+        status: "RETRY_SCHEDULED",
+        failureCode: "DEPENDENCY_UNAVAILABLE",
+        retryable: true,
+      },
+      {
+        attemptNumber: 2,
+        status: "SUCCEEDED",
+        failureCode: null,
+        retryable: false,
+      },
+    ]);
+    await admin.page.goto(`/jobs/${jobId}`);
+    await expect(admin.page.getByText("Export result")).toBeVisible();
+
+    const adminPublications = await gql(
+      admin.page,
+      "query P($status: PublicationStatus) { jobPublications(first: 1, status: $status) { nodes { id status attemptCount lastFailureClassification reconciliationRequired } pageInfo { hasNextPage endCursor } } }",
+      { status: "PUBLISHED" },
+    );
+    expect(adminPublications.errors).toBeUndefined();
+    expect(adminPublications.data.jobPublications.nodes).toHaveLength(1);
+    expect(adminPublications.data.jobPublications.nodes[0].status).toBe(
+      "PUBLISHED",
+    );
+    expect(adminPublications.data.jobPublications.pageInfo).toHaveProperty(
+      "hasNextPage",
+    );
+    expect(JSON.stringify(adminPublications)).not.toMatch(
+      /leaseToken|amqp|rabbitmq|password|authorization|employee:8020|job:8030/i,
+    );
+    await admin.page.goto("/jobs/publications");
+    await expect(
+      admin.page.getByRole("heading", { name: "Publication diagnostics" }),
+    ).toBeVisible();
+    await admin.page
+      .getByRole("combobox", { name: /^Status/ })
+      .selectOption("PUBLISHED");
+    await expect(
+      admin.page.locator("strong").filter({ hasText: "PUBLISHED" }).first(),
+    ).toBeVisible();
+
+    await ownerSession.page.goto("/jobs/publications");
+    await expect(ownerSession.page).toHaveURL(/\/access-denied$/);
+    const memberDiagnostics = await gql(
+      ownerSession.page,
+      "query { jobPublications(first: 1) { nodes { id } } }",
+    );
+    expect(memberDiagnostics.errors[0].extensions.code).toBe("FORBIDDEN");
+    const ownerPublication = await gql(
+      ownerSession.page,
+      "query J($id: ID!) { job(id: $id) { id publication { status } } }",
+      { id: jobId },
+    );
+    expect(ownerPublication.data.job.publication.status).toBe("PUBLISHED");
+
+    const managerSession = await authenticatedPage(
+      browser,
+      manager.username,
+      env.PHASE4_E2E_PASSWORD!,
+    );
+    contexts.push(managerSession.context);
+    const managerDiagnostics = await gql(
+      managerSession.page,
+      "query { jobPublications(first: 1) { nodes { id } } }",
+    );
+    expect(managerDiagnostics.errors[0].extensions.code).toBe("FORBIDDEN");
+
+    const permanent = await gql(ownerSession.page, operation, {
+      input: {
+        projectId,
+        includeCompleted: false,
+        idempotencyKey: `${idempotencyKey}-permanent`,
+      },
+    });
+    expect(permanent.errors).toBeUndefined();
+    const permanentJobId = permanent.data.submitProjectTaskExport.id;
+    jobIds.push(permanentJobId);
+    docker(["stop", "job-worker"]);
+    const permanentDispatch = await gql(ownerSession.page, dispatchOperation, {
+      id: permanentJobId,
+      version: 1,
+    });
+    expect(permanentDispatch.errors).toBeUndefined();
+    const deactivated = await gql(
+      admin.page,
+      "mutation A($id: ID!) { setEmployeeActive(employeeId: $id, active: false) { id active } }",
+      { id: owner.employeeId },
+    );
+    expect(deactivated.data.setEmployeeActive.active).toBe(false);
+    docker(["start", "job-worker"]);
+    await expect
+      .poll(
+        async () =>
+          (
+            await gql(
+              admin.page,
+              "query J($id: ID!) { job(id: $id) { status } }",
+              { id: permanentJobId },
+            )
+          ).data.job.status,
+        { timeout: 30_000 },
+      )
+      .toBe("FAILED");
+    const deniedExecution = await gql(
+      admin.page,
+      "query J($id: ID!) { job(id: $id) { status resultContent failureClassification attempts { attemptNumber status failureCode retryable safeSummary } } }",
+      { id: permanentJobId },
+    );
+    expect(deniedExecution.data.job).toEqual({
+      status: "FAILED",
+      resultContent: null,
+      failureClassification: "SUBMITTER_INACTIVE",
+      attempts: [
+        {
+          attemptNumber: 1,
+          status: "FAILED",
+          failureCode: "SUBMITTER_INACTIVE",
+          retryable: false,
+          safeSummary: "Execution failed.",
+        },
+      ],
+    });
+    expect(JSON.stringify(deniedExecution)).not.toMatch(
+      /employee:8020|Traceback|password|authorization/i,
+    );
+    const reactivated = await gql(
+      admin.page,
+      "mutation A($id: ID!) { setEmployeeActive(employeeId: $id, active: true) { id active } }",
+      { id: owner.employeeId },
+    );
+    expect(reactivated.data.setEmployeeActive.active).toBe(true);
+  } finally {
+    docker(["start", "work", "job-worker"]);
+    for (const context of contexts.reverse()) await context.close();
+    await docker([
+      "exec",
+      "-T",
+      "keycloak",
+      "/opt/keycloak/bin/kcadm.sh",
+      "config",
+      "credentials",
+      "--server",
+      "http://localhost:8080",
+      "--realm",
+      "master",
+      "--user",
+      env.KEYCLOAK_ADMIN_USERNAME!,
+      "--password",
+      env.KEYCLOAK_ADMIN_PASSWORD!,
+    ]);
+    const primary = JSON.parse(
+      docker([
+        "exec",
+        "-T",
+        "keycloak",
+        "/opt/keycloak/bin/kcadm.sh",
+        "get",
+        "users",
+        "-r",
+        "taskspace",
+        "-q",
+        `username=${env.DEV_USER_USERNAME}`,
+      ]),
+    );
+    if (primary.length !== 1)
+      throw new Error("Primary identity lookup failed.");
+    primarySubject = primary[0].id;
+    for (const cleanupJobId of jobIds)
+      docker([
+        "exec",
+        "-T",
+        "job",
+        "python",
+        "-m",
+        "app.development_cleanup",
+        cleanupJobId,
+      ]);
+    if (projectId)
+      docker([
+        "exec",
+        "-T",
+        "work",
+        "python",
+        "-m",
+        "app.development_cleanup",
+        "--project-id",
+        projectId,
+        "--expected-key",
+        projectKey,
+      ]);
+    for (const identity of identities) {
+      const users = JSON.parse(
+        docker([
+          "exec",
+          "-T",
+          "keycloak",
+          "/opt/keycloak/bin/kcadm.sh",
+          "get",
+          "users",
+          "-r",
+          "taskspace",
+          "-q",
+          `username=${identity.username}`,
+        ]),
+      );
+      if (users.length === 1 && users[0].username === identity.username) {
+        identity.subject = users[0].id;
+        docker([
+          "exec",
+          "-T",
+          "employee",
+          "python",
+          "-m",
+          "app.development_access",
+          "remove",
+          "--subject",
+          identity.subject!,
+          "--protected-subject",
+          primarySubject!,
+        ]);
+        docker([
+          "exec",
+          "-T",
+          "keycloak",
+          "/opt/keycloak/bin/kcadm.sh",
+          "delete",
+          `users/${identity.subject}`,
+          "-r",
+          "taskspace",
+        ]);
+      }
+    }
+  }
+});

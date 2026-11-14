@@ -1,0 +1,2869 @@
+{
+  "baseline_commit": "fc8fc6f632eaca55f8e54ffdcc65b048d0e83592",
+  "source_file_count": 402,
+  "relocation_count": 394,
+  "unchanged_content_count": 385,
+  "adapted_paths": [
+    ".github/workflows/ci.yml",
+    "legacy/compose.test.yaml",
+    "legacy/compose.yaml",
+    "legacy/experiments/portal-web/playwright.config.ts",
+    "legacy/experiments/portal-web/tests/portal-ui.test.tsx",
+    "legacy/scripts/isolated_test_env.py",
+    "legacy/scripts/test-audit.ps1",
+    "legacy/scripts/test-audit.sh",
+    "legacy/scripts/test-codegen.ps1",
+    "legacy/scripts/test-codegen.sh",
+    "legacy/scripts/test-postgres.ps1",
+    "legacy/scripts/test-postgres.sh",
+    "legacy/scripts/test-static.ps1",
+    "legacy/scripts/test-static.sh",
+    "legacy/scripts/test-unit.ps1",
+    "legacy/scripts/test-unit.sh",
+    "legacy/scripts/verify_codegen.py"
+  ],
+  "intentional_pre_s0_deletions": [
+    "frontend/src/app/(protected)/design-system/page.tsx",
+    "frontend/src/app/(protected)/employees/[id]/page.tsx",
+    "frontend/src/app/(protected)/employees/layout.tsx",
+    "frontend/src/app/(protected)/employees/new/page.tsx",
+    "frontend/src/app/(protected)/employees/page.tsx",
+    "frontend/src/app/(protected)/jobs/[id]/page.tsx",
+    "frontend/src/app/(protected)/jobs/new/page.tsx",
+    "frontend/src/app/(protected)/jobs/page.tsx",
+    "frontend/src/app/(protected)/jobs/publications/page.tsx",
+    "frontend/src/app/(protected)/notifications/page.tsx",
+    "frontend/src/app/(protected)/operations/page.tsx",
+    "frontend/src/app/(protected)/projects/[id]/page.tsx",
+    "frontend/src/app/(protected)/projects/[id]/tasks/[taskId]/page.tsx",
+    "frontend/src/app/(protected)/projects/[id]/tasks/new/page.tsx",
+    "frontend/src/app/(protected)/projects/[id]/tasks/page.tsx",
+    "frontend/src/app/(protected)/projects/new/page.tsx",
+    "frontend/src/app/(protected)/projects/page.tsx",
+    "frontend/src/app/(protected)/reports/[id]/page.tsx",
+    "frontend/src/app/(protected)/reports/page.tsx",
+    "frontend/src/app/(protected)/system/page.tsx",
+    "frontend/src/app/(protected)/workflows/[id]/page.tsx",
+    "frontend/src/app/(protected)/workflows/new/page.tsx",
+    "frontend/src/app/(protected)/workflows/page.tsx",
+    "frontend/src/components/layout/app-shell.tsx",
+    "frontend/src/features/dashboard/workspace-dashboard.tsx",
+    "frontend/src/features/design-system/component-preview.tsx"
+  ],
+  "files": [
+    {
+      "previous_path": ".env.example",
+      "current_path": "legacy/.env.example",
+      "previous_sha256": "bf74719b7c426b7a5348d4e69271300890e8fa134abe0dbd898cce5e1b53eb90",
+      "current_sha256": "bf74719b7c426b7a5348d4e69271300890e8fa134abe0dbd898cce5e1b53eb90",
+      "adapted": false
+    },
+    {
+      "previous_path": ".gitattributes",
+      "current_path": ".gitattributes",
+      "previous_sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c",
+      "current_sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c",
+      "adapted": false
+    },
+    {
+      "previous_path": ".github/workflows/ci.yml",
+      "current_path": ".github/workflows/ci.yml",
+      "previous_sha256": "ead77ece19bdc04c0bb23b1e8730b96d9716dac3630170a60e3c6582cf70ef99",
+      "current_sha256": "b2f480d1151e99253d167059a0834391c2fcae8b644ef7c767c7ee06e3afdb51",
+      "adapted": true
+    },
+    {
+      "previous_path": ".gitignore",
+      "current_path": ".gitignore",
+      "previous_sha256": "d7c5e73af0230f6576318a7f1b7ccfdc33716ba46b36d6ff850723e0284829f0",
+      "current_sha256": "d7c5e73af0230f6576318a7f1b7ccfdc33716ba46b36d6ff850723e0284829f0",
+      "adapted": false
+    },
+    {
+      "previous_path": ".nvmrc",
+      "current_path": "legacy/.nvmrc",
+      "previous_sha256": "68ca3fba3b7e864770cb61aeb306d4bd4354b68ab4dd38450860c5d823e42a53",
+      "current_sha256": "68ca3fba3b7e864770cb61aeb306d4bd4354b68ab4dd38450860c5d823e42a53",
+      "adapted": false
+    },
+    {
+      "previous_path": "README.md",
+      "current_path": "legacy/README.md",
+      "previous_sha256": "e04d6c0b1338da920a5db1fb1425ea4e87f0eb277a5079e577fabfda7b0df768",
+      "current_sha256": "e04d6c0b1338da920a5db1fb1425ea4e87f0eb277a5079e577fabfda7b0df768",
+      "adapted": false
+    },
+    {
+      "previous_path": "compose.test.yaml",
+      "current_path": "legacy/compose.test.yaml",
+      "previous_sha256": "e833d50abe89b59602102b9c75cc974fe97f3bb5057d4290e15d834b4bcb40b9",
+      "current_sha256": "c643002bbc6be96931d57199926a64c659b67fe9e8275021d97093171b0beb15",
+      "adapted": true
+    },
+    {
+      "previous_path": "compose.yaml",
+      "current_path": "legacy/compose.yaml",
+      "previous_sha256": "285430f2b00ceb97bab4463e69e5b8ef1ebc693fd988b56e3841ce3451514408",
+      "current_sha256": "8850cb63517cb20af06fc79b8e275e2f991c890856dbf1f0f0604d9018e3e926",
+      "adapted": true
+    },
+    {
+      "previous_path": "docs/PROGRESS.md",
+      "current_path": "legacy/docs/PROGRESS.md",
+      "previous_sha256": "b425ebc8c49ee29a4ea60e8e115df64285ad0d6fc9f94b322256477fac7f379d",
+      "current_sha256": "b425ebc8c49ee29a4ea60e8e115df64285ad0d6fc9f94b322256477fac7f379d",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/architecture.md",
+      "current_path": "legacy/docs/architecture.md",
+      "previous_sha256": "65083b9e19ade7aaa6646a3c6c404fe638f233e48109801502d9cfc425d3ede8",
+      "current_sha256": "65083b9e19ade7aaa6646a3c6c404fe638f233e48109801502d9cfc425d3ede8",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/dependency-review.md",
+      "current_path": "legacy/docs/dependency-review.md",
+      "previous_sha256": "630e9d8585e683c2ddf7c1ab45e0c8aa836fe4bae6e4d63df9f123ee3ae43dbe",
+      "current_sha256": "630e9d8585e683c2ddf7c1ab45e0c8aa836fe4bae6e4d63df9f123ee3ae43dbe",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/phase-1-acceptance.md",
+      "current_path": "legacy/docs/phase-1-acceptance.md",
+      "previous_sha256": "3d355f9caa7164a0f0fe44b31190b79a877c3a18666d289a8eda287ab83e63c0",
+      "current_sha256": "3d355f9caa7164a0f0fe44b31190b79a877c3a18666d289a8eda287ab83e63c0",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/phase-1-verification.md",
+      "current_path": "legacy/docs/phase-1-verification.md",
+      "previous_sha256": "9d6a6df3924aec3028bc5e7b9a901853d4266ac82d7886eee72f08fe67a557e8",
+      "current_sha256": "9d6a6df3924aec3028bc5e7b9a901853d4266ac82d7886eee72f08fe67a557e8",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/phase-10-verification.md",
+      "current_path": "legacy/docs/phase-10-verification.md",
+      "previous_sha256": "fe0db53bb496ef25c3e6efd7c1d4f8c52523c669d24b6cb32560d3fe7a741122",
+      "current_sha256": "fe0db53bb496ef25c3e6efd7c1d4f8c52523c669d24b6cb32560d3fe7a741122",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/phase-11-verification.md",
+      "current_path": "legacy/docs/phase-11-verification.md",
+      "previous_sha256": "f440e94ba4930ccddb85ac2304fc60ebf573e7d723d91c16234b68f5942700f4",
+      "current_sha256": "f440e94ba4930ccddb85ac2304fc60ebf573e7d723d91c16234b68f5942700f4",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/phase-12-verification.md",
+      "current_path": "legacy/docs/phase-12-verification.md",
+      "previous_sha256": "3f74fd5f3490dc1fa0ccbedf42d1779b4bf6aa1b25cbbe33ecc4f28af5410639",
+      "current_sha256": "3f74fd5f3490dc1fa0ccbedf42d1779b4bf6aa1b25cbbe33ecc4f28af5410639",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/phase-13-verification.md",
+      "current_path": "legacy/docs/phase-13-verification.md",
+      "previous_sha256": "7adae8b03e2f511a90fac08a5f2c52576a60c87ec8e3d47b3dd1d466a50d3b65",
+      "current_sha256": "7adae8b03e2f511a90fac08a5f2c52576a60c87ec8e3d47b3dd1d466a50d3b65",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/phase-14-verification.md",
+      "current_path": "legacy/docs/phase-14-verification.md",
+      "previous_sha256": "b1886185db10ba60e8c63dc7c4dc5ce87c9d6ab28ffaca391d7caf423f52f897",
+      "current_sha256": "b1886185db10ba60e8c63dc7c4dc5ce87c9d6ab28ffaca391d7caf423f52f897",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/phase-2-verification.md",
+      "current_path": "legacy/docs/phase-2-verification.md",
+      "previous_sha256": "5c34ec35026e7cec2c1f5119fda0093549ea694a61a714dd687065f8d6f9d039",
+      "current_sha256": "5c34ec35026e7cec2c1f5119fda0093549ea694a61a714dd687065f8d6f9d039",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/phase-3-verification.md",
+      "current_path": "legacy/docs/phase-3-verification.md",
+      "previous_sha256": "4a24a4fb704f236411d7f67f61498a077e7940f8f8f755dcb5398cd647c93b67",
+      "current_sha256": "4a24a4fb704f236411d7f67f61498a077e7940f8f8f755dcb5398cd647c93b67",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/phase-4-verification.md",
+      "current_path": "legacy/docs/phase-4-verification.md",
+      "previous_sha256": "de2a17716ecf451968c040cde1b2b95c388f9877567a596e6bf9441aa9d42061",
+      "current_sha256": "de2a17716ecf451968c040cde1b2b95c388f9877567a596e6bf9441aa9d42061",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/phase-5-verification.md",
+      "current_path": "legacy/docs/phase-5-verification.md",
+      "previous_sha256": "3b14c3acadb3f9964bbeb76860fc06299c13eb5345dbf1d6cdfd398616bca010",
+      "current_sha256": "3b14c3acadb3f9964bbeb76860fc06299c13eb5345dbf1d6cdfd398616bca010",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/phase-6-verification.md",
+      "current_path": "legacy/docs/phase-6-verification.md",
+      "previous_sha256": "feb120e915f8a1755333f2a599c610126806360c76e1db551d1676998a365ed4",
+      "current_sha256": "feb120e915f8a1755333f2a599c610126806360c76e1db551d1676998a365ed4",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/phase-7-verification.md",
+      "current_path": "legacy/docs/phase-7-verification.md",
+      "previous_sha256": "537bdc6b01ab192af43b65928770e8a3ad0aff03c33a3ac67ecd4f2a14b65c79",
+      "current_sha256": "537bdc6b01ab192af43b65928770e8a3ad0aff03c33a3ac67ecd4f2a14b65c79",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/phase-8-verification.md",
+      "current_path": "legacy/docs/phase-8-verification.md",
+      "previous_sha256": "e426756849de04ebd48858db73397edfd24a40c480e1d1378d1eed9c17b67736",
+      "current_sha256": "e426756849de04ebd48858db73397edfd24a40c480e1d1378d1eed9c17b67736",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/phase-9-verification.md",
+      "current_path": "legacy/docs/phase-9-verification.md",
+      "previous_sha256": "c33c0f9580c7c8f25e63f3874af0734b68d9f7f8adce04cc54a9814ad007b079",
+      "current_sha256": "c33c0f9580c7c8f25e63f3874af0734b68d9f7f8adce04cc54a9814ad007b079",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/portal-interface-transition.md",
+      "current_path": "legacy/docs/portal-interface-transition.md",
+      "previous_sha256": "9e23264d7b1fbc235f101c206fa8f06028f88f40053bf7e8a1baf61ae1b23a3f",
+      "current_sha256": "9e23264d7b1fbc235f101c206fa8f06028f88f40053bf7e8a1baf61ae1b23a3f",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/portal-r2-review.md",
+      "current_path": "legacy/docs/portal-r2-review.md",
+      "previous_sha256": "876b76978ce4c96f254f39c239d6d5b6539279d898b8d5aea080af46a6c053db",
+      "current_sha256": "876b76978ce4c96f254f39c239d6d5b6539279d898b8d5aea080af46a6c053db",
+      "adapted": false
+    },
+    {
+      "previous_path": "docs/portal-refinement-plan.md",
+      "current_path": "legacy/docs/portal-refinement-plan.md",
+      "previous_sha256": "77515c861c1ee785a408f79fec166f575e2e46ba3b4a795e071b7b07d21bd8cd",
+      "current_sha256": "77515c861c1ee785a408f79fec166f575e2e46ba3b4a795e071b7b07d21bd8cd",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/.dockerignore",
+      "current_path": "legacy/experiments/portal-web/.dockerignore",
+      "previous_sha256": "5ebb3c4c4b4b52e6503464c094ae537c576009fad38ee0cee90382c943587506",
+      "current_sha256": "5ebb3c4c4b4b52e6503464c094ae537c576009fad38ee0cee90382c943587506",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/.env.example",
+      "current_path": "legacy/experiments/portal-web/.env.example",
+      "previous_sha256": "eb0d2716b273fa728a414dcc8fdfda901c415a179e666c95648e5396e45739e6",
+      "current_sha256": "eb0d2716b273fa728a414dcc8fdfda901c415a179e666c95648e5396e45739e6",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/.npmrc",
+      "current_path": "legacy/experiments/portal-web/.npmrc",
+      "previous_sha256": "be85cc462e740587626bbcbb1c3ed1c40b26e62ec072e8cbd2768f23915c28e6",
+      "current_sha256": "be85cc462e740587626bbcbb1c3ed1c40b26e62ec072e8cbd2768f23915c28e6",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/.prettierignore",
+      "current_path": "legacy/experiments/portal-web/.prettierignore",
+      "previous_sha256": "dff7d8ada04f9c1df649ac064340a27f4e02afa7c7b25d2930962a5515b1b36a",
+      "current_sha256": "dff7d8ada04f9c1df649ac064340a27f4e02afa7c7b25d2930962a5515b1b36a",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/Dockerfile",
+      "current_path": "legacy/experiments/portal-web/Dockerfile",
+      "previous_sha256": "d1cf00a3c0215e2ca772c8284499371c77f9b555c17a8fb7f9f4839e3bc0a399",
+      "current_sha256": "d1cf00a3c0215e2ca772c8284499371c77f9b555c17a8fb7f9f4839e3bc0a399",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/codegen.ts",
+      "current_path": "legacy/experiments/portal-web/codegen.ts",
+      "previous_sha256": "f6141c93d2c29a988a55f2f2fa5c005918eb0cd018441440800ca8d2b3c4497e",
+      "current_sha256": "f6141c93d2c29a988a55f2f2fa5c005918eb0cd018441440800ca8d2b3c4497e",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/components.json",
+      "current_path": "legacy/experiments/portal-web/components.json",
+      "previous_sha256": "b7303284fd581805a58defce3604a3445c6d886fae8e700ddf5133c5f837d573",
+      "current_sha256": "b7303284fd581805a58defce3604a3445c6d886fae8e700ddf5133c5f837d573",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/eslint.config.mjs",
+      "current_path": "legacy/experiments/portal-web/eslint.config.mjs",
+      "previous_sha256": "900e53d7b4108cb27c762bcd043fb85ef67ff42331a3ea890ef887b63797f416",
+      "current_sha256": "900e53d7b4108cb27c762bcd043fb85ef67ff42331a3ea890ef887b63797f416",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/next-env.d.ts",
+      "current_path": "legacy/experiments/portal-web/next-env.d.ts",
+      "previous_sha256": "1862ac4bbbc5192d4bf562161df66ea547ed3e67173100656ab606ae9797db2b",
+      "current_sha256": "1862ac4bbbc5192d4bf562161df66ea547ed3e67173100656ab606ae9797db2b",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/next.config.ts",
+      "current_path": "legacy/experiments/portal-web/next.config.ts",
+      "previous_sha256": "803f22ca1f431fccb1804bd0c687636f3546d2304a9ffb0ed99a3b2d3cfc42a8",
+      "current_sha256": "803f22ca1f431fccb1804bd0c687636f3546d2304a9ffb0ed99a3b2d3cfc42a8",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/package-lock.json",
+      "current_path": "legacy/experiments/portal-web/package-lock.json",
+      "previous_sha256": "127fe2a0ff8c7d0d6d8c8e241a42febd2f6b9a4f83853065ee3a6c79c2550d29",
+      "current_sha256": "127fe2a0ff8c7d0d6d8c8e241a42febd2f6b9a4f83853065ee3a6c79c2550d29",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/package.json",
+      "current_path": "legacy/experiments/portal-web/package.json",
+      "previous_sha256": "5184c29b40512270531740756671cda50acb6aa94ad06de969c097b384767327",
+      "current_sha256": "5184c29b40512270531740756671cda50acb6aa94ad06de969c097b384767327",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/playwright.config.ts",
+      "current_path": "legacy/experiments/portal-web/playwright.config.ts",
+      "previous_sha256": "7d44335a9d02a8316266c2b401278976b991e3412794bd8ec279d59984e0aa1d",
+      "current_sha256": "f93989f77e4bb553f8464d6cc26cf574492a62747e17ad6a6097bc045c83a9bc",
+      "adapted": true
+    },
+    {
+      "previous_path": "frontend/postcss.config.mjs",
+      "current_path": "legacy/experiments/portal-web/postcss.config.mjs",
+      "previous_sha256": "b783348d5618047d0f37e12acd15c5a2c5f02809d8711e0764c9cea52750346c",
+      "current_sha256": "b783348d5618047d0f37e12acd15c5a2c5f02809d8711e0764c9cea52750346c",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/[...legacy]/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/[...legacy]/page.tsx",
+      "previous_sha256": "2a68576075c4785d8df7dc2006c516ddafc9d1d13619249b81179a449a1d4069",
+      "current_sha256": "2a68576075c4785d8df7dc2006c516ddafc9d1d13619249b81179a449a1d4069",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/layout.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/layout.tsx",
+      "previous_sha256": "bc9201a53d86eca9b0034e9556ef00dcde217b41452c6a13ee997b269621ed36",
+      "current_sha256": "bc9201a53d86eca9b0034e9556ef00dcde217b41452c6a13ee997b269621ed36",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/page.tsx",
+      "previous_sha256": "15c5f5a81e95960ca4563dc9b15c882f033134cae9316f40cc507f59036ddff3",
+      "current_sha256": "15c5f5a81e95960ca4563dc9b15c882f033134cae9316f40cc507f59036ddff3",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/employees/[id]/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/employees/[id]/page.tsx",
+      "previous_sha256": "7eec99df1bc2072c207ce48fa7c31cfc49731add49f7e3a75bda32e84d2b76b8",
+      "current_sha256": "7eec99df1bc2072c207ce48fa7c31cfc49731add49f7e3a75bda32e84d2b76b8",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/employees/layout.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/employees/layout.tsx",
+      "previous_sha256": "740cff1a4a6f99e0972715f50458a70095ae814fcc17e253901e9295ba076592",
+      "current_sha256": "740cff1a4a6f99e0972715f50458a70095ae814fcc17e253901e9295ba076592",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/employees/new/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/employees/new/page.tsx",
+      "previous_sha256": "b2d393a7701a58c96dda4f2ae10a15aae289a03f20185aedd459e6c14ada184f",
+      "current_sha256": "b2d393a7701a58c96dda4f2ae10a15aae289a03f20185aedd459e6c14ada184f",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/employees/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/employees/page.tsx",
+      "previous_sha256": "700b424b8331eb4f48744d943e95884957e7b42e4f54552979595f397df85fb5",
+      "current_sha256": "700b424b8331eb4f48744d943e95884957e7b42e4f54552979595f397df85fb5",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/jobs/[id]/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/jobs/[id]/page.tsx",
+      "previous_sha256": "52b59352d26a723dd350bda9567d46c85c7f6c7bb646f584c67450f86ca5ea03",
+      "current_sha256": "52b59352d26a723dd350bda9567d46c85c7f6c7bb646f584c67450f86ca5ea03",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/jobs/new/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/jobs/new/page.tsx",
+      "previous_sha256": "c591e92148958b3a428d3e82e1c9f5e793a67e3ff8b9a6cdc5a59fc7029905ea",
+      "current_sha256": "c591e92148958b3a428d3e82e1c9f5e793a67e3ff8b9a6cdc5a59fc7029905ea",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/jobs/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/jobs/page.tsx",
+      "previous_sha256": "bb87156cf8e449a9ea1ac7f17266b7e60dbc8d6d8627b680af5e8e677003ac05",
+      "current_sha256": "bb87156cf8e449a9ea1ac7f17266b7e60dbc8d6d8627b680af5e8e677003ac05",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/jobs/publications/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/jobs/publications/page.tsx",
+      "previous_sha256": "09295bd3e71cc293770eeb3f320bf28d9cbb32aaf3aa8a713f59402771e6c800",
+      "current_sha256": "09295bd3e71cc293770eeb3f320bf28d9cbb32aaf3aa8a713f59402771e6c800",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/layout.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/layout.tsx",
+      "previous_sha256": "dfc514ddc7fc1eb45bda8be0fac09f742c3f60f5d8c7ec3045f4eeefda073ae2",
+      "current_sha256": "dfc514ddc7fc1eb45bda8be0fac09f742c3f60f5d8c7ec3045f4eeefda073ae2",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/notifications/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/notifications/page.tsx",
+      "previous_sha256": "3b3013cc794a348d77c808297d39ed5df9c50e08a672aa2ab545bad1bdc7df00",
+      "current_sha256": "3b3013cc794a348d77c808297d39ed5df9c50e08a672aa2ab545bad1bdc7df00",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/operations/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/operations/page.tsx",
+      "previous_sha256": "30c6d09dfd4a4a28a900e8f9da65aa1dc0544e7e4039fe49af91b5a74b70a3e1",
+      "current_sha256": "30c6d09dfd4a4a28a900e8f9da65aa1dc0544e7e4039fe49af91b5a74b70a3e1",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/page.tsx",
+      "previous_sha256": "2dcf4d23f09073a6cd41e9ac3a429333bfc50b218fad21d93a9ca2e8c2daa2d0",
+      "current_sha256": "2dcf4d23f09073a6cd41e9ac3a429333bfc50b218fad21d93a9ca2e8c2daa2d0",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/projects/[id]/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/projects/[id]/page.tsx",
+      "previous_sha256": "43c231d97a864dd58e13be446ae7b98a9feccf05f014a37e7736014c92bf54d6",
+      "current_sha256": "43c231d97a864dd58e13be446ae7b98a9feccf05f014a37e7736014c92bf54d6",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/projects/[id]/tasks/[taskId]/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/projects/[id]/tasks/[taskId]/page.tsx",
+      "previous_sha256": "9b9d803d7d54d8ce0507e11e8e85475f01e7ab7b654a95e5f2f417fff407eec6",
+      "current_sha256": "9b9d803d7d54d8ce0507e11e8e85475f01e7ab7b654a95e5f2f417fff407eec6",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/projects/[id]/tasks/new/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/projects/[id]/tasks/new/page.tsx",
+      "previous_sha256": "d28b99cfbb11f8cb5a8fb2536de57f0d03165191974a0bc9f8bef8ea08b36dff",
+      "current_sha256": "d28b99cfbb11f8cb5a8fb2536de57f0d03165191974a0bc9f8bef8ea08b36dff",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/projects/[id]/tasks/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/projects/[id]/tasks/page.tsx",
+      "previous_sha256": "8485794543dc3d5efcf6f716c357266a9b19f0a2f4ec77592b7d1068f1808c61",
+      "current_sha256": "8485794543dc3d5efcf6f716c357266a9b19f0a2f4ec77592b7d1068f1808c61",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/projects/new/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/projects/new/page.tsx",
+      "previous_sha256": "c07d33797dc95ebd608a982edff0de4c479d485a4955417dafa5ae493d38ad38",
+      "current_sha256": "c07d33797dc95ebd608a982edff0de4c479d485a4955417dafa5ae493d38ad38",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/projects/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/projects/page.tsx",
+      "previous_sha256": "1e387bacac9ad6285cb3ad15c109003a3d638be66374eb652f6afcd371697ac4",
+      "current_sha256": "1e387bacac9ad6285cb3ad15c109003a3d638be66374eb652f6afcd371697ac4",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/reports/[id]/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/reports/[id]/page.tsx",
+      "previous_sha256": "6349082477c19931176c7310c2598330e5fa9e93b678f609ecd8edc220e4f852",
+      "current_sha256": "6349082477c19931176c7310c2598330e5fa9e93b678f609ecd8edc220e4f852",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/reports/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/reports/page.tsx",
+      "previous_sha256": "c0b6c1347b501622dfd31174ecf18b1e6cdc023eeb294f29150fe6560af487aa",
+      "current_sha256": "c0b6c1347b501622dfd31174ecf18b1e6cdc023eeb294f29150fe6560af487aa",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/system/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/system/page.tsx",
+      "previous_sha256": "2c0ed57cf735881ba2afaf6532d912426665707516f066cec4f567618c09941a",
+      "current_sha256": "2c0ed57cf735881ba2afaf6532d912426665707516f066cec4f567618c09941a",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/workflows/[id]/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/workflows/[id]/page.tsx",
+      "previous_sha256": "6e78fec3401a84a48328be35e31f6bf857b6d204cb9e9217fbaaacf1508df57d",
+      "current_sha256": "6e78fec3401a84a48328be35e31f6bf857b6d204cb9e9217fbaaacf1508df57d",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/workflows/new/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/workflows/new/page.tsx",
+      "previous_sha256": "7bb58310ddd49bbabcdc2fb6822560a91577447a81c825b690c23a1b5958f9e3",
+      "current_sha256": "7bb58310ddd49bbabcdc2fb6822560a91577447a81c825b690c23a1b5958f9e3",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/[portal]/workflows/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/[portal]/workflows/page.tsx",
+      "previous_sha256": "35ce4dc1a6dc2fdf68dacf0ddbe9f6d75dcae389666f66273b7b8f1f79876337",
+      "current_sha256": "35ce4dc1a6dc2fdf68dacf0ddbe9f6d75dcae389666f66273b7b8f1f79876337",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/(protected)/portals/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/(protected)/portals/page.tsx",
+      "previous_sha256": "ed1e1f74060b6ecdcb1b4bd6fc8cb85bb63e3d9305d17e8523d5f7a575cb2bde",
+      "current_sha256": "ed1e1f74060b6ecdcb1b4bd6fc8cb85bb63e3d9305d17e8523d5f7a575cb2bde",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/access-denied/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/access-denied/page.tsx",
+      "previous_sha256": "337c64871286e38faa56f070c488eea1c7651a44975282b2c5506a7c5aaf05bd",
+      "current_sha256": "337c64871286e38faa56f070c488eea1c7651a44975282b2c5506a7c5aaf05bd",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/auth/callback/route.ts",
+      "current_path": "legacy/experiments/portal-web/src/app/auth/callback/route.ts",
+      "previous_sha256": "d52d345cd4fd896b100faaed655002932b489b64ba7e458f58d40a646710a8e3",
+      "current_sha256": "d52d345cd4fd896b100faaed655002932b489b64ba7e458f58d40a646710a8e3",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/auth/login/route.ts",
+      "current_path": "legacy/experiments/portal-web/src/app/auth/login/route.ts",
+      "previous_sha256": "837e6fa5438ea5b82287783b598cf10c5b5aa7d659cdef6f7f6ff5cf089c39e0",
+      "current_sha256": "837e6fa5438ea5b82287783b598cf10c5b5aa7d659cdef6f7f6ff5cf089c39e0",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/auth/logout/route.ts",
+      "current_path": "legacy/experiments/portal-web/src/app/auth/logout/route.ts",
+      "previous_sha256": "bc02cd01586be5d8ce10564fd854c8abb8346a9c2bce64c32117b151c51c8fc9",
+      "current_sha256": "bc02cd01586be5d8ce10564fd854c8abb8346a9c2bce64c32117b151c51c8fc9",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/auth/session/route.ts",
+      "current_path": "legacy/experiments/portal-web/src/app/auth/session/route.ts",
+      "previous_sha256": "db734839b62b9a161cc334b8918bb9bdb479e8067e0dddef714dc3316dce64cd",
+      "current_sha256": "db734839b62b9a161cc334b8918bb9bdb479e8067e0dddef714dc3316dce64cd",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/error.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/error.tsx",
+      "previous_sha256": "b01fb2153940088d29152997ca6a64bc5854ae7d5fa4ef2f345c67ef6d7a36d3",
+      "current_sha256": "b01fb2153940088d29152997ca6a64bc5854ae7d5fa4ef2f345c67ef6d7a36d3",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/globals.css",
+      "current_path": "legacy/experiments/portal-web/src/app/globals.css",
+      "previous_sha256": "ec87b7f866d857c178f4d36fc1d79f595b98c702071dd0466c6e20819b5850c1",
+      "current_sha256": "ec87b7f866d857c178f4d36fc1d79f595b98c702071dd0466c6e20819b5850c1",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/graphql/route.ts",
+      "current_path": "legacy/experiments/portal-web/src/app/graphql/route.ts",
+      "previous_sha256": "74f2a0c68a8a541e26334c0d073b1fd9d856cdf63e97c2eb1cb366de7f7a0f54",
+      "current_sha256": "74f2a0c68a8a541e26334c0d073b1fd9d856cdf63e97c2eb1cb366de7f7a0f54",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/layout.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/layout.tsx",
+      "previous_sha256": "5be32abc7d6b4ccc8f0724a5e867e173db5e8727c2b31389be040c464c58b441",
+      "current_sha256": "5be32abc7d6b4ccc8f0724a5e867e173db5e8727c2b31389be040c464c58b441",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/loading.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/loading.tsx",
+      "previous_sha256": "100c3c4cccb6649f738bad9df516fb2bd185b0ef4b6d476db7b86085a5c5656a",
+      "current_sha256": "100c3c4cccb6649f738bad9df516fb2bd185b0ef4b6d476db7b86085a5c5656a",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/not-found.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/not-found.tsx",
+      "previous_sha256": "9b65500b27312301a1604bfa5eef1347a6c2ed9ceacea5ca003fcd809ba5bd93",
+      "current_sha256": "9b65500b27312301a1604bfa5eef1347a6c2ed9ceacea5ca003fcd809ba5bd93",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/session-expired/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/session-expired/page.tsx",
+      "previous_sha256": "d073e53e03ee977c37adabea3e461666516233ec6b6a8c57b95c759d8b7864d5",
+      "current_sha256": "d073e53e03ee977c37adabea3e461666516233ec6b6a8c57b95c759d8b7864d5",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/sign-in/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/sign-in/page.tsx",
+      "previous_sha256": "d48a34ab86a59b92c4f11433daa44cbac6bdd7a0722ed5e0fa8a7eade611ac7d",
+      "current_sha256": "d48a34ab86a59b92c4f11433daa44cbac6bdd7a0722ed5e0fa8a7eade611ac7d",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/app/signed-out/page.tsx",
+      "current_path": "legacy/experiments/portal-web/src/app/signed-out/page.tsx",
+      "previous_sha256": "642a05bd3535a0c9464a825228873ae85408eb765509ba8ac07189bfdb3c7923",
+      "current_sha256": "642a05bd3535a0c9464a825228873ae85408eb765509ba8ac07189bfdb3c7923",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/auth/authorization.ts",
+      "current_path": "legacy/experiments/portal-web/src/auth/authorization.ts",
+      "previous_sha256": "fbde09ccd69f5e061e392d7414ad3be8784c541f864c67341c97ed20ce317165",
+      "current_sha256": "fbde09ccd69f5e061e392d7414ad3be8784c541f864c67341c97ed20ce317165",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/auth/config.ts",
+      "current_path": "legacy/experiments/portal-web/src/auth/config.ts",
+      "previous_sha256": "32fc1c431f3bf840650134ccdefc990aaad097a63b81783317e58a31c17bf764",
+      "current_sha256": "32fc1c431f3bf840650134ccdefc990aaad097a63b81783317e58a31c17bf764",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/auth/gateway.ts",
+      "current_path": "legacy/experiments/portal-web/src/auth/gateway.ts",
+      "previous_sha256": "afca0e2d904e0882e994bba736cdfe5b9bf97c682419d65c1d5e4b8fb64603e5",
+      "current_sha256": "afca0e2d904e0882e994bba736cdfe5b9bf97c682419d65c1d5e4b8fb64603e5",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/auth/oidc.ts",
+      "current_path": "legacy/experiments/portal-web/src/auth/oidc.ts",
+      "previous_sha256": "22de7841f351926a378d769fc2b4f96098e6abee32245a63060b4bc2413ede7f",
+      "current_sha256": "22de7841f351926a378d769fc2b4f96098e6abee32245a63060b4bc2413ede7f",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/auth/redis.ts",
+      "current_path": "legacy/experiments/portal-web/src/auth/redis.ts",
+      "previous_sha256": "b2bdd3e6f76e890630f301a9dae1796a319d21145b6e25b277fcff7d2d713402",
+      "current_sha256": "b2bdd3e6f76e890630f301a9dae1796a319d21145b6e25b277fcff7d2d713402",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/auth/return-path.ts",
+      "current_path": "legacy/experiments/portal-web/src/auth/return-path.ts",
+      "previous_sha256": "94691c076d53289acb3528cae6bf8be65bb15337704693e5a4e40fbaa7fab616",
+      "current_sha256": "94691c076d53289acb3528cae6bf8be65bb15337704693e5a4e40fbaa7fab616",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/auth/session.ts",
+      "current_path": "legacy/experiments/portal-web/src/auth/session.ts",
+      "previous_sha256": "b82a8cb5998888000a45a82fbec49fe7e9814bee8b2925d0df54bbd002ff6131",
+      "current_sha256": "b82a8cb5998888000a45a82fbec49fe7e9814bee8b2925d0df54bbd002ff6131",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/auth/types.ts",
+      "current_path": "legacy/experiments/portal-web/src/auth/types.ts",
+      "previous_sha256": "1a8fa0970b8c45592782c1569e848b36a18e540bf901cdb2c8b55c2bb088935e",
+      "current_sha256": "1a8fa0970b8c45592782c1569e848b36a18e540bf901cdb2c8b55c2bb088935e",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/layout/user-menu.tsx",
+      "current_path": "legacy/experiments/portal-web/src/components/layout/user-menu.tsx",
+      "previous_sha256": "f6435cbc9ff206f44c6b58b8ef6cbc9512b3a082357c0bc00136341377d69d6f",
+      "current_sha256": "f6435cbc9ff206f44c6b58b8ef6cbc9512b3a082357c0bc00136341377d69d6f",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/portal-shell/portal-shell.tsx",
+      "current_path": "legacy/experiments/portal-web/src/components/portal-shell/portal-shell.tsx",
+      "previous_sha256": "b2aebe598467ca1c34242ac12d5aa6d1f825fd421b7b660677ce18a09e91438e",
+      "current_sha256": "b2aebe598467ca1c34242ac12d5aa6d1f825fd421b7b660677ce18a09e91438e",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/portal-ui/charts/completion-trend-chart.tsx",
+      "current_path": "legacy/experiments/portal-web/src/components/portal-ui/charts/completion-trend-chart.tsx",
+      "previous_sha256": "ecd65de080b118f328b2e56f2c32706f141b74c544467465a4a03f3223bf940a",
+      "current_sha256": "ecd65de080b118f328b2e56f2c32706f141b74c544467465a4a03f3223bf940a",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/portal-ui/charts/task-status-chart.tsx",
+      "current_path": "legacy/experiments/portal-web/src/components/portal-ui/charts/task-status-chart.tsx",
+      "previous_sha256": "564496b02dbba74d0869726e4f5610b5dbb2bcd2983b11ff7e188cdbb120532a",
+      "current_sha256": "564496b02dbba74d0869726e4f5610b5dbb2bcd2983b11ff7e188cdbb120532a",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/portal-ui/index.ts",
+      "current_path": "legacy/experiments/portal-web/src/components/portal-ui/index.ts",
+      "previous_sha256": "c895545f77a6beff96fb81f8d9026c820b3b765e8f61328f33e90fd4b4efd877",
+      "current_sha256": "c895545f77a6beff96fb81f8d9026c820b3b765e8f61328f33e90fd4b4efd877",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/portal-ui/portal-badge.tsx",
+      "current_path": "legacy/experiments/portal-web/src/components/portal-ui/portal-badge.tsx",
+      "previous_sha256": "e5e2e19531e3b2730b9fda38d4febbba892d2db05cb7b612e944236f599e1b88",
+      "current_sha256": "e5e2e19531e3b2730b9fda38d4febbba892d2db05cb7b612e944236f599e1b88",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/portal-ui/portal-button.tsx",
+      "current_path": "legacy/experiments/portal-web/src/components/portal-ui/portal-button.tsx",
+      "previous_sha256": "fbab66cf62eb4ae1b6410ed0537575b5427ceed1ff77b16592c1a15ddf6cf75a",
+      "current_sha256": "fbab66cf62eb4ae1b6410ed0537575b5427ceed1ff77b16592c1a15ddf6cf75a",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/portal-ui/portal-card.tsx",
+      "current_path": "legacy/experiments/portal-web/src/components/portal-ui/portal-card.tsx",
+      "previous_sha256": "42490a2f602bd8b079ac60494893419ecf0daef43db7c960adcabf994d9976a3",
+      "current_sha256": "42490a2f602bd8b079ac60494893419ecf0daef43db7c960adcabf994d9976a3",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/portal-ui/portal-input.tsx",
+      "current_path": "legacy/experiments/portal-web/src/components/portal-ui/portal-input.tsx",
+      "previous_sha256": "c0c86516074ddd9be63ace9d15ab77a3ef9d8af8d646227f9e64da7f9526b220",
+      "current_sha256": "c0c86516074ddd9be63ace9d15ab77a3ef9d8af8d646227f9e64da7f9526b220",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/portal-ui/portal-link.tsx",
+      "current_path": "legacy/experiments/portal-web/src/components/portal-ui/portal-link.tsx",
+      "previous_sha256": "243069fc78934c02215c2dfdd61d60ba044656cc69242b974249c84fcbd6268f",
+      "current_sha256": "243069fc78934c02215c2dfdd61d60ba044656cc69242b974249c84fcbd6268f",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/portal-ui/portal-select.tsx",
+      "current_path": "legacy/experiments/portal-web/src/components/portal-ui/portal-select.tsx",
+      "previous_sha256": "21cb0a1f1f011359a8b41cb25202b2fa1d02190072856c2768e64df51ed4538c",
+      "current_sha256": "21cb0a1f1f011359a8b41cb25202b2fa1d02190072856c2768e64df51ed4538c",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/portal-ui/portal-table.tsx",
+      "current_path": "legacy/experiments/portal-web/src/components/portal-ui/portal-table.tsx",
+      "previous_sha256": "6447de2808fc2704de1309d9d8bc1a3ccf9449125fb300c469c9ebad1a26a16d",
+      "current_sha256": "6447de2808fc2704de1309d9d8bc1a3ccf9449125fb300c469c9ebad1a26a16d",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/portal-ui/portal-tokens.ts",
+      "current_path": "legacy/experiments/portal-web/src/components/portal-ui/portal-tokens.ts",
+      "previous_sha256": "a1038f61b97b5b75c02353cc94ac977b4a2648ff483fd4e8e1499757ad3b1f40",
+      "current_sha256": "a1038f61b97b5b75c02353cc94ac977b4a2648ff483fd4e8e1499757ad3b1f40",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/portal-ui/portal-typography.tsx",
+      "current_path": "legacy/experiments/portal-web/src/components/portal-ui/portal-typography.tsx",
+      "previous_sha256": "7ce66f51cd1d7376490b2b65296648ba50f493da9c4f880ad5928a307441aec7",
+      "current_sha256": "7ce66f51cd1d7376490b2b65296648ba50f493da9c4f880ad5928a307441aec7",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/providers.tsx",
+      "current_path": "legacy/experiments/portal-web/src/components/providers.tsx",
+      "previous_sha256": "74f305db779cdc601b2233e395f8d90a4895ebf5e405e73b8ad87bdd59700897",
+      "current_sha256": "74f305db779cdc601b2233e395f8d90a4895ebf5e405e73b8ad87bdd59700897",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/ui/badge.tsx",
+      "current_path": "legacy/experiments/portal-web/src/components/ui/badge.tsx",
+      "previous_sha256": "6be52ddbc5ce627699de9ef30788b9677075f7aeda09d444f39b22bdd459694d",
+      "current_sha256": "6be52ddbc5ce627699de9ef30788b9677075f7aeda09d444f39b22bdd459694d",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/ui/button.tsx",
+      "current_path": "legacy/experiments/portal-web/src/components/ui/button.tsx",
+      "previous_sha256": "8994f9689f6b7158d7adaeaa225d8330cd1e537d5e077e6891028b75e4eeb1ef",
+      "current_sha256": "8994f9689f6b7158d7adaeaa225d8330cd1e537d5e077e6891028b75e4eeb1ef",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/ui/card.tsx",
+      "current_path": "legacy/experiments/portal-web/src/components/ui/card.tsx",
+      "previous_sha256": "263549dccc710fcf762ce7bbc2e065c020fec32ddc47dbcd3f1761e66fb3abcd",
+      "current_sha256": "263549dccc710fcf762ce7bbc2e065c020fec32ddc47dbcd3f1761e66fb3abcd",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/components/ui/states.tsx",
+      "current_path": "legacy/experiments/portal-web/src/components/ui/states.tsx",
+      "previous_sha256": "14ff3d0b1fac56186fb7f16e14f381e6747bd28d98c8bf2e468f8a9c136a0b2d",
+      "current_sha256": "14ff3d0b1fac56186fb7f16e14f381e6747bd28d98c8bf2e468f8a9c136a0b2d",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/design-system/portal-preview.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/design-system/portal-preview.tsx",
+      "previous_sha256": "e3cf89cc51cc44445d4aa8710de3466d01c7c84505b827bbd512fc4bc5fb98a2",
+      "current_sha256": "e3cf89cc51cc44445d4aa8710de3466d01c7c84505b827bbd512fc4bc5fb98a2",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/employees/employee-detail.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/employees/employee-detail.tsx",
+      "previous_sha256": "7239ca2cf1ddec200e5facf845c972b3ce0b22d6831eed02006926b1b3757e4b",
+      "current_sha256": "7239ca2cf1ddec200e5facf845c972b3ce0b22d6831eed02006926b1b3757e4b",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/employees/employee-directory.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/employees/employee-directory.tsx",
+      "previous_sha256": "e653289e15f0c612e6bd8c39354ced0eec9c2943cc0a00ddba092071281632f7",
+      "current_sha256": "e653289e15f0c612e6bd8c39354ced0eec9c2943cc0a00ddba092071281632f7",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/employees/provision-employee-form.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/employees/provision-employee-form.tsx",
+      "previous_sha256": "659442293ca50be6378f7a98f6efa739970fefbb271260ea47c880ffa8515e8d",
+      "current_sha256": "659442293ca50be6378f7a98f6efa739970fefbb271260ea47c880ffa8515e8d",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/jobs/job-detail.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/jobs/job-detail.tsx",
+      "previous_sha256": "9089b06a2ec44d580a96ab61d73503f906b883dc14b070e1c287bc074deb6bee",
+      "current_sha256": "9089b06a2ec44d580a96ab61d73503f906b883dc14b070e1c287bc074deb6bee",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/jobs/job-directory.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/jobs/job-directory.tsx",
+      "previous_sha256": "644a90f6a12f7533e89a8a1df82a0d9295160b22cfc2e4b1509358e2988cfba0",
+      "current_sha256": "644a90f6a12f7533e89a8a1df82a0d9295160b22cfc2e4b1509358e2988cfba0",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/jobs/publication-directory.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/jobs/publication-directory.tsx",
+      "previous_sha256": "bd25cb5deb8ea545633293843450998838b1719e3d4b1a3838c4205f12fcf521",
+      "current_sha256": "bd25cb5deb8ea545633293843450998838b1719e3d4b1a3838c4205f12fcf521",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/jobs/submit-job-form.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/jobs/submit-job-form.tsx",
+      "previous_sha256": "b883e81efca2fd9df247d826a2bf31a3cf7a8b0615496f59e5782f57b8f6b2d1",
+      "current_sha256": "b883e81efca2fd9df247d826a2bf31a3cf7a8b0615496f59e5782f57b8f6b2d1",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/notifications/notification-center.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/notifications/notification-center.tsx",
+      "previous_sha256": "8d3dbcd37dd98526cb8f34e8c69ced7e87a13dbea23625bff61425fed86106dc",
+      "current_sha256": "8d3dbcd37dd98526cb8f34e8c69ced7e87a13dbea23625bff61425fed86106dc",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/notifications/unread-notification-link.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/notifications/unread-notification-link.tsx",
+      "previous_sha256": "35ee57281a431968f1af4c79add5ee9a516e5a4e03ee7f76101fd72ae11d1cdb",
+      "current_sha256": "35ee57281a431968f1af4c79add5ee9a516e5a4e03ee7f76101fd72ae11d1cdb",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/operations/operations-panel.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/operations/operations-panel.tsx",
+      "previous_sha256": "6b2250fe95c4137db7ce7bd4f53a34c1cc41a991828bb7365a7d1e12b4a2f132",
+      "current_sha256": "6b2250fe95c4137db7ce7bd4f53a34c1cc41a991828bb7365a7d1e12b4a2f132",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/portals/portal-overview.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/portals/portal-overview.tsx",
+      "previous_sha256": "26699820ba437be42374ec9dc9f357c0b2cdb1c5a1246e2bb5b09f7254df518f",
+      "current_sha256": "26699820ba437be42374ec9dc9f357c0b2cdb1c5a1246e2bb5b09f7254df518f",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/portals/portal-policy.ts",
+      "current_path": "legacy/experiments/portal-web/src/features/portals/portal-policy.ts",
+      "previous_sha256": "0b9655aae794e49989cebc8402b5a3aa19a51ac7792c3807beb913e41a025394",
+      "current_sha256": "0b9655aae794e49989cebc8402b5a3aa19a51ac7792c3807beb913e41a025394",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/portals/server-session.ts",
+      "current_path": "legacy/experiments/portal-web/src/features/portals/server-session.ts",
+      "previous_sha256": "801c2b7ead74cefae51f23cf942f7287249a20f6073ac126e375e66b7cf67498",
+      "current_sha256": "801c2b7ead74cefae51f23cf942f7287249a20f6073ac126e375e66b7cf67498",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/projects/create-project-form.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/projects/create-project-form.tsx",
+      "previous_sha256": "223cfba246abf285215f451540b0fd0872be9ae35c26ead6e420b7fc23682184",
+      "current_sha256": "223cfba246abf285215f451540b0fd0872be9ae35c26ead6e420b7fc23682184",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/projects/project-detail.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/projects/project-detail.tsx",
+      "previous_sha256": "aaf9c8b3f28ddf392a55886c1292551c7abbdea9af98af27536336095c0f2b11",
+      "current_sha256": "aaf9c8b3f28ddf392a55886c1292551c7abbdea9af98af27536336095c0f2b11",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/projects/project-directory.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/projects/project-directory.tsx",
+      "previous_sha256": "9bebb0e08c53a77b3f7064bb75d952a7b89c8af04726c5e1b349a134645049f3",
+      "current_sha256": "9bebb0e08c53a77b3f7064bb75d952a7b89c8af04726c5e1b349a134645049f3",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/reports/report-center.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/reports/report-center.tsx",
+      "previous_sha256": "3e758982d91b5e74fd2973f2e5c91266539215f0ec1d511a3c9e2ba9994d145a",
+      "current_sha256": "3e758982d91b5e74fd2973f2e5c91266539215f0ec1d511a3c9e2ba9994d145a",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/reports/report-detail.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/reports/report-detail.tsx",
+      "previous_sha256": "8f0c3b9fc7c367057e12d1cfeece5866f6254436687b6bac0818c6a00628cc53",
+      "current_sha256": "8f0c3b9fc7c367057e12d1cfeece5866f6254436687b6bac0818c6a00628cc53",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/system/connection-status.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/system/connection-status.tsx",
+      "previous_sha256": "0647a6af3d091f297b89c146857a6d741e30bc6540e78303938e450f0b063365",
+      "current_sha256": "0647a6af3d091f297b89c146857a6d741e30bc6540e78303938e450f0b063365",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/system/system-panel.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/system/system-panel.tsx",
+      "previous_sha256": "e53f275678ded59ef2d234edcaf924a81bf61046bdb27648db3a59ca2ff68548",
+      "current_sha256": "e53f275678ded59ef2d234edcaf924a81bf61046bdb27648db3a59ca2ff68548",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/system/use-system-info.ts",
+      "current_path": "legacy/experiments/portal-web/src/features/system/use-system-info.ts",
+      "previous_sha256": "8b7a897bf6a41f92b1978b0e3a676465caaf729ee315cdf9cbe55e58a74998b1",
+      "current_sha256": "8b7a897bf6a41f92b1978b0e3a676465caaf729ee315cdf9cbe55e58a74998b1",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/tasks/create-task-form.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/tasks/create-task-form.tsx",
+      "previous_sha256": "985294726f15c8ef32855d11a68c7300bd17120ddb02b37ed635c437f16863ea",
+      "current_sha256": "985294726f15c8ef32855d11a68c7300bd17120ddb02b37ed635c437f16863ea",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/tasks/task-detail.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/tasks/task-detail.tsx",
+      "previous_sha256": "d03b19caad624cef7ad0ead0b12050039471825c8556027c6de4c6bd3a04aa35",
+      "current_sha256": "d03b19caad624cef7ad0ead0b12050039471825c8556027c6de4c6bd3a04aa35",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/tasks/task-directory.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/tasks/task-directory.tsx",
+      "previous_sha256": "c6374c4db4fd34a0a9f1a5ceccb3f73944d69d06445f971d330651c83afb1598",
+      "current_sha256": "c6374c4db4fd34a0a9f1a5ceccb3f73944d69d06445f971d330651c83afb1598",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/workflows/create-workflow-form.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/workflows/create-workflow-form.tsx",
+      "previous_sha256": "437fd520466ee125f3990fb5f9b85630be966f4ecea274a5052744964b416ceb",
+      "current_sha256": "437fd520466ee125f3990fb5f9b85630be966f4ecea274a5052744964b416ceb",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/workflows/workflow-detail.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/workflows/workflow-detail.tsx",
+      "previous_sha256": "5da79f8b5fe810bef992e9e187ea984715d3ed51f62389df94f5af2e08f76d9c",
+      "current_sha256": "5da79f8b5fe810bef992e9e187ea984715d3ed51f62389df94f5af2e08f76d9c",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/features/workflows/workflow-directory.tsx",
+      "current_path": "legacy/experiments/portal-web/src/features/workflows/workflow-directory.tsx",
+      "previous_sha256": "09f030bfeb97c8f34ef625abe061d97ad28f016f627320c6bfbfd038190ca6a8",
+      "current_sha256": "09f030bfeb97c8f34ef625abe061d97ad28f016f627320c6bfbfd038190ca6a8",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/graphql/generated/gql.ts",
+      "current_path": "legacy/experiments/portal-web/src/graphql/generated/gql.ts",
+      "previous_sha256": "9e169e102b25dc922bc6df97242de86f49dffa6225d1e2d152acf18c3010b1e5",
+      "current_sha256": "9e169e102b25dc922bc6df97242de86f49dffa6225d1e2d152acf18c3010b1e5",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/graphql/generated/graphql.ts",
+      "current_path": "legacy/experiments/portal-web/src/graphql/generated/graphql.ts",
+      "previous_sha256": "e4b5ff81f28fab9d8cd1c7559fa65caee7bc0c683eefecaadb72ace22170f1a5",
+      "current_sha256": "e4b5ff81f28fab9d8cd1c7559fa65caee7bc0c683eefecaadb72ace22170f1a5",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/graphql/generated/index.ts",
+      "current_path": "legacy/experiments/portal-web/src/graphql/generated/index.ts",
+      "previous_sha256": "3204be3dc2a26414fb2def4133fd2d04d673f7d46f5f4b705413291bf61f399a",
+      "current_sha256": "3204be3dc2a26414fb2def4133fd2d04d673f7d46f5f4b705413291bf61f399a",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/graphql/operations/dashboard.graphql",
+      "current_path": "legacy/experiments/portal-web/src/graphql/operations/dashboard.graphql",
+      "previous_sha256": "b7ea75d1c0c58b66b6c12a9f42198e9b2572d56eacbedb47aa1af7460b5ecd6f",
+      "current_sha256": "b7ea75d1c0c58b66b6c12a9f42198e9b2572d56eacbedb47aa1af7460b5ecd6f",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/graphql/operations/employees.graphql",
+      "current_path": "legacy/experiments/portal-web/src/graphql/operations/employees.graphql",
+      "previous_sha256": "30bab11e4e763ecc438a67d634766ab6559c3bf91c3550af6186c1cb76a8bbcf",
+      "current_sha256": "30bab11e4e763ecc438a67d634766ab6559c3bf91c3550af6186c1cb76a8bbcf",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/graphql/operations/jobs.graphql",
+      "current_path": "legacy/experiments/portal-web/src/graphql/operations/jobs.graphql",
+      "previous_sha256": "350f652f62e2b07cb379203b6e623e7fb1e87ed07cf1d6b6166d59f621ec9167",
+      "current_sha256": "350f652f62e2b07cb379203b6e623e7fb1e87ed07cf1d6b6166d59f621ec9167",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/graphql/operations/notifications.graphql",
+      "current_path": "legacy/experiments/portal-web/src/graphql/operations/notifications.graphql",
+      "previous_sha256": "593783833a3a2cd25b6399684d426913bcf9483fa81d2bf2732f86a2080e9061",
+      "current_sha256": "593783833a3a2cd25b6399684d426913bcf9483fa81d2bf2732f86a2080e9061",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/graphql/operations/operations.graphql",
+      "current_path": "legacy/experiments/portal-web/src/graphql/operations/operations.graphql",
+      "previous_sha256": "a840b09788224e9410e9f83c7ab93a0b9a258d30f06a6daf9e950b63f24d20f5",
+      "current_sha256": "a840b09788224e9410e9f83c7ab93a0b9a258d30f06a6daf9e950b63f24d20f5",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/graphql/operations/projects.graphql",
+      "current_path": "legacy/experiments/portal-web/src/graphql/operations/projects.graphql",
+      "previous_sha256": "1dbd741fe7df1d18e7cfa96fc0a6b7b64dcc8a50f3951a47e6567d80ef1865ec",
+      "current_sha256": "1dbd741fe7df1d18e7cfa96fc0a6b7b64dcc8a50f3951a47e6567d80ef1865ec",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/graphql/operations/reports.graphql",
+      "current_path": "legacy/experiments/portal-web/src/graphql/operations/reports.graphql",
+      "previous_sha256": "4cad0c5e223e3e0211a7e9c0dcec2b9be16db6379a4c03ba05d11bfe3064ab7f",
+      "current_sha256": "4cad0c5e223e3e0211a7e9c0dcec2b9be16db6379a4c03ba05d11bfe3064ab7f",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/graphql/operations/system-info.graphql",
+      "current_path": "legacy/experiments/portal-web/src/graphql/operations/system-info.graphql",
+      "previous_sha256": "d1b7a4d2f43a003d1cda06cbaf9558d6d5a4f5a11e0edb5418e1bc77efbd63ca",
+      "current_sha256": "d1b7a4d2f43a003d1cda06cbaf9558d6d5a4f5a11e0edb5418e1bc77efbd63ca",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/graphql/operations/tasks.graphql",
+      "current_path": "legacy/experiments/portal-web/src/graphql/operations/tasks.graphql",
+      "previous_sha256": "ba5c8c9493c927917a70fa6a52017545c9aec3ce8175f3643959bd0d53c21720",
+      "current_sha256": "ba5c8c9493c927917a70fa6a52017545c9aec3ce8175f3643959bd0d53c21720",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/graphql/operations/workflows.graphql",
+      "current_path": "legacy/experiments/portal-web/src/graphql/operations/workflows.graphql",
+      "previous_sha256": "6734bfba402ea3fb7e3b902eed76e7043617feb14a16cc4585375384ef63c2a7",
+      "current_sha256": "6734bfba402ea3fb7e3b902eed76e7043617feb14a16cc4585375384ef63c2a7",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/lib/graphql.ts",
+      "current_path": "legacy/experiments/portal-web/src/lib/graphql.ts",
+      "previous_sha256": "ca054a1e5d82c9e22a4e9449fcd1cce89e9466903ab89193c9777efbd0564126",
+      "current_sha256": "ca054a1e5d82c9e22a4e9449fcd1cce89e9466903ab89193c9777efbd0564126",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/lib/utils.ts",
+      "current_path": "legacy/experiments/portal-web/src/lib/utils.ts",
+      "previous_sha256": "c4afe23db29651dec75ca5a3098a8bafe35f78cd45d4773d1db1c8001e640623",
+      "current_sha256": "c4afe23db29651dec75ca5a3098a8bafe35f78cd45d4773d1db1c8001e640623",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/src/proxy.ts",
+      "current_path": "legacy/experiments/portal-web/src/proxy.ts",
+      "previous_sha256": "ce40a4acc9df8d6bf323dd72fb3d296a9e23afecd1e572ca3d614dbb0b7cdfb8",
+      "current_sha256": "ce40a4acc9df8d6bf323dd72fb3d296a9e23afecd1e572ca3d614dbb0b7cdfb8",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/auth.test.ts",
+      "current_path": "legacy/experiments/portal-web/tests/auth.test.ts",
+      "previous_sha256": "056bf17de3ed6bde41b73b16abb4891f6816c4379b239ac77644e66b8908989b",
+      "current_sha256": "056bf17de3ed6bde41b73b16abb4891f6816c4379b239ac77644e66b8908989b",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/callback-route.test.ts",
+      "current_path": "legacy/experiments/portal-web/tests/callback-route.test.ts",
+      "previous_sha256": "b54d79441b16780af611d52eff2ca8a1bfa651f7545e9e21d8a059543a2ac34c",
+      "current_sha256": "b54d79441b16780af611d52eff2ca8a1bfa651f7545e9e21d8a059543a2ac34c",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/dashboard.test.tsx",
+      "current_path": "legacy/experiments/portal-web/tests/dashboard.test.tsx",
+      "previous_sha256": "9d8ac70ac41c2f4d30d77cb459cbaf45f6521acef0a6c0cd700528d8399f503a",
+      "current_sha256": "9d8ac70ac41c2f4d30d77cb459cbaf45f6521acef0a6c0cd700528d8399f503a",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/authentication.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/authentication.spec.ts",
+      "previous_sha256": "19b9d0d50f6f60619a29ddf63c910c19f6c28c0bf28d8c7c64ada19bcf63f6ad",
+      "current_sha256": "19b9d0d50f6f60619a29ddf63c910c19f6c28c0bf28d8c7c64ada19bcf63f6ad",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/dashboard-acceptance.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/dashboard-acceptance.spec.ts",
+      "previous_sha256": "7ee05fae1026955c5d9e8c3169bf2ba32cb503446e57be0718cb651dbdea28f9",
+      "current_sha256": "7ee05fae1026955c5d9e8c3169bf2ba32cb503446e57be0718cb651dbdea28f9",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/docker-recovery.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/docker-recovery.spec.ts",
+      "previous_sha256": "fbee377b73009f2267bdc70d4ed30056455b1ce136cd02319cffec8741c793b1",
+      "current_sha256": "fbee377b73009f2267bdc70d4ed30056455b1ce136cd02319cffec8741c793b1",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/employee-administration.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/employee-administration.spec.ts",
+      "previous_sha256": "695bb28b91684879248139ca01f67fa179a010e53c61d71aa7375c2f50d850f5",
+      "current_sha256": "695bb28b91684879248139ca01f67fa179a010e53c61d71aa7375c2f50d850f5",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/employee-service-outage.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/employee-service-outage.spec.ts",
+      "previous_sha256": "cf8b4b324e39a5ccaab3f568c7f84287858db0c8be8992b9bc31502008022f1f",
+      "current_sha256": "cf8b4b324e39a5ccaab3f568c7f84287858db0c8be8992b9bc31502008022f1f",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/foundation.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/foundation.spec.ts",
+      "previous_sha256": "ed23c2dae729c9cc9ce64e7302db3c8ecec387eee44f506a9babaa1c226c578e",
+      "current_sha256": "ed23c2dae729c9cc9ce64e7302db3c8ecec387eee44f506a9babaa1c226c578e",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/inactive-profile.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/inactive-profile.spec.ts",
+      "previous_sha256": "1868beefdc25fa155d09adf8cc649347a8fcf6137aa29dda6c787ea7f9a609a3",
+      "current_sha256": "1868beefdc25fa155d09adf8cc649347a8fcf6137aa29dda6c787ea7f9a609a3",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/isolated-recovery-helper.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/isolated-recovery-helper.ts",
+      "previous_sha256": "ecb55aafa7ee93bb6984e67094f5f3b1f630bc0271e04184dccdc2107d0d3bdd",
+      "current_sha256": "ecb55aafa7ee93bb6984e67094f5f3b1f630bc0271e04184dccdc2107d0d3bdd",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/job-database-recovery.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/job-database-recovery.spec.ts",
+      "previous_sha256": "705fbff3ec53d19acc2b7a7324fdeb65936f71e16ee99e33cc1fa38965d4e752",
+      "current_sha256": "705fbff3ec53d19acc2b7a7324fdeb65936f71e16ee99e33cc1fa38965d4e752",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/job-execution-recovery.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/job-execution-recovery.spec.ts",
+      "previous_sha256": "93a96ed43d8cba288154ed36abf50c683e31c8095a250c037891905c9d80a4b7",
+      "current_sha256": "93a96ed43d8cba288154ed36abf50c683e31c8095a250c037891905c9d80a4b7",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/job-management.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/job-management.spec.ts",
+      "previous_sha256": "4ba01f339187f6a90ae5f7b3c3f3b0f0942ed47c03a184b92a649411bcd2ed3d",
+      "current_sha256": "4ba01f339187f6a90ae5f7b3c3f3b0f0942ed47c03a184b92a649411bcd2ed3d",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/job-multi-role.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/job-multi-role.spec.ts",
+      "previous_sha256": "dd4cfc32ce5f538c588f542eec7821132c45e614e1c698f16cc8b050ff6687cb",
+      "current_sha256": "dd4cfc32ce5f538c588f542eec7821132c45e614e1c698f16cc8b050ff6687cb",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/job-publication-recovery.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/job-publication-recovery.spec.ts",
+      "previous_sha256": "5c966519706136455eb05e9ab47c21c0d2781cc660e92403696c4cb384f0b4b2",
+      "current_sha256": "5c966519706136455eb05e9ab47c21c0d2781cc660e92403696c4cb384f0b4b2",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/job-recovery.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/job-recovery.spec.ts",
+      "previous_sha256": "8736ec78d86fa0cbeffec1d64eaf5aa1d9de7c25c0ef894e87236fc0b46e0221",
+      "current_sha256": "8736ec78d86fa0cbeffec1d64eaf5aa1d9de7c25c0ef894e87236fc0b46e0221",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/job-retry-exhaustion.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/job-retry-exhaustion.spec.ts",
+      "previous_sha256": "8780e986b6f5371cbdac3e146825deedf18cb67174b8bc35aa74938d204ad20e",
+      "current_sha256": "8780e986b6f5371cbdac3e146825deedf18cb67174b8bc35aa74938d204ad20e",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/job-service-recovery.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/job-service-recovery.spec.ts",
+      "previous_sha256": "fbfd8748704dff8c4894d1abf04af168f75ac7c21388484505256f897cf66df9",
+      "current_sha256": "fbfd8748704dff8c4894d1abf04af168f75ac7c21388484505256f897cf66df9",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/notification-report-acceptance-support.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/notification-report-acceptance-support.ts",
+      "previous_sha256": "6e7168ba7f00abca005663294fa9b61535d38c2241d0ae37850a53f307bc8d7d",
+      "current_sha256": "6e7168ba7f00abca005663294fa9b61535d38c2241d0ae37850a53f307bc8d7d",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/notification-report-duplicate-delivery.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/notification-report-duplicate-delivery.spec.ts",
+      "previous_sha256": "f154ef0526b88809926949b816ce08e41e2927e14d80c8fa5f7e27763396e5f2",
+      "current_sha256": "f154ef0526b88809926949b816ce08e41e2927e14d80c8fa5f7e27763396e5f2",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/notification-report-lifecycle.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/notification-report-lifecycle.spec.ts",
+      "previous_sha256": "0851a8871d2da1a7efd160e8937414a2d69d8993f0f8851ac75ca9718352ec52",
+      "current_sha256": "0851a8871d2da1a7efd160e8937414a2d69d8993f0f8851ac75ca9718352ec52",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/notification-report-multi-role.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/notification-report-multi-role.spec.ts",
+      "previous_sha256": "fd891a3075934e501f115ce3fdb4bb53978acfe270b530be5b25e4764b5827e7",
+      "current_sha256": "fd891a3075934e501f115ce3fdb4bb53978acfe270b530be5b25e4764b5827e7",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/notification-report-recovery.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/notification-report-recovery.spec.ts",
+      "previous_sha256": "2beda06330a656c15c173c2caa318389c453484000af32de966d5b718ff9dff1",
+      "current_sha256": "2beda06330a656c15c173c2caa318389c453484000af32de966d5b718ff9dff1",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/operations-acceptance.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/operations-acceptance.spec.ts",
+      "previous_sha256": "8f2a310c168e29f5e14869cc5207c708417ff986247eff1d695954f584dd5016",
+      "current_sha256": "8f2a310c168e29f5e14869cc5207c708417ff986247eff1d695954f584dd5016",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/portal-acceptance.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/portal-acceptance.spec.ts",
+      "previous_sha256": "715e6f331aa0f1761d752605acf8846eefbd508580b78944bab127b3d222e3fb",
+      "current_sha256": "715e6f331aa0f1761d752605acf8846eefbd508580b78944bab127b3d222e3fb",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/project-management.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/project-management.spec.ts",
+      "previous_sha256": "aa3ccdc2e2a2f8008a08a3eabaea576cc72f9ed44ef16ff6ca034ab101118a98",
+      "current_sha256": "aa3ccdc2e2a2f8008a08a3eabaea576cc72f9ed44ef16ff6ca034ab101118a98",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/project-multi-role.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/project-multi-role.spec.ts",
+      "previous_sha256": "d984353923604b6be5bf1e81d86cc3506fa6e7d31f24fb70b34abf89765d3cb1",
+      "current_sha256": "d984353923604b6be5bf1e81d86cc3506fa6e7d31f24fb70b34abf89765d3cb1",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/task-management.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/task-management.spec.ts",
+      "previous_sha256": "ca698ed012087033375a888d469bcdd762348426551b6c648e55e47060eff425",
+      "current_sha256": "ca698ed012087033375a888d469bcdd762348426551b6c648e55e47060eff425",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/work-service-recovery.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/work-service-recovery.spec.ts",
+      "previous_sha256": "c4408ad718e83721d9207d3d89fda6b9ad3ec9f77bacc932768f716c4eec3064",
+      "current_sha256": "c4408ad718e83721d9207d3d89fda6b9ad3ec9f77bacc932768f716c4eec3064",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/workflow-acceptance-support.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/workflow-acceptance-support.ts",
+      "previous_sha256": "d516f58b6f52a54d440b60923a36793581ba79c1957a50a909c55f650e73d282",
+      "current_sha256": "d516f58b6f52a54d440b60923a36793581ba79c1957a50a909c55f650e73d282",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/workflow-automation.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/workflow-automation.spec.ts",
+      "previous_sha256": "2b1a8661b698adc42d09cc79fe74c371d6f87aef8cef8b5573cd3aa86eef0cb6",
+      "current_sha256": "2b1a8661b698adc42d09cc79fe74c371d6f87aef8cef8b5573cd3aa86eef0cb6",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/workflow-duplicate-delivery.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/workflow-duplicate-delivery.spec.ts",
+      "previous_sha256": "b17acd39c4f78b5cd8a984e2f0405b3cb7ac836a30b1f218d1f792c728ebee69",
+      "current_sha256": "b17acd39c4f78b5cd8a984e2f0405b3cb7ac836a30b1f218d1f792c728ebee69",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/workflow-multi-role.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/workflow-multi-role.spec.ts",
+      "previous_sha256": "9835a4cdf3f6df23345935de7d4aa416c865fbd21c403698c04b52f9a5c26995",
+      "current_sha256": "9835a4cdf3f6df23345935de7d4aa416c865fbd21c403698c04b52f9a5c26995",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/e2e/workflow-recovery.spec.ts",
+      "current_path": "legacy/experiments/portal-web/tests/e2e/workflow-recovery.spec.ts",
+      "previous_sha256": "782ec7b902fcfcbb9d15b3f1a3a513aefef63cdc1b52ca87aae45b1a40116699",
+      "current_sha256": "782ec7b902fcfcbb9d15b3f1a3a513aefef63cdc1b52ca87aae45b1a40116699",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/employees.test.tsx",
+      "current_path": "legacy/experiments/portal-web/tests/employees.test.tsx",
+      "previous_sha256": "03b632185dd240db52f848bf2671cd3fd8e1f167ef8c3f7502b832556bbf69f4",
+      "current_sha256": "03b632185dd240db52f848bf2671cd3fd8e1f167ef8c3f7502b832556bbf69f4",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/isolated-recovery-helper.test.ts",
+      "current_path": "legacy/experiments/portal-web/tests/isolated-recovery-helper.test.ts",
+      "previous_sha256": "7d7c968e928521185036281b698d63a388837d5db72e0a74b14b28b362725475",
+      "current_sha256": "7d7c968e928521185036281b698d63a388837d5db72e0a74b14b28b362725475",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/jobs.test.tsx",
+      "current_path": "legacy/experiments/portal-web/tests/jobs.test.tsx",
+      "previous_sha256": "ecd5db77db0504f8df936d19d44483fa0da1e920bf3507069f5ff17b3811432e",
+      "current_sha256": "ecd5db77db0504f8df936d19d44483fa0da1e920bf3507069f5ff17b3811432e",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/login-route.test.ts",
+      "current_path": "legacy/experiments/portal-web/tests/login-route.test.ts",
+      "previous_sha256": "1e327de8c8afbfc8ed1b77082e8f16a96f9133a2a009379f50e6f26a6be9e78d",
+      "current_sha256": "1e327de8c8afbfc8ed1b77082e8f16a96f9133a2a009379f50e6f26a6be9e78d",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/logout-route.test.ts",
+      "current_path": "legacy/experiments/portal-web/tests/logout-route.test.ts",
+      "previous_sha256": "66953b6375314c364959000ecd63431d9e44045f02d259b576cb23c4b052bc99",
+      "current_sha256": "66953b6375314c364959000ecd63431d9e44045f02d259b576cb23c4b052bc99",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/notifications-reports.test.tsx",
+      "current_path": "legacy/experiments/portal-web/tests/notifications-reports.test.tsx",
+      "previous_sha256": "31785d08649d55b838506234b2dfd3616b541c9754d987b4982b8fa0a2bf13ac",
+      "current_sha256": "31785d08649d55b838506234b2dfd3616b541c9754d987b4982b8fa0a2bf13ac",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/operations.test.tsx",
+      "current_path": "legacy/experiments/portal-web/tests/operations.test.tsx",
+      "previous_sha256": "86e7af1e272e8aefb98ee3935a9dbd17251a4d3b1c184d0f9e152e5d725f409e",
+      "current_sha256": "86e7af1e272e8aefb98ee3935a9dbd17251a4d3b1c184d0f9e152e5d725f409e",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/portal-routing.test.tsx",
+      "current_path": "legacy/experiments/portal-web/tests/portal-routing.test.tsx",
+      "previous_sha256": "a5d840a7982342575eb0cbcf38e52bfd1d7af898362d96d3f1eeeed31444bcf3",
+      "current_sha256": "a5d840a7982342575eb0cbcf38e52bfd1d7af898362d96d3f1eeeed31444bcf3",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/portal-ui.test.tsx",
+      "current_path": "legacy/experiments/portal-web/tests/portal-ui.test.tsx",
+      "previous_sha256": "0e223dd00272ec6c5903c2833f6c49eea6c90c3e51d38fd20433c4c764f099e4",
+      "current_sha256": "026ad55580bbefade4ce3a8059601f667b5f6809fb8aecfb1ade2b0f6b6c0e5d",
+      "adapted": true
+    },
+    {
+      "previous_path": "frontend/tests/projects.test.tsx",
+      "current_path": "legacy/experiments/portal-web/tests/projects.test.tsx",
+      "previous_sha256": "91f9e0a4bf51db0b269f370ee09884d83ba5f49f5c402fb192d324780fdf456c",
+      "current_sha256": "91f9e0a4bf51db0b269f370ee09884d83ba5f49f5c402fb192d324780fdf456c",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/publications.test.tsx",
+      "current_path": "legacy/experiments/portal-web/tests/publications.test.tsx",
+      "previous_sha256": "59308e3d5fa913b66f0841c9ea903cf683cf7792d3a92ce2a156b85ea5715a4b",
+      "current_sha256": "59308e3d5fa913b66f0841c9ea903cf683cf7792d3a92ce2a156b85ea5715a4b",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/setup.ts",
+      "current_path": "legacy/experiments/portal-web/tests/setup.ts",
+      "previous_sha256": "40880f744633d4b614bf6f04a2c55bc0a2b563b7d4bfbec5084fe753bfda921b",
+      "current_sha256": "40880f744633d4b614bf6f04a2c55bc0a2b563b7d4bfbec5084fe753bfda921b",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/sign-in-page.test.tsx",
+      "current_path": "legacy/experiments/portal-web/tests/sign-in-page.test.tsx",
+      "previous_sha256": "9db174a43559a5c4edb16c5cef7be10d4e53a2f69a4f172c9c8d4aa4bf132d7c",
+      "current_sha256": "9db174a43559a5c4edb16c5cef7be10d4e53a2f69a4f172c9c8d4aa4bf132d7c",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/system.test.tsx",
+      "current_path": "legacy/experiments/portal-web/tests/system.test.tsx",
+      "previous_sha256": "6ff1f615e507633a5cf7f792770338ca80925d523d7782dc9bb05807fdc24514",
+      "current_sha256": "6ff1f615e507633a5cf7f792770338ca80925d523d7782dc9bb05807fdc24514",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/tasks.test.tsx",
+      "current_path": "legacy/experiments/portal-web/tests/tasks.test.tsx",
+      "previous_sha256": "91cf32483a19b2fa916257958b0561e4d15d0a5f68495b811f379b56a50f20ff",
+      "current_sha256": "91cf32483a19b2fa916257958b0561e4d15d0a5f68495b811f379b56a50f20ff",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tests/workflows.test.tsx",
+      "current_path": "legacy/experiments/portal-web/tests/workflows.test.tsx",
+      "previous_sha256": "feed5ea0a0b01a5479a103ca76655ebf77faaba80aba0b16222c20a285aa74a5",
+      "current_sha256": "feed5ea0a0b01a5479a103ca76655ebf77faaba80aba0b16222c20a285aa74a5",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/tsconfig.json",
+      "current_path": "legacy/experiments/portal-web/tsconfig.json",
+      "previous_sha256": "d88b60c515bc31b4e69138f4548c378268cb4b1c61e28f632194edf950d22d59",
+      "current_sha256": "d88b60c515bc31b4e69138f4548c378268cb4b1c61e28f632194edf950d22d59",
+      "adapted": false
+    },
+    {
+      "previous_path": "frontend/vitest.config.ts",
+      "current_path": "legacy/experiments/portal-web/vitest.config.ts",
+      "previous_sha256": "a0cf8ae87ab5e6950358bc7f2ce30c79922767dad2870ec356d1d19e10a423e6",
+      "current_sha256": "a0cf8ae87ab5e6950358bc7f2ce30c79922767dad2870ec356d1d19e10a423e6",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/.dockerignore",
+      "current_path": "legacy/gateway/.dockerignore",
+      "previous_sha256": "66a9e5bf09a5563e1cfdacab2affbcaca57cfe9c30f0a74e874eae454d81b084",
+      "current_sha256": "66a9e5bf09a5563e1cfdacab2affbcaca57cfe9c30f0a74e874eae454d81b084",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/Dockerfile",
+      "current_path": "legacy/gateway/Dockerfile",
+      "previous_sha256": "a4b3522e21b851e1487a6b894718ccdf92ae9677a7dc10fb573b63caa4450f57",
+      "current_sha256": "a4b3522e21b851e1487a6b894718ccdf92ae9677a7dc10fb573b63caa4450f57",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/app/__init__.py",
+      "current_path": "legacy/gateway/app/__init__.py",
+      "previous_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "current_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/app/auth.py",
+      "current_path": "legacy/gateway/app/auth.py",
+      "previous_sha256": "b5b05cc1be68dc0c383d0d092e754375b764707db26d38bd8ba588a8a880b3a0",
+      "current_sha256": "b5b05cc1be68dc0c383d0d092e754375b764707db26d38bd8ba588a8a880b3a0",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/app/config.py",
+      "current_path": "legacy/gateway/app/config.py",
+      "previous_sha256": "a8844c678a9388e5fec26a83e77ea830caf332571c6b055063659ab824e4b8cc",
+      "current_sha256": "a8844c678a9388e5fec26a83e77ea830caf332571c6b055063659ab824e4b8cc",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/app/employee_client.py",
+      "current_path": "legacy/gateway/app/employee_client.py",
+      "previous_sha256": "6420934ca77283328b2eb807aba99ce4ecddd6eecd6d7bdae27f87c9ee1bf356",
+      "current_sha256": "6420934ca77283328b2eb807aba99ce4ecddd6eecd6d7bdae27f87c9ee1bf356",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/app/job_client.py",
+      "current_path": "legacy/gateway/app/job_client.py",
+      "previous_sha256": "d4dc90e5ddde3ec4932e173ed8ea0915eb37b06b0abd69e11c846fe2b3f3b9e1",
+      "current_sha256": "d4dc90e5ddde3ec4932e173ed8ea0915eb37b06b0abd69e11c846fe2b3f3b9e1",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/app/main.py",
+      "current_path": "legacy/gateway/app/main.py",
+      "previous_sha256": "62bf088ebc86834e8941728f7876df0dc14c9c37e7d061fc69e171012d2995e4",
+      "current_sha256": "62bf088ebc86834e8941728f7876df0dc14c9c37e7d061fc69e171012d2995e4",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/app/notification_client.py",
+      "current_path": "legacy/gateway/app/notification_client.py",
+      "previous_sha256": "20006d10d9a41873aee0d5e922051f0182b8cb161a1faa47305ad500da076ca1",
+      "current_sha256": "20006d10d9a41873aee0d5e922051f0182b8cb161a1faa47305ad500da076ca1",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/app/observability.py",
+      "current_path": "legacy/gateway/app/observability.py",
+      "previous_sha256": "a27991bd5c8a7d3646d3477807776362f19703a300b07797798b8cfe319bf6c1",
+      "current_sha256": "a27991bd5c8a7d3646d3477807776362f19703a300b07797798b8cfe319bf6c1",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/app/operations_client.py",
+      "current_path": "legacy/gateway/app/operations_client.py",
+      "previous_sha256": "bb115b414bd7e4edfd011973c1ad56a9164bbe4345ecdea3c03955ddf67b722d",
+      "current_sha256": "bb115b414bd7e4edfd011973c1ad56a9164bbe4345ecdea3c03955ddf67b722d",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/app/schema.py",
+      "current_path": "legacy/gateway/app/schema.py",
+      "previous_sha256": "d37ac1e706d2ffd4331db00639813cab0b7e5a63555a2ecb86a27bb76ce09379",
+      "current_sha256": "d37ac1e706d2ffd4331db00639813cab0b7e5a63555a2ecb86a27bb76ce09379",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/app/work_client.py",
+      "current_path": "legacy/gateway/app/work_client.py",
+      "previous_sha256": "79e444ec9423970c4bbca8567ddab3007d0f05b72f6ada0032198d9115756d1c",
+      "current_sha256": "79e444ec9423970c4bbca8567ddab3007d0f05b72f6ada0032198d9115756d1c",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/app/workflow_client.py",
+      "current_path": "legacy/gateway/app/workflow_client.py",
+      "previous_sha256": "284a469b8d9e014358dd8959dc4713ec0c67363cf1deae8bd7473891d1d6b794",
+      "current_sha256": "284a469b8d9e014358dd8959dc4713ec0c67363cf1deae8bd7473891d1d6b794",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/export_schema.py",
+      "current_path": "legacy/gateway/export_schema.py",
+      "previous_sha256": "a56fd356150da31a79bba2185e4607929522a175632ed275733cf31569ba9972",
+      "current_sha256": "a56fd356150da31a79bba2185e4607929522a175632ed275733cf31569ba9972",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/pyproject.toml",
+      "current_path": "legacy/gateway/pyproject.toml",
+      "previous_sha256": "da5001a056ff79395498e767fed7c8b0637706420cda6d7908b07f482d7c948f",
+      "current_sha256": "da5001a056ff79395498e767fed7c8b0637706420cda6d7908b07f482d7c948f",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/requirements.in",
+      "current_path": "legacy/gateway/requirements.in",
+      "previous_sha256": "0656a7f43479d7b5af122a4b0d5210c051e5de08235b5c46f4abbad967c7eb9b",
+      "current_sha256": "0656a7f43479d7b5af122a4b0d5210c051e5de08235b5c46f4abbad967c7eb9b",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/requirements.lock",
+      "current_path": "legacy/gateway/requirements.lock",
+      "previous_sha256": "781003cc1b1bb8ea57b61cedd8e501817b3f4c5b587df8a220871e5a500508e5",
+      "current_sha256": "781003cc1b1bb8ea57b61cedd8e501817b3f4c5b587df8a220871e5a500508e5",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/schema.graphql",
+      "current_path": "legacy/gateway/schema.graphql",
+      "previous_sha256": "00b016b635e7c721967d107e183f0711d30128a90579cf7decf9bd4e8be62ca8",
+      "current_sha256": "00b016b635e7c721967d107e183f0711d30128a90579cf7decf9bd4e8be62ca8",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/tests/test_auth.py",
+      "current_path": "legacy/gateway/tests/test_auth.py",
+      "previous_sha256": "ea0939d8f3899eeeb06fa31a24d7db13bb5e7f2fc410a1b5018b9a487e762e2b",
+      "current_sha256": "ea0939d8f3899eeeb06fa31a24d7db13bb5e7f2fc410a1b5018b9a487e762e2b",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/tests/test_gateway.py",
+      "current_path": "legacy/gateway/tests/test_gateway.py",
+      "previous_sha256": "de001c157b41b5a7ffdcfb77b1dede1d1a2d85813d5afaf49e00bd7335e6ba11",
+      "current_sha256": "de001c157b41b5a7ffdcfb77b1dede1d1a2d85813d5afaf49e00bd7335e6ba11",
+      "adapted": false
+    },
+    {
+      "previous_path": "gateway/tests/test_observability.py",
+      "current_path": "legacy/gateway/tests/test_observability.py",
+      "previous_sha256": "19beb0c57ddebeadd5d91837b1f7b65be7a8f16556754f5a96f0726862daffae",
+      "current_sha256": "19beb0c57ddebeadd5d91837b1f7b65be7a8f16556754f5a96f0726862daffae",
+      "adapted": false
+    },
+    {
+      "previous_path": "infrastructure/grafana/dashboards/taskspace-overview.json",
+      "current_path": "infrastructure/grafana/dashboards/taskspace-overview.json",
+      "previous_sha256": "446a83379d94ef2062d74d782bc7c9bdf083ce59080fa68fe6cf967976a4a6de",
+      "current_sha256": "446a83379d94ef2062d74d782bc7c9bdf083ce59080fa68fe6cf967976a4a6de",
+      "adapted": false
+    },
+    {
+      "previous_path": "infrastructure/grafana/provisioning/dashboards/dashboards.yml",
+      "current_path": "infrastructure/grafana/provisioning/dashboards/dashboards.yml",
+      "previous_sha256": "d05c5a550e2502587b44f788ab67154a8d39f355936d3f8098bae50cd9f2adec",
+      "current_sha256": "d05c5a550e2502587b44f788ab67154a8d39f355936d3f8098bae50cd9f2adec",
+      "adapted": false
+    },
+    {
+      "previous_path": "infrastructure/grafana/provisioning/datasources/datasources.yml",
+      "current_path": "infrastructure/grafana/provisioning/datasources/datasources.yml",
+      "previous_sha256": "06de60c1836b19166384255d1963962848bdae10eb9f8233009c5a17843076f5",
+      "current_sha256": "06de60c1836b19166384255d1963962848bdae10eb9f8233009c5a17843076f5",
+      "adapted": false
+    },
+    {
+      "previous_path": "infrastructure/keycloak/taskspace-realm.json",
+      "current_path": "infrastructure/keycloak/taskspace-realm.json",
+      "previous_sha256": "e0cf3f5042bd113527459806f53ebb45456d3b6d071597692144d708bec064dc",
+      "current_sha256": "e0cf3f5042bd113527459806f53ebb45456d3b6d071597692144d708bec064dc",
+      "adapted": false
+    },
+    {
+      "previous_path": "infrastructure/prometheus/prometheus.yml",
+      "current_path": "infrastructure/prometheus/prometheus.yml",
+      "previous_sha256": "42363208cf37cc5f012cb17fb9048270df7ee1dae43dbc1365eb35dfcc061a92",
+      "current_sha256": "42363208cf37cc5f012cb17fb9048270df7ee1dae43dbc1365eb35dfcc061a92",
+      "adapted": false
+    },
+    {
+      "previous_path": "scripts/bootstrap-development.ps1",
+      "current_path": "legacy/scripts/bootstrap-development.ps1",
+      "previous_sha256": "ec468cb920921f6ad4a0667b680ffbedea28534b65f8bb941a25980a133dfd1e",
+      "current_sha256": "ec468cb920921f6ad4a0667b680ffbedea28534b65f8bb941a25980a133dfd1e",
+      "adapted": false
+    },
+    {
+      "previous_path": "scripts/bootstrap-test-stack.ps1",
+      "current_path": "legacy/scripts/bootstrap-test-stack.ps1",
+      "previous_sha256": "edf35ca60a0711d86a932906e56027ad2b157ceb0c77ab5f09d6abdbf5d1d63d",
+      "current_sha256": "edf35ca60a0711d86a932906e56027ad2b157ceb0c77ab5f09d6abdbf5d1d63d",
+      "adapted": false
+    },
+    {
+      "previous_path": "scripts/bootstrap-test-stack.sh",
+      "current_path": "legacy/scripts/bootstrap-test-stack.sh",
+      "previous_sha256": "1e5905369ca85673c867ff5a034aad04b96ca4296dcb9c48179f6f54942eff48",
+      "current_sha256": "1e5905369ca85673c867ff5a034aad04b96ca4296dcb9c48179f6f54942eff48",
+      "adapted": false
+    },
+    {
+      "previous_path": "scripts/isolated_test_env.py",
+      "current_path": "legacy/scripts/isolated_test_env.py",
+      "previous_sha256": "64cf59e8d6d66ab0ca5a789a2b0522ddbdb821942328663c664db8661e263596",
+      "current_sha256": "7b4eb83821934435ab0101430b739b7c6be40fe495aec4e3e3b108680ee08f83",
+      "adapted": true
+    },
+    {
+      "previous_path": "scripts/load-env.sh",
+      "current_path": "legacy/scripts/load-env.sh",
+      "previous_sha256": "425a4d4732455745a5bfad87f611e8967526a0d37c81bb21eee81823137d43b8",
+      "current_sha256": "425a4d4732455745a5bfad87f611e8967526a0d37c81bb21eee81823137d43b8",
+      "adapted": false
+    },
+    {
+      "previous_path": "scripts/run_postgres_regression.py",
+      "current_path": "legacy/scripts/run_postgres_regression.py",
+      "previous_sha256": "b9cbde74ca05d26a5f3f9dca8590a61650f65967a32a5dfa6791921243091d78",
+      "current_sha256": "b9cbde74ca05d26a5f3f9dca8590a61650f65967a32a5dfa6791921243091d78",
+      "adapted": false
+    },
+    {
+      "previous_path": "scripts/test-audit.ps1",
+      "current_path": "legacy/scripts/test-audit.ps1",
+      "previous_sha256": "a9fb1a2a293e50bb725753dea984bd8084010d8ca2029ff60b2e54b983b572ba",
+      "current_sha256": "c1becbf408920848b2765790461e53a01a5aa0066cb1d8a5a95bf834a72f9e05",
+      "adapted": true
+    },
+    {
+      "previous_path": "scripts/test-audit.sh",
+      "current_path": "legacy/scripts/test-audit.sh",
+      "previous_sha256": "9c5b282c35935dfff3739b1631b8b25005d077d129217d4b0ed4955bbc448b8a",
+      "current_sha256": "3ce3a2c375a863d23fc352ea54a3a6d6552f0585385fbdb93208ebe13ddff08a",
+      "adapted": true
+    },
+    {
+      "previous_path": "scripts/test-codegen.ps1",
+      "current_path": "legacy/scripts/test-codegen.ps1",
+      "previous_sha256": "77ba1253ec4a7fa594e179c4d328e4e0aa302fb03bea057eb5cce886b51343e8",
+      "current_sha256": "364ee625ecdbb045d66e03b7e3177e8a359a92e1ae21a57b0b995d7c5f07538d",
+      "adapted": true
+    },
+    {
+      "previous_path": "scripts/test-codegen.sh",
+      "current_path": "legacy/scripts/test-codegen.sh",
+      "previous_sha256": "1bde6446c32b11bb39590781bb1659b6dae654bbef6233194d8d8884dc114412",
+      "current_sha256": "f206211cc64c72167f38bdaf94efd4c76c7fe7ce18ceca517c795e1f0a2c04d5",
+      "adapted": true
+    },
+    {
+      "previous_path": "scripts/test-e2e.ps1",
+      "current_path": "legacy/scripts/test-e2e.ps1",
+      "previous_sha256": "9aa989ccb91e553baae2ab61b420b401d17ffdf11fb1aa5558e587980f4bf50d",
+      "current_sha256": "9aa989ccb91e553baae2ab61b420b401d17ffdf11fb1aa5558e587980f4bf50d",
+      "adapted": false
+    },
+    {
+      "previous_path": "scripts/test-e2e.sh",
+      "current_path": "legacy/scripts/test-e2e.sh",
+      "previous_sha256": "84c03b2262fc5cb2cb5bdb5907ab0b354123301e63a56ff370c10894e43e9948",
+      "current_sha256": "84c03b2262fc5cb2cb5bdb5907ab0b354123301e63a56ff370c10894e43e9948",
+      "adapted": false
+    },
+    {
+      "previous_path": "scripts/test-postgres.ps1",
+      "current_path": "legacy/scripts/test-postgres.ps1",
+      "previous_sha256": "64e5851d8d45f2d6fd6b83d15d0652765faf446b8918c97fc6b2dd6938242c71",
+      "current_sha256": "6e8194aeae0a1b690e9bdbfc5900847390aeaa12467568254faf25afe6ef2590",
+      "adapted": true
+    },
+    {
+      "previous_path": "scripts/test-postgres.sh",
+      "current_path": "legacy/scripts/test-postgres.sh",
+      "previous_sha256": "7072dbbdc5911fb10d8c438fe6b78af8e5b0cf76fa81458909d614eb3a1ca6df",
+      "current_sha256": "662d57ff0afb02400c4273b97afc9532bb3e067ae011d66723e1091eb66493ae",
+      "adapted": true
+    },
+    {
+      "previous_path": "scripts/test-static.ps1",
+      "current_path": "legacy/scripts/test-static.ps1",
+      "previous_sha256": "ec2bef79b5c7471662c01fdc1e085fcb96bc970a658400ab83d27464cec0e21e",
+      "current_sha256": "363d471083aa5ba6ca5b5f8a5b815c04a51a0ee1afaa833c1bb2a3c7db2270a3",
+      "adapted": true
+    },
+    {
+      "previous_path": "scripts/test-static.sh",
+      "current_path": "legacy/scripts/test-static.sh",
+      "previous_sha256": "1314120f982ddaff7cbb1f52d1362cc971e922983680495552a4b9bb2f4d2235",
+      "current_sha256": "f73a1db0468d5e5f49899b88df36aceed104bb7f213e0f6ca1bab53b99c16927",
+      "adapted": true
+    },
+    {
+      "previous_path": "scripts/test-unit.ps1",
+      "current_path": "legacy/scripts/test-unit.ps1",
+      "previous_sha256": "1f5a84091b1cdf75237d89417f452a2eadee55657eee2b09ded96d6c8309624e",
+      "current_sha256": "c6a367b592fcaae8c4058e58c5f528987d5ad1ab9193e7113c69f2f73d756782",
+      "adapted": true
+    },
+    {
+      "previous_path": "scripts/test-unit.sh",
+      "current_path": "legacy/scripts/test-unit.sh",
+      "previous_sha256": "5be67184f4ae5b8028202442d722ee2c6a210d35afffc0bca9de8ce93f181ee5",
+      "current_sha256": "4d48548084b8b50085bcb0cb723474ad46fc2fb22d35a17802b8ee5f602a0b2e",
+      "adapted": true
+    },
+    {
+      "previous_path": "scripts/test_report_validator.py",
+      "current_path": "legacy/scripts/test_report_validator.py",
+      "previous_sha256": "0f172f63363c1602174e327e32a35cab560f2aadd964987e94c03a3597b79909",
+      "current_sha256": "0f172f63363c1602174e327e32a35cab560f2aadd964987e94c03a3597b79909",
+      "adapted": false
+    },
+    {
+      "previous_path": "scripts/verify_codegen.py",
+      "current_path": "legacy/scripts/verify_codegen.py",
+      "previous_sha256": "9e5270284aec7aa3e6983657596a76cfcde551743fd8407d9b82fe6c5f929764",
+      "current_sha256": "69ff6216bb372f68c95b680a4bb414479b63f0b4bfb2ce373a59ebc265ca830e",
+      "adapted": true
+    },
+    {
+      "previous_path": "scripts/verify_test_reports.py",
+      "current_path": "legacy/scripts/verify_test_reports.py",
+      "previous_sha256": "cbd80bed686268ca156f50d05f02048c0ae78b0214dd7f580fac366aa17e0def",
+      "current_sha256": "cbd80bed686268ca156f50d05f02048c0ae78b0214dd7f580fac366aa17e0def",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/.dockerignore",
+      "current_path": "legacy/services/employee/.dockerignore",
+      "previous_sha256": "d1e7b5a4f28c17c22c6c17d7eec78657d7532f743c1a525a2132ef3f299071fe",
+      "current_sha256": "d1e7b5a4f28c17c22c6c17d7eec78657d7532f743c1a525a2132ef3f299071fe",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/Dockerfile",
+      "current_path": "legacy/services/employee/Dockerfile",
+      "previous_sha256": "87534636475cda4b79d549e7b1512751f0732688d7986cf2b058a12bbfcdf320",
+      "current_sha256": "87534636475cda4b79d549e7b1512751f0732688d7986cf2b058a12bbfcdf320",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/README.md",
+      "current_path": "legacy/services/employee/README.md",
+      "previous_sha256": "5a2a5ff61ee9d6eb639a277ebb7265856c9096ea0f3ee8b56ef9238f428d38ed",
+      "current_sha256": "5a2a5ff61ee9d6eb639a277ebb7265856c9096ea0f3ee8b56ef9238f428d38ed",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/alembic.ini",
+      "current_path": "legacy/services/employee/alembic.ini",
+      "previous_sha256": "34b700d59170ac7fe48f5a09304146d340a5143ad909a317d739967a31345360",
+      "current_sha256": "34b700d59170ac7fe48f5a09304146d340a5143ad909a317d739967a31345360",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/app/__init__.py",
+      "current_path": "legacy/services/employee/app/__init__.py",
+      "previous_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "current_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/app/admin_service.py",
+      "current_path": "legacy/services/employee/app/admin_service.py",
+      "previous_sha256": "e16172c05aa95d1b7197038392026b6df2b37a06f9599f8f86d17bca81d3b6c3",
+      "current_sha256": "e16172c05aa95d1b7197038392026b6df2b37a06f9599f8f86d17bca81d3b6c3",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/app/bootstrap.py",
+      "current_path": "legacy/services/employee/app/bootstrap.py",
+      "previous_sha256": "8c9aa3769ca55e438f86d0d7b133b175fe23ac1308fb591d72c33ed3b16f9bc8",
+      "current_sha256": "8c9aa3769ca55e438f86d0d7b133b175fe23ac1308fb591d72c33ed3b16f9bc8",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/app/config.py",
+      "current_path": "legacy/services/employee/app/config.py",
+      "previous_sha256": "2fee8deb6ed2a1528878ef72b58db3503d9e24cfdf76914966c1ca69af46bc8a",
+      "current_sha256": "2fee8deb6ed2a1528878ef72b58db3503d9e24cfdf76914966c1ca69af46bc8a",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/app/db.py",
+      "current_path": "legacy/services/employee/app/db.py",
+      "previous_sha256": "c836164739f4e713a5a599b489d196b2fae0b0b6d3ca13af98097417b1c43970",
+      "current_sha256": "c836164739f4e713a5a599b489d196b2fae0b0b6d3ca13af98097417b1c43970",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/app/development_access.py",
+      "current_path": "legacy/services/employee/app/development_access.py",
+      "previous_sha256": "2a0d317114771e6bdd7ac5acf1c48f42f2d30b07801b01f27b5da21f5ee8d3ec",
+      "current_sha256": "2a0d317114771e6bdd7ac5acf1c48f42f2d30b07801b01f27b5da21f5ee8d3ec",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/app/keycloak_admin.py",
+      "current_path": "legacy/services/employee/app/keycloak_admin.py",
+      "previous_sha256": "f25e0d5eadac77052507f9186ca6e22cf0ce628d0d82bed855a472a68ec4fb8a",
+      "current_sha256": "f25e0d5eadac77052507f9186ca6e22cf0ce628d0d82bed855a472a68ec4fb8a",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/app/main.py",
+      "current_path": "legacy/services/employee/app/main.py",
+      "previous_sha256": "4e22706de4b405d41eb8503f335972acb103e6fcef80d53cb06d287582322471",
+      "current_sha256": "4e22706de4b405d41eb8503f335972acb103e6fcef80d53cb06d287582322471",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/app/models.py",
+      "current_path": "legacy/services/employee/app/models.py",
+      "previous_sha256": "83b05f4dcd27719c6637acb786cc67e1bf53252a7ad83c264249dba1dd1dd724",
+      "current_sha256": "83b05f4dcd27719c6637acb786cc67e1bf53252a7ad83c264249dba1dd1dd724",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/app/observability.py",
+      "current_path": "legacy/services/employee/app/observability.py",
+      "previous_sha256": "c8feac754bbf1034be5837b8460be23a8c5682871d0f7ea2539ecf35a8025918",
+      "current_sha256": "c8feac754bbf1034be5837b8460be23a8c5682871d0f7ea2539ecf35a8025918",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/app/schemas.py",
+      "current_path": "legacy/services/employee/app/schemas.py",
+      "previous_sha256": "e02236c16086162ef6b52aac679baa943a98996b13e58cafeef20c14e6fc031a",
+      "current_sha256": "e02236c16086162ef6b52aac679baa943a98996b13e58cafeef20c14e6fc031a",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/migrations/env.py",
+      "current_path": "legacy/services/employee/migrations/env.py",
+      "previous_sha256": "8fb001948fd36e211c132ba28ea47cf4a2ca758b057739da8266b7a263ef26c2",
+      "current_sha256": "8fb001948fd36e211c132ba28ea47cf4a2ca758b057739da8266b7a263ef26c2",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/migrations/script.py.mako",
+      "current_path": "legacy/services/employee/migrations/script.py.mako",
+      "previous_sha256": "2281da5057cf6c45b62add69fa79b23335d7c3e056f0e18c47bd591e3d4ed4eb",
+      "current_sha256": "2281da5057cf6c45b62add69fa79b23335d7c3e056f0e18c47bd591e3d4ed4eb",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/migrations/versions/20261012_01_create_employees.py",
+      "current_path": "legacy/services/employee/migrations/versions/20261012_01_create_employees.py",
+      "previous_sha256": "ccafca76c3be94d80b0cdb5e6a224773689540af53221784a56705d54ee99e64",
+      "current_sha256": "ccafca76c3be94d80b0cdb5e6a224773689540af53221784a56705d54ee99e64",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/migrations/versions/20261014_02_employee_administration.py",
+      "current_path": "legacy/services/employee/migrations/versions/20261014_02_employee_administration.py",
+      "previous_sha256": "99bfdb9d349d5d881dd944e4b31914cb702ab3d688cb88c54d40438798f90033",
+      "current_sha256": "99bfdb9d349d5d881dd944e4b31914cb702ab3d688cb88c54d40438798f90033",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/pyproject.toml",
+      "current_path": "legacy/services/employee/pyproject.toml",
+      "previous_sha256": "e65f3f32f307d2bb85ef09d1a03c22b73b89991baeae88c2a482abb96c4ac04c",
+      "current_sha256": "e65f3f32f307d2bb85ef09d1a03c22b73b89991baeae88c2a482abb96c4ac04c",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/requirements.in",
+      "current_path": "legacy/services/employee/requirements.in",
+      "previous_sha256": "1937bed1a921163018cfda040f9d445df352462c24f78b15c514a76f5a49d36c",
+      "current_sha256": "1937bed1a921163018cfda040f9d445df352462c24f78b15c514a76f5a49d36c",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/requirements.lock",
+      "current_path": "legacy/services/employee/requirements.lock",
+      "previous_sha256": "be14c19ef0bdfca1eeaf1148d62d091ff36b3f551b33c027ccee1eaf392e3fa1",
+      "current_sha256": "be14c19ef0bdfca1eeaf1148d62d091ff36b3f551b33c027ccee1eaf392e3fa1",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/tests/test_admin_service.py",
+      "current_path": "legacy/services/employee/tests/test_admin_service.py",
+      "previous_sha256": "283a3c280cebe1143717ce15663831c2bc66a57cc85b99f8fbaf8648e453f0b0",
+      "current_sha256": "283a3c280cebe1143717ce15663831c2bc66a57cc85b99f8fbaf8648e453f0b0",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/tests/test_development_access.py",
+      "current_path": "legacy/services/employee/tests/test_development_access.py",
+      "previous_sha256": "957bcc32b92b2a9e67130095a8284baef6ff4f5c6a25c2dceb06fca505fe0522",
+      "current_sha256": "957bcc32b92b2a9e67130095a8284baef6ff4f5c6a25c2dceb06fca505fe0522",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/tests/test_employee.py",
+      "current_path": "legacy/services/employee/tests/test_employee.py",
+      "previous_sha256": "79d05cbe667e5adb4d9da947cf70e6eb19436fa347642eb226cdd2239dd8efaa",
+      "current_sha256": "79d05cbe667e5adb4d9da947cf70e6eb19436fa347642eb226cdd2239dd8efaa",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/employee/tests/test_keycloak_admin.py",
+      "current_path": "legacy/services/employee/tests/test_keycloak_admin.py",
+      "previous_sha256": "aa67d7c2284387e48d86fec0a9c967cf57814c66dd411bfbbd9d99b50b20ab89",
+      "current_sha256": "aa67d7c2284387e48d86fec0a9c967cf57814c66dd411bfbbd9d99b50b20ab89",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/.dockerignore",
+      "current_path": "legacy/services/job/.dockerignore",
+      "previous_sha256": "355e19dae65a3ec32685ca5f85904397a6cc822d8b5237dbcf7bce7fc65b447e",
+      "current_sha256": "355e19dae65a3ec32685ca5f85904397a6cc822d8b5237dbcf7bce7fc65b447e",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/Dockerfile",
+      "current_path": "legacy/services/job/Dockerfile",
+      "previous_sha256": "e4235c27138c7d1d9a2ae33bd3e7ca506b077e7532c97ffbafd90cb92c2bbfd2",
+      "current_sha256": "e4235c27138c7d1d9a2ae33bd3e7ca506b077e7532c97ffbafd90cb92c2bbfd2",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/README.md",
+      "current_path": "legacy/services/job/README.md",
+      "previous_sha256": "2d88be6cc17a9092f3442cfd9406e14a2100cb3dbc5a0b8bb02ddb71d2d10d5b",
+      "current_sha256": "2d88be6cc17a9092f3442cfd9406e14a2100cb3dbc5a0b8bb02ddb71d2d10d5b",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/alembic.ini",
+      "current_path": "legacy/services/job/alembic.ini",
+      "previous_sha256": "34b700d59170ac7fe48f5a09304146d340a5143ad909a317d739967a31345360",
+      "current_sha256": "34b700d59170ac7fe48f5a09304146d340a5143ad909a317d739967a31345360",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/app/__init__.py",
+      "current_path": "legacy/services/job/app/__init__.py",
+      "previous_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "current_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/app/celery_app.py",
+      "current_path": "legacy/services/job/app/celery_app.py",
+      "previous_sha256": "2280879a7b540b7b102de394cda2b98666c287f8242a88114f2a6157959d6ecf",
+      "current_sha256": "2280879a7b540b7b102de394cda2b98666c287f8242a88114f2a6157959d6ecf",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/app/config.py",
+      "current_path": "legacy/services/job/app/config.py",
+      "previous_sha256": "75c25372c0ee82344ff418426b7dcdb7177aca052c164d2c9259fa46ef299b88",
+      "current_sha256": "75c25372c0ee82344ff418426b7dcdb7177aca052c164d2c9259fa46ef299b88",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/app/db.py",
+      "current_path": "legacy/services/job/app/db.py",
+      "previous_sha256": "c836164739f4e713a5a599b489d196b2fae0b0b6d3ca13af98097417b1c43970",
+      "current_sha256": "c836164739f4e713a5a599b489d196b2fae0b0b6d3ca13af98097417b1c43970",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/app/development_cleanup.py",
+      "current_path": "legacy/services/job/app/development_cleanup.py",
+      "previous_sha256": "a0c3be592ca979fe9a24a1971fbef1c97e58c44353f467c2b4e80ccf21c01240",
+      "current_sha256": "a0c3be592ca979fe9a24a1971fbef1c97e58c44353f467c2b4e80ccf21c01240",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/app/domain_event_publisher.py",
+      "current_path": "legacy/services/job/app/domain_event_publisher.py",
+      "previous_sha256": "e0c685bf309f2e1fc03a0bc588b24c2900c1a32e31bf624c8c8f5f15a4946f8e",
+      "current_sha256": "e0c685bf309f2e1fc03a0bc588b24c2900c1a32e31bf624c8c8f5f15a4946f8e",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/app/execution.py",
+      "current_path": "legacy/services/job/app/execution.py",
+      "previous_sha256": "6bbedcea70ae66a7585935158f46fcf8f0e763f4c7a70d23bdb756cd3ef7eac8",
+      "current_sha256": "6bbedcea70ae66a7585935158f46fcf8f0e763f4c7a70d23bdb756cd3ef7eac8",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/app/main.py",
+      "current_path": "legacy/services/job/app/main.py",
+      "previous_sha256": "208e8937f10ea31718322ef493fd6925bf18074db3998f89b03f9aec349ab4b7",
+      "current_sha256": "208e8937f10ea31718322ef493fd6925bf18074db3998f89b03f9aec349ab4b7",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/app/models.py",
+      "current_path": "legacy/services/job/app/models.py",
+      "previous_sha256": "3bc646506b24beee449a5051b02a988e2195b8966757283fe95425d5938a4e84",
+      "current_sha256": "3bc646506b24beee449a5051b02a988e2195b8966757283fe95425d5938a4e84",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/app/observability.py",
+      "current_path": "legacy/services/job/app/observability.py",
+      "previous_sha256": "8f5bf99aeaefa64cbee55c41c3473386246862a2f7d2182b6c27a4ea64edad79",
+      "current_sha256": "8f5bf99aeaefa64cbee55c41c3473386246862a2f7d2182b6c27a4ea64edad79",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/app/publisher.py",
+      "current_path": "legacy/services/job/app/publisher.py",
+      "previous_sha256": "f4cec16651006046d5b32aabfa0447ba02e6fbe97cf47a127146bdc7d0a0fbb3",
+      "current_sha256": "f4cec16651006046d5b32aabfa0447ba02e6fbe97cf47a127146bdc7d0a0fbb3",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/app/publisher_process.py",
+      "current_path": "legacy/services/job/app/publisher_process.py",
+      "previous_sha256": "198cf323c36b030597b8c099f2c1e9c7a8cb88bf1a4ee9ee6d36bcc5257af846",
+      "current_sha256": "198cf323c36b030597b8c099f2c1e9c7a8cb88bf1a4ee9ee6d36bcc5257af846",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/app/recovery_process.py",
+      "current_path": "legacy/services/job/app/recovery_process.py",
+      "previous_sha256": "4fb43c7d69b5a0f80e787035aa2f0a97c253f5d50688021625f8323425356006",
+      "current_sha256": "4fb43c7d69b5a0f80e787035aa2f0a97c253f5d50688021625f8323425356006",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/app/schemas.py",
+      "current_path": "legacy/services/job/app/schemas.py",
+      "previous_sha256": "7c6308460eed0e364329a614014b2fd6660b68781b5ffd580a3495eba71823c0",
+      "current_sha256": "7c6308460eed0e364329a614014b2fd6660b68781b5ffd580a3495eba71823c0",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/app/service.py",
+      "current_path": "legacy/services/job/app/service.py",
+      "previous_sha256": "418d555f042b6982022b3eb0982b24892771d14e67ce013e59e878857eb5d143",
+      "current_sha256": "418d555f042b6982022b3eb0982b24892771d14e67ce013e59e878857eb5d143",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/app/tasks.py",
+      "current_path": "legacy/services/job/app/tasks.py",
+      "previous_sha256": "af420fbdf456eee156d61292fe57493e138cc037bc97e42566961bc863befe3e",
+      "current_sha256": "af420fbdf456eee156d61292fe57493e138cc037bc97e42566961bc863befe3e",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/migrations/env.py",
+      "current_path": "legacy/services/job/migrations/env.py",
+      "previous_sha256": "086f3986c1e7f1351d34861053426a477980d5728b5c16620e29138254387b5f",
+      "current_sha256": "086f3986c1e7f1351d34861053426a477980d5728b5c16620e29138254387b5f",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/migrations/script.py.mako",
+      "current_path": "legacy/services/job/migrations/script.py.mako",
+      "previous_sha256": "9e4ffdacdeffd4bdef1251bd989ce1471c2e5d5bd1ad9b250bc20f78640feeb3",
+      "current_sha256": "9e4ffdacdeffd4bdef1251bd989ce1471c2e5d5bd1ad9b250bc20f78640feeb3",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/migrations/versions/20261016_01_jobs.py",
+      "current_path": "legacy/services/job/migrations/versions/20261016_01_jobs.py",
+      "previous_sha256": "057b8258dd5fd2da3c17b47572986206112c02c187e858a0ed1c52ef6a91708e",
+      "current_sha256": "057b8258dd5fd2da3c17b47572986206112c02c187e858a0ed1c52ef6a91708e",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/migrations/versions/20261017_02_execution.py",
+      "current_path": "legacy/services/job/migrations/versions/20261017_02_execution.py",
+      "previous_sha256": "547ced55d140ec208a1ad7606d784abc9b9a731a62851d8243bc80cc4c1c3cae",
+      "current_sha256": "547ced55d140ec208a1ad7606d784abc9b9a731a62851d8243bc80cc4c1c3cae",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/migrations/versions/20261020_03_retry_scheduled_status.py",
+      "current_path": "legacy/services/job/migrations/versions/20261020_03_retry_scheduled_status.py",
+      "previous_sha256": "752c3119f17924be58591f61efaca8aad8199efdc7de9433a9a0bf6f98908688",
+      "current_sha256": "752c3119f17924be58591f61efaca8aad8199efdc7de9433a9a0bf6f98908688",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/migrations/versions/20261020_04_transactional_outbox.py",
+      "current_path": "legacy/services/job/migrations/versions/20261020_04_transactional_outbox.py",
+      "previous_sha256": "cc63001634f982f1e8dec90e0724bba9a9afa3bf56cef7545760288830170562",
+      "current_sha256": "cc63001634f982f1e8dec90e0724bba9a9afa3bf56cef7545760288830170562",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/migrations/versions/20261020_05_execution_recovery.py",
+      "current_path": "legacy/services/job/migrations/versions/20261020_05_execution_recovery.py",
+      "previous_sha256": "2b501ddb79fa35c5d61fb1dc95723ddb3f66b8d8dd6c3ae50c5b1ee5a421f3a4",
+      "current_sha256": "2b501ddb79fa35c5d61fb1dc95723ddb3f66b8d8dd6c3ae50c5b1ee5a421f3a4",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/migrations/versions/20261029_06_report_events.py",
+      "current_path": "legacy/services/job/migrations/versions/20261029_06_report_events.py",
+      "previous_sha256": "a8a0e2d7000c324934c037a0c79e3114cd2584ea7983aa5ac25142e2aaf49e08",
+      "current_sha256": "a8a0e2d7000c324934c037a0c79e3114cd2584ea7983aa5ac25142e2aaf49e08",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/migrations/versions/20261108_07_outbox_trace_context.py",
+      "current_path": "legacy/services/job/migrations/versions/20261108_07_outbox_trace_context.py",
+      "previous_sha256": "7cf28685a102f61179cfae2de88fd0007640d5d68a6759f20cd0bf07ed77abbb",
+      "current_sha256": "7cf28685a102f61179cfae2de88fd0007640d5d68a6759f20cd0bf07ed77abbb",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/pyproject.toml",
+      "current_path": "legacy/services/job/pyproject.toml",
+      "previous_sha256": "a83adb0a4391a1bd69654b5bdec664e292e0f16f68e032262c5fda2e7457917d",
+      "current_sha256": "a83adb0a4391a1bd69654b5bdec664e292e0f16f68e032262c5fda2e7457917d",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/requirements.in",
+      "current_path": "legacy/services/job/requirements.in",
+      "previous_sha256": "7031c8ade15b72c33a31edafe640175c338cf68a8b046e46915efd000b5f4a1c",
+      "current_sha256": "7031c8ade15b72c33a31edafe640175c338cf68a8b046e46915efd000b5f4a1c",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/requirements.lock",
+      "current_path": "legacy/services/job/requirements.lock",
+      "previous_sha256": "8363713c184d8b38e111dc14de3297f54f9e3ed9e004a1a909cf55a3128e671a",
+      "current_sha256": "8363713c184d8b38e111dc14de3297f54f9e3ed9e004a1a909cf55a3128e671a",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/tests/test_api.py",
+      "current_path": "legacy/services/job/tests/test_api.py",
+      "previous_sha256": "1a7b79e1158a0614f007ba414f5d655a566f39a4724b3e968218be7e455c1d20",
+      "current_sha256": "1a7b79e1158a0614f007ba414f5d655a566f39a4724b3e968218be7e455c1d20",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/tests/test_dashboard.py",
+      "current_path": "legacy/services/job/tests/test_dashboard.py",
+      "previous_sha256": "d30a0b2302cbbc66211a9634f5be224e28dc035500735d8c7db03d4697b9d085",
+      "current_sha256": "d30a0b2302cbbc66211a9634f5be224e28dc035500735d8c7db03d4697b9d085",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/tests/test_development_cleanup.py",
+      "current_path": "legacy/services/job/tests/test_development_cleanup.py",
+      "previous_sha256": "517c4419e6c16c9cd8bd97155ce80d44d434b2f429a549222c759fe456d2a0a0",
+      "current_sha256": "517c4419e6c16c9cd8bd97155ce80d44d434b2f429a549222c759fe456d2a0a0",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/tests/test_domain_events.py",
+      "current_path": "legacy/services/job/tests/test_domain_events.py",
+      "previous_sha256": "5dc0818a8782d31241e10d1c4f364772cb3e4fb0ae2c098986ccb1bfbcd9de4d",
+      "current_sha256": "5dc0818a8782d31241e10d1c4f364772cb3e4fb0ae2c098986ccb1bfbcd9de4d",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/tests/test_execution.py",
+      "current_path": "legacy/services/job/tests/test_execution.py",
+      "previous_sha256": "8efb5154c19309e1be1c36b91c84eec1a4c652de3b7645030dacf1551b48165c",
+      "current_sha256": "8efb5154c19309e1be1c36b91c84eec1a4c652de3b7645030dacf1551b48165c",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/tests/test_jobs.py",
+      "current_path": "legacy/services/job/tests/test_jobs.py",
+      "previous_sha256": "dba626fea9cda609c7a8f3d448fe3cd3728d0d3b490be3dfc6c98b6f6f0c9259",
+      "current_sha256": "dba626fea9cda609c7a8f3d448fe3cd3728d0d3b490be3dfc6c98b6f6f0c9259",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/tests/test_outbox.py",
+      "current_path": "legacy/services/job/tests/test_outbox.py",
+      "previous_sha256": "9367ed1e2626eb4b9e406785d598f062b7860eda1fd708195ee1e07fd9ea21a4",
+      "current_sha256": "9367ed1e2626eb4b9e406785d598f062b7860eda1fd708195ee1e07fd9ea21a4",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/tests/test_postgres.py",
+      "current_path": "legacy/services/job/tests/test_postgres.py",
+      "previous_sha256": "64036f4ed195042b2c5a648db18b68b15fc0fc46e23e01f5a4a99afd303eeb00",
+      "current_sha256": "64036f4ed195042b2c5a648db18b68b15fc0fc46e23e01f5a4a99afd303eeb00",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/tests/test_publisher_process.py",
+      "current_path": "legacy/services/job/tests/test_publisher_process.py",
+      "previous_sha256": "7df1f92fe097349c1a33d888bf80dcce500aa8bc565289c680790754ea7f1dcc",
+      "current_sha256": "7df1f92fe097349c1a33d888bf80dcce500aa8bc565289c680790754ea7f1dcc",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/job/tests/test_recovery.py",
+      "current_path": "legacy/services/job/tests/test_recovery.py",
+      "previous_sha256": "036ab43cf4bc215de772127a14397dd676e756b0aaaecced96b2079073fdaf8c",
+      "current_sha256": "036ab43cf4bc215de772127a14397dd676e756b0aaaecced96b2079073fdaf8c",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/Dockerfile",
+      "current_path": "legacy/services/notification/Dockerfile",
+      "previous_sha256": "0ef39771d39808e388246ebfe6795d91b8b044b9eaba17508442c47a4a239222",
+      "current_sha256": "0ef39771d39808e388246ebfe6795d91b8b044b9eaba17508442c47a4a239222",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/README.md",
+      "current_path": "legacy/services/notification/README.md",
+      "previous_sha256": "89de35a76c08d91282aeb912604dec489ccac44200d0dbc9f94abdca61a37ee1",
+      "current_sha256": "89de35a76c08d91282aeb912604dec489ccac44200d0dbc9f94abdca61a37ee1",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/alembic.ini",
+      "current_path": "legacy/services/notification/alembic.ini",
+      "previous_sha256": "6c173c736ade1eaa6b594c50f640198adbd591ec3dfb0c76089955732eb45050",
+      "current_sha256": "6c173c736ade1eaa6b594c50f640198adbd591ec3dfb0c76089955732eb45050",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/app/__init__.py",
+      "current_path": "legacy/services/notification/app/__init__.py",
+      "previous_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "current_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/app/config.py",
+      "current_path": "legacy/services/notification/app/config.py",
+      "previous_sha256": "de22d715443a31ea191403913f33e957c47523281cd4b346cb7261e09f257ec7",
+      "current_sha256": "de22d715443a31ea191403913f33e957c47523281cd4b346cb7261e09f257ec7",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/app/consumer.py",
+      "current_path": "legacy/services/notification/app/consumer.py",
+      "previous_sha256": "e65d58e66799790236f4f3482f739a38c24407f3f87cde0288ea11096644e4c0",
+      "current_sha256": "e65d58e66799790236f4f3482f739a38c24407f3f87cde0288ea11096644e4c0",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/app/db.py",
+      "current_path": "legacy/services/notification/app/db.py",
+      "previous_sha256": "c836164739f4e713a5a599b489d196b2fae0b0b6d3ca13af98097417b1c43970",
+      "current_sha256": "c836164739f4e713a5a599b489d196b2fae0b0b6d3ca13af98097417b1c43970",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/app/development_cleanup.py",
+      "current_path": "legacy/services/notification/app/development_cleanup.py",
+      "previous_sha256": "8a765c717fd231059e3c4002aa5df10d3dfa3e12cc9ab2c84b6eb6a773295c7b",
+      "current_sha256": "8a765c717fd231059e3c4002aa5df10d3dfa3e12cc9ab2c84b6eb6a773295c7b",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/app/main.py",
+      "current_path": "legacy/services/notification/app/main.py",
+      "previous_sha256": "eba2ab337f519ee4d242aadbd35f692aa65772b8cc0ce929900e022a1d67d59a",
+      "current_sha256": "eba2ab337f519ee4d242aadbd35f692aa65772b8cc0ce929900e022a1d67d59a",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/app/models.py",
+      "current_path": "legacy/services/notification/app/models.py",
+      "previous_sha256": "25b3a83076a6870a94a31c91a0f74e9f2e5fe78f8fab82735c899d9ba264ef5d",
+      "current_sha256": "25b3a83076a6870a94a31c91a0f74e9f2e5fe78f8fab82735c899d9ba264ef5d",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/app/observability.py",
+      "current_path": "legacy/services/notification/app/observability.py",
+      "previous_sha256": "9d4b5f466b02ec0a1f3aee57df92d103ee3688b6c7a8a36c19310ee51b4f155a",
+      "current_sha256": "9d4b5f466b02ec0a1f3aee57df92d103ee3688b6c7a8a36c19310ee51b4f155a",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/app/schemas.py",
+      "current_path": "legacy/services/notification/app/schemas.py",
+      "previous_sha256": "9864a5d8801d24f6024ea6323a98d4431278dbc9e296e0731af34ccee9cacd24",
+      "current_sha256": "9864a5d8801d24f6024ea6323a98d4431278dbc9e296e0731af34ccee9cacd24",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/app/service.py",
+      "current_path": "legacy/services/notification/app/service.py",
+      "previous_sha256": "f88d3d0ea242eac1aa83392c0981d886722fe7f74c83be7e4bc6a6c34b2f0bc7",
+      "current_sha256": "f88d3d0ea242eac1aa83392c0981d886722fe7f74c83be7e4bc6a6c34b2f0bc7",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/migrations/env.py",
+      "current_path": "legacy/services/notification/migrations/env.py",
+      "previous_sha256": "1480ac54c52e9cfff7bb9d0e7577c7cab183d359661ae3e9a4f600b9126cc2c1",
+      "current_sha256": "1480ac54c52e9cfff7bb9d0e7577c7cab183d359661ae3e9a4f600b9126cc2c1",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/migrations/script.py.mako",
+      "current_path": "legacy/services/notification/migrations/script.py.mako",
+      "previous_sha256": "c606abe0bcbf8012f3d3111d03cab5ea591ff1a0f9447b5105ee8a0d754348eb",
+      "current_sha256": "c606abe0bcbf8012f3d3111d03cab5ea591ff1a0f9447b5105ee8a0d754348eb",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/migrations/versions/20261029_01_notifications.py",
+      "current_path": "legacy/services/notification/migrations/versions/20261029_01_notifications.py",
+      "previous_sha256": "95f163ca7d382423205d1f0446809f1764cdb7c28976a72442118299e9e9b274",
+      "current_sha256": "95f163ca7d382423205d1f0446809f1764cdb7c28976a72442118299e9e9b274",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/migrations/versions/20261029_02_source_event_uniqueness.py",
+      "current_path": "legacy/services/notification/migrations/versions/20261029_02_source_event_uniqueness.py",
+      "previous_sha256": "83714f07e16885cd044030c8275db6056e1b8a8d8d34ceccb6cd11e8f02a4d23",
+      "current_sha256": "83714f07e16885cd044030c8275db6056e1b8a8d8d34ceccb6cd11e8f02a4d23",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/pyproject.toml",
+      "current_path": "legacy/services/notification/pyproject.toml",
+      "previous_sha256": "23590ae7cac721dbea2d4a5b0d41d21e0b3b6a4ba5506f3f54c15ff32c8aedf5",
+      "current_sha256": "23590ae7cac721dbea2d4a5b0d41d21e0b3b6a4ba5506f3f54c15ff32c8aedf5",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/requirements.in",
+      "current_path": "legacy/services/notification/requirements.in",
+      "previous_sha256": "b0e468f5208312b765faddb3d5a49b7fd8078e6b6740b724b67d9114227f5790",
+      "current_sha256": "b0e468f5208312b765faddb3d5a49b7fd8078e6b6740b724b67d9114227f5790",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/requirements.lock",
+      "current_path": "legacy/services/notification/requirements.lock",
+      "previous_sha256": "3b2a3049652f9d2a85433aa53e6c209d578e26f549b995a71b36281d2b475573",
+      "current_sha256": "3b2a3049652f9d2a85433aa53e6c209d578e26f549b995a71b36281d2b475573",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/tests/test_consumer.py",
+      "current_path": "legacy/services/notification/tests/test_consumer.py",
+      "previous_sha256": "5f1c964d4dff2694537a234ea9ad0677ca8ff4d633a0227a2375e6da73faeb1c",
+      "current_sha256": "5f1c964d4dff2694537a234ea9ad0677ca8ff4d633a0227a2375e6da73faeb1c",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/tests/test_development_cleanup.py",
+      "current_path": "legacy/services/notification/tests/test_development_cleanup.py",
+      "previous_sha256": "aea20c95e0a36c57aaff4b38e4eaf4eefbd02093a675a067c8e5c5142fc40e1b",
+      "current_sha256": "aea20c95e0a36c57aaff4b38e4eaf4eefbd02093a675a067c8e5c5142fc40e1b",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/tests/test_notifications.py",
+      "current_path": "legacy/services/notification/tests/test_notifications.py",
+      "previous_sha256": "fdb7313a0c0f0651b2bc043d435efa0f91a293049ab5b9c61dc01b54b34d2186",
+      "current_sha256": "fdb7313a0c0f0651b2bc043d435efa0f91a293049ab5b9c61dc01b54b34d2186",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/notification/tests/test_postgres.py",
+      "current_path": "legacy/services/notification/tests/test_postgres.py",
+      "previous_sha256": "0c161f6e8fef00bc996280a880e4e8863845b01f128697eea6ab464ed30c717d",
+      "current_sha256": "0c161f6e8fef00bc996280a880e4e8863845b01f128697eea6ab464ed30c717d",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/.dockerignore",
+      "current_path": "legacy/services/work/.dockerignore",
+      "previous_sha256": "355e19dae65a3ec32685ca5f85904397a6cc822d8b5237dbcf7bce7fc65b447e",
+      "current_sha256": "355e19dae65a3ec32685ca5f85904397a6cc822d8b5237dbcf7bce7fc65b447e",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/Dockerfile",
+      "current_path": "legacy/services/work/Dockerfile",
+      "previous_sha256": "7e046c1727d21be21576443c1c8928912948cf2c1630cfac9ef065bd50928631",
+      "current_sha256": "7e046c1727d21be21576443c1c8928912948cf2c1630cfac9ef065bd50928631",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/README.md",
+      "current_path": "legacy/services/work/README.md",
+      "previous_sha256": "1c2c8856a7cf47766153fb78140d2c63f833322692acfed8419807c117a7279a",
+      "current_sha256": "1c2c8856a7cf47766153fb78140d2c63f833322692acfed8419807c117a7279a",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/alembic.ini",
+      "current_path": "legacy/services/work/alembic.ini",
+      "previous_sha256": "34b700d59170ac7fe48f5a09304146d340a5143ad909a317d739967a31345360",
+      "current_sha256": "34b700d59170ac7fe48f5a09304146d340a5143ad909a317d739967a31345360",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/app/__init__.py",
+      "current_path": "legacy/services/work/app/__init__.py",
+      "previous_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "current_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/app/config.py",
+      "current_path": "legacy/services/work/app/config.py",
+      "previous_sha256": "2fd20d005158e0120bed0228cf85e04c11a89af5c53e61a9046df6f4f6bb0d4d",
+      "current_sha256": "2fd20d005158e0120bed0228cf85e04c11a89af5c53e61a9046df6f4f6bb0d4d",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/app/db.py",
+      "current_path": "legacy/services/work/app/db.py",
+      "previous_sha256": "c836164739f4e713a5a599b489d196b2fae0b0b6d3ca13af98097417b1c43970",
+      "current_sha256": "c836164739f4e713a5a599b489d196b2fae0b0b6d3ca13af98097417b1c43970",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/app/development_cleanup.py",
+      "current_path": "legacy/services/work/app/development_cleanup.py",
+      "previous_sha256": "d8cb9ae5a710c88917eff39e3ec6c8421e47c6575d7a87415bd6f50e0c3b4b6c",
+      "current_sha256": "d8cb9ae5a710c88917eff39e3ec6c8421e47c6575d7a87415bd6f50e0c3b4b6c",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/app/event_publisher.py",
+      "current_path": "legacy/services/work/app/event_publisher.py",
+      "previous_sha256": "b74f20f8c6c93b2a1e4091fe9ee481be93bfcef846214816dd311d6145edb10c",
+      "current_sha256": "b74f20f8c6c93b2a1e4091fe9ee481be93bfcef846214816dd311d6145edb10c",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/app/main.py",
+      "current_path": "legacy/services/work/app/main.py",
+      "previous_sha256": "26edca7c2ad5d94f140dcf3ae507be772c35decfe956488ec32d4b7025e0fdb6",
+      "current_sha256": "26edca7c2ad5d94f140dcf3ae507be772c35decfe956488ec32d4b7025e0fdb6",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/app/models.py",
+      "current_path": "legacy/services/work/app/models.py",
+      "previous_sha256": "505f059a3a8b28af4ccac34eb189b044bda53ad04dce4a02f340f2362d698203",
+      "current_sha256": "505f059a3a8b28af4ccac34eb189b044bda53ad04dce4a02f340f2362d698203",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/app/observability.py",
+      "current_path": "legacy/services/work/app/observability.py",
+      "previous_sha256": "9f0b293f305c5bd35cd8c2d73a86a7fa2dc9e7dedf850907271ffc3748a075fd",
+      "current_sha256": "9f0b293f305c5bd35cd8c2d73a86a7fa2dc9e7dedf850907271ffc3748a075fd",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/app/schemas.py",
+      "current_path": "legacy/services/work/app/schemas.py",
+      "previous_sha256": "cedcb797ea8f713916d6aaad195939c138168aef5488465a2720143e16c911a4",
+      "current_sha256": "cedcb797ea8f713916d6aaad195939c138168aef5488465a2720143e16c911a4",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/app/service.py",
+      "current_path": "legacy/services/work/app/service.py",
+      "previous_sha256": "ee0fa3d1ec5c46b88ab3c469f0305f542216409762fcbf8580a981f48a4d900c",
+      "current_sha256": "ee0fa3d1ec5c46b88ab3c469f0305f542216409762fcbf8580a981f48a4d900c",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/migrations/env.py",
+      "current_path": "legacy/services/work/migrations/env.py",
+      "previous_sha256": "086f3986c1e7f1351d34861053426a477980d5728b5c16620e29138254387b5f",
+      "current_sha256": "086f3986c1e7f1351d34861053426a477980d5728b5c16620e29138254387b5f",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/migrations/script.py.mako",
+      "current_path": "legacy/services/work/migrations/script.py.mako",
+      "previous_sha256": "9e4ffdacdeffd4bdef1251bd989ce1471c2e5d5bd1ad9b250bc20f78640feeb3",
+      "current_sha256": "9e4ffdacdeffd4bdef1251bd989ce1471c2e5d5bd1ad9b250bc20f78640feeb3",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/migrations/versions/20261014_01_projects.py",
+      "current_path": "legacy/services/work/migrations/versions/20261014_01_projects.py",
+      "previous_sha256": "73e8f398c964adefc5905a18706c5363c5055a6ce532874d6e9a980beb19703d",
+      "current_sha256": "73e8f398c964adefc5905a18706c5363c5055a6ce532874d6e9a980beb19703d",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/migrations/versions/20261015_02_tasks.py",
+      "current_path": "legacy/services/work/migrations/versions/20261015_02_tasks.py",
+      "previous_sha256": "292f8b93d63f55407503fea4957a549b72dca18511a2d980d1d7f4d36cb76421",
+      "current_sha256": "292f8b93d63f55407503fea4957a549b72dca18511a2d980d1d7f4d36cb76421",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/migrations/versions/20261028_01_workflow_events.py",
+      "current_path": "legacy/services/work/migrations/versions/20261028_01_workflow_events.py",
+      "previous_sha256": "7f896a586a2487d530e823b3caa58162cefb5d9ccdf657f8c793d90217dd1b48",
+      "current_sha256": "7f896a586a2487d530e823b3caa58162cefb5d9ccdf657f8c793d90217dd1b48",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/migrations/versions/20261029_02_assignment_events.py",
+      "current_path": "legacy/services/work/migrations/versions/20261029_02_assignment_events.py",
+      "previous_sha256": "c4a8bec850062cdc6ed1e44ba90e3169b758913349bf9455af9c01582125aa29",
+      "current_sha256": "c4a8bec850062cdc6ed1e44ba90e3169b758913349bf9455af9c01582125aa29",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/migrations/versions/20261108_03_outbox_trace_context.py",
+      "current_path": "legacy/services/work/migrations/versions/20261108_03_outbox_trace_context.py",
+      "previous_sha256": "0374468dd5ff28f9009cc6ae261666f2b45d6798ce3cb9cc47e2368185f273ca",
+      "current_sha256": "0374468dd5ff28f9009cc6ae261666f2b45d6798ce3cb9cc47e2368185f273ca",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/pyproject.toml",
+      "current_path": "legacy/services/work/pyproject.toml",
+      "previous_sha256": "bd64c4839a24b3855e0fc72300b08bc0cbeac0f125db0789a50333ab0ad8643e",
+      "current_sha256": "bd64c4839a24b3855e0fc72300b08bc0cbeac0f125db0789a50333ab0ad8643e",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/requirements-test.in",
+      "current_path": "legacy/services/work/requirements-test.in",
+      "previous_sha256": "14a69de4bf14c8a5070e26eb1d1639136268db28769d3fc40138390c0ca1ae1b",
+      "current_sha256": "14a69de4bf14c8a5070e26eb1d1639136268db28769d3fc40138390c0ca1ae1b",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/requirements-test.lock",
+      "current_path": "legacy/services/work/requirements-test.lock",
+      "previous_sha256": "ffb3ae4cf077347d2a07d008731f64dcd455d64815dee7eda376d28d10983097",
+      "current_sha256": "ffb3ae4cf077347d2a07d008731f64dcd455d64815dee7eda376d28d10983097",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/requirements.in",
+      "current_path": "legacy/services/work/requirements.in",
+      "previous_sha256": "42ad35d5f274bce816181827ba0867039a121a4194f42aef3751a23b109bcf21",
+      "current_sha256": "42ad35d5f274bce816181827ba0867039a121a4194f42aef3751a23b109bcf21",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/requirements.lock",
+      "current_path": "legacy/services/work/requirements.lock",
+      "previous_sha256": "5a9c4f6f2033517929f792e91a97390d02a553744e8bb407c0d7897766daf06a",
+      "current_sha256": "5a9c4f6f2033517929f792e91a97390d02a553744e8bb407c0d7897766daf06a",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/tests/test_dashboard.py",
+      "current_path": "legacy/services/work/tests/test_dashboard.py",
+      "previous_sha256": "dfccdf1dd2732ba20b32e41922c0a31ac2fcca3672aef7ffc28e64c92ebdef45",
+      "current_sha256": "dfccdf1dd2732ba20b32e41922c0a31ac2fcca3672aef7ffc28e64c92ebdef45",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/tests/test_event_publisher.py",
+      "current_path": "legacy/services/work/tests/test_event_publisher.py",
+      "previous_sha256": "efdcfc3aa6c8125be507f23e5d298e79f7d70503f392b4f70625063ff860d41f",
+      "current_sha256": "efdcfc3aa6c8125be507f23e5d298e79f7d70503f392b4f70625063ff860d41f",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/tests/test_postgres.py",
+      "current_path": "legacy/services/work/tests/test_postgres.py",
+      "previous_sha256": "f1078ca09abb4f59b397338ccc9617805ad3b1b7fc167ef31614902f7b6c4563",
+      "current_sha256": "f1078ca09abb4f59b397338ccc9617805ad3b1b7fc167ef31614902f7b6c4563",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/tests/test_tasks.py",
+      "current_path": "legacy/services/work/tests/test_tasks.py",
+      "previous_sha256": "3dc4affc07cf43e79a7364530d1ec1cf23c507cc4b855f7c211c1b3dcec0d240",
+      "current_sha256": "3dc4affc07cf43e79a7364530d1ec1cf23c507cc4b855f7c211c1b3dcec0d240",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/work/tests/test_work.py",
+      "current_path": "legacy/services/work/tests/test_work.py",
+      "previous_sha256": "1b20ec5bd4b50ba805e220dd33fed637be82fc74a7b40134f8f53367574457f6",
+      "current_sha256": "1b20ec5bd4b50ba805e220dd33fed637be82fc74a7b40134f8f53367574457f6",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/Dockerfile",
+      "current_path": "legacy/services/workflow/Dockerfile",
+      "previous_sha256": "288a2c77ec9783a51cbac32756b27e7ab1e3a962b5ac6d9e29d624695c002b20",
+      "current_sha256": "288a2c77ec9783a51cbac32756b27e7ab1e3a962b5ac6d9e29d624695c002b20",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/README.md",
+      "current_path": "legacy/services/workflow/README.md",
+      "previous_sha256": "345bb1850e488e05176551b39e7890064336a689f257bb4bdca436f59e7bffce",
+      "current_sha256": "345bb1850e488e05176551b39e7890064336a689f257bb4bdca436f59e7bffce",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/alembic.ini",
+      "current_path": "legacy/services/workflow/alembic.ini",
+      "previous_sha256": "6c173c736ade1eaa6b594c50f640198adbd591ec3dfb0c76089955732eb45050",
+      "current_sha256": "6c173c736ade1eaa6b594c50f640198adbd591ec3dfb0c76089955732eb45050",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/app/__init__.py",
+      "current_path": "legacy/services/workflow/app/__init__.py",
+      "previous_sha256": "3824f8d966877d03b66161ce91911d18e4075c7216a1fdd0012f6b068618acb2",
+      "current_sha256": "3824f8d966877d03b66161ce91911d18e4075c7216a1fdd0012f6b068618acb2",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/app/config.py",
+      "current_path": "legacy/services/workflow/app/config.py",
+      "previous_sha256": "cc0b207cddff846bd1cc74f47d899d45e78b8169e91714d9f69ede8c838ed154",
+      "current_sha256": "cc0b207cddff846bd1cc74f47d899d45e78b8169e91714d9f69ede8c838ed154",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/app/consumer.py",
+      "current_path": "legacy/services/workflow/app/consumer.py",
+      "previous_sha256": "626eb70c5aa25f6f280e7635bc49942aef67bf72038bf368d7487911b18be2dc",
+      "current_sha256": "626eb70c5aa25f6f280e7635bc49942aef67bf72038bf368d7487911b18be2dc",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/app/db.py",
+      "current_path": "legacy/services/workflow/app/db.py",
+      "previous_sha256": "c836164739f4e713a5a599b489d196b2fae0b0b6d3ca13af98097417b1c43970",
+      "current_sha256": "c836164739f4e713a5a599b489d196b2fae0b0b6d3ca13af98097417b1c43970",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/app/development_cleanup.py",
+      "current_path": "legacy/services/workflow/app/development_cleanup.py",
+      "previous_sha256": "302d94274b672a4e553fb9ab48aa6f465b6a69df8e0fbf5250eb956d9ad84217",
+      "current_sha256": "302d94274b672a4e553fb9ab48aa6f465b6a69df8e0fbf5250eb956d9ad84217",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/app/main.py",
+      "current_path": "legacy/services/workflow/app/main.py",
+      "previous_sha256": "0df5b08a6ce4702445299f977603c43c4b0a993669b12cdcd5212d11ff17a9cb",
+      "current_sha256": "0df5b08a6ce4702445299f977603c43c4b0a993669b12cdcd5212d11ff17a9cb",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/app/models.py",
+      "current_path": "legacy/services/workflow/app/models.py",
+      "previous_sha256": "5e826765cce4f4be5bea08a3e0e8764fc080537248378e274b679675d9e4c7f7",
+      "current_sha256": "5e826765cce4f4be5bea08a3e0e8764fc080537248378e274b679675d9e4c7f7",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/app/observability.py",
+      "current_path": "legacy/services/workflow/app/observability.py",
+      "previous_sha256": "95caf5f6e44796ac648b51e19c20e8204159368abf2f56d3f7b7949856bb55c8",
+      "current_sha256": "95caf5f6e44796ac648b51e19c20e8204159368abf2f56d3f7b7949856bb55c8",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/app/schemas.py",
+      "current_path": "legacy/services/workflow/app/schemas.py",
+      "previous_sha256": "7b2511c25f610f861a764337939740e701ea389735383243717ec5b353218ac2",
+      "current_sha256": "7b2511c25f610f861a764337939740e701ea389735383243717ec5b353218ac2",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/app/service.py",
+      "current_path": "legacy/services/workflow/app/service.py",
+      "previous_sha256": "5553a8271fd7305433798966b24fe528d6465d9f100d3dae23e396f32508ddc5",
+      "current_sha256": "5553a8271fd7305433798966b24fe528d6465d9f100d3dae23e396f32508ddc5",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/migrations/env.py",
+      "current_path": "legacy/services/workflow/migrations/env.py",
+      "previous_sha256": "1480ac54c52e9cfff7bb9d0e7577c7cab183d359661ae3e9a4f600b9126cc2c1",
+      "current_sha256": "1480ac54c52e9cfff7bb9d0e7577c7cab183d359661ae3e9a4f600b9126cc2c1",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/migrations/script.py.mako",
+      "current_path": "legacy/services/workflow/migrations/script.py.mako",
+      "previous_sha256": "c606abe0bcbf8012f3d3111d03cab5ea591ff1a0f9447b5105ee8a0d754348eb",
+      "current_sha256": "c606abe0bcbf8012f3d3111d03cab5ea591ff1a0f9447b5105ee8a0d754348eb",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/migrations/versions/20261028_01_workflows.py",
+      "current_path": "legacy/services/workflow/migrations/versions/20261028_01_workflows.py",
+      "previous_sha256": "e0c525871525d75102b7e995c6ce8ae264a37cc5cb65f690be9836424a8528b5",
+      "current_sha256": "e0c525871525d75102b7e995c6ce8ae264a37cc5cb65f690be9836424a8528b5",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/migrations/versions/20261108_02_execution_trace_context.py",
+      "current_path": "legacy/services/workflow/migrations/versions/20261108_02_execution_trace_context.py",
+      "previous_sha256": "59a7c6522fa7c27d229c618b187eb227a36a2826ce5408bd1b57691fa8357f3e",
+      "current_sha256": "59a7c6522fa7c27d229c618b187eb227a36a2826ce5408bd1b57691fa8357f3e",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/pyproject.toml",
+      "current_path": "legacy/services/workflow/pyproject.toml",
+      "previous_sha256": "23590ae7cac721dbea2d4a5b0d41d21e0b3b6a4ba5506f3f54c15ff32c8aedf5",
+      "current_sha256": "23590ae7cac721dbea2d4a5b0d41d21e0b3b6a4ba5506f3f54c15ff32c8aedf5",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/requirements.in",
+      "current_path": "legacy/services/workflow/requirements.in",
+      "previous_sha256": "b0e468f5208312b765faddb3d5a49b7fd8078e6b6740b724b67d9114227f5790",
+      "current_sha256": "b0e468f5208312b765faddb3d5a49b7fd8078e6b6740b724b67d9114227f5790",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/requirements.lock",
+      "current_path": "legacy/services/workflow/requirements.lock",
+      "previous_sha256": "3b2a3049652f9d2a85433aa53e6c209d578e26f549b995a71b36281d2b475573",
+      "current_sha256": "3b2a3049652f9d2a85433aa53e6c209d578e26f549b995a71b36281d2b475573",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/tests/test_postgres.py",
+      "current_path": "legacy/services/workflow/tests/test_postgres.py",
+      "previous_sha256": "1c92fac3f39b13aa89f47292e78ff8ff3b781110265b7c01509a2ad988f211e1",
+      "current_sha256": "1c92fac3f39b13aa89f47292e78ff8ff3b781110265b7c01509a2ad988f211e1",
+      "adapted": false
+    },
+    {
+      "previous_path": "services/workflow/tests/test_workflows.py",
+      "current_path": "legacy/services/workflow/tests/test_workflows.py",
+      "previous_sha256": "71f6c98a6067705d4406e96d31a694a7dab90e6c77b9d4d1e00c0c6d7245123e",
+      "current_sha256": "71f6c98a6067705d4406e96d31a694a7dab90e6c77b9d4d1e00c0c6d7245123e",
+      "adapted": false
+    }
+  ]
+}

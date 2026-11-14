@@ -1,0 +1,71 @@
+query Dashboard {
+  dashboard {
+    workAvailable
+    jobAvailable
+    projectMetrics {
+      totalCount
+      activeCount
+      draftCount
+      archivedCount
+      managedTotalCount
+      managedActiveCount
+      managedDraftCount
+      managedArchivedCount
+    }
+    taskMetrics {
+      totalCount
+      todoCount
+      inProgressCount
+      blockedCount
+      doneCount
+      cancelledCount
+      overdueCount
+    }
+    assignedTaskMetrics {
+      totalCount
+      todoCount
+      inProgressCount
+      blockedCount
+      doneCount
+      cancelledCount
+      overdueCount
+    }
+    recentProjects {
+      id
+      key
+      name
+      description
+      status
+      updatedAt
+    }
+    recentAssignedTasks {
+      id
+      projectId
+      projectKey
+      number
+      title
+      status
+      priority
+      dueDate
+      createdAt
+      updatedAt
+    }
+    jobMetrics {
+      totalCount
+      submittedCount
+      queuedCount
+      runningCount
+      succeededCount
+      failedCount
+      cancelledCount
+    }
+    recentJobs {
+      id
+      jobType
+      status
+      resultSummary
+      completedAt
+      createdAt
+    }
+  }
+}
