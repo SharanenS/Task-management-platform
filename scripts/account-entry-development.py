@@ -99,6 +99,10 @@ def preflight():
     print("Seven-service account-entry configuration and scoped ports verified.", flush=True)
 
 
+class IdentityConfigurationError(RuntimeError):
+    """Fixed diagnostic codes only; never expose provider responses or credentials."""
+
+
 def configure_audience():
     origin = "http://127.0.0.1:8180"
     data = parse.urlencode(
@@ -130,24 +134,24 @@ def configure_audience():
 
         clients = call("clients?clientId=taskspace-portals-web")
         if len(clients) != 1 or clients[0]["clientId"] != "taskspace-portals-web":
-            raise RuntimeError("Identity client ownership mismatch")
+            raise IdentityConfigurationError("client_ownership_mismatch")
         client = clients[0]
         if client.get("redirectUris") != ["http://127.0.0.1:3020/auth/callback"] or not client.get(
             "publicClient"
         ):
-            raise RuntimeError("Identity client configuration mismatch")
+            raise IdentityConfigurationError("client_configuration_mismatch")
         path = "clients/" + client["id"] + "/protocol-mappers/models"
         desired = json.loads(
             (ROOT / "infrastructure/auth/api-audience.json").read_text(encoding="utf-8")
         )
         existing = [value for value in call(path) if value["name"] == desired["name"]]
-        if existing:
-            if len(existing) != 1 or any(
-                existing[0].get(key) != value for key, value in desired.items()
-            ):
-                raise RuntimeError("Audience mapper differs; manual review required")
-        else:
+        if not existing:
             call(path, desired)
+            existing = [value for value in call(path) if value["name"] == desired["name"]]
+        if len(existing) != 1 or any(
+            existing[0].get(key) != value for key, value in desired.items()
+        ):
+            raise IdentityConfigurationError("audience_configuration_mismatch")
         print(
             "Exact new-realm web client API audience verified; no users or roles changed.",
             flush=True,
@@ -163,7 +167,7 @@ def configure_audience():
                 timeout=5,
             ) as response:
                 if response.status != 204:
-                    raise RuntimeError("Bootstrap grant revocation failed")
+                    raise IdentityConfigurationError("bootstrap_grant_revocation_failed")
 
 
 def main():
@@ -208,6 +212,12 @@ def main():
 if __name__ == "__main__":
     try:
         sys.exit(main())
+    except IdentityConfigurationError as error:
+        print(
+            f"Account-entry identity setup failed: {error}. Private details omitted.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     except Exception:
         print("Account-entry operation failed. Private diagnostics omitted.", file=sys.stderr)
         sys.exit(1)

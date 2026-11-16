@@ -80,7 +80,7 @@ history actions belong to the owner.
 
 | Check | Actual result |
 | --- | --- |
-| Backend source tests in a separate environment matching the new lockfiles | 35 passed; zero skips |
+| Backend source tests in a separate environment matching the new lockfiles | 46 passed; zero skips, including startup mapper regressions |
 | Existing authentication unit/protocol tests | 21 passed; zero skips |
 | Repository isolation/CI regressions | 13 passed; zero skips |
 | PostgreSQL initial migration | Applied successfully to the new people database |
@@ -166,3 +166,47 @@ Review the source and this record, then stage, commit and push manually. Propose
 commit: feat: add S2 account entry and server authorization.
 No branch, index, commit, push or PR action was performed. Do not start S3 until
 S2 owner review and required remote CI evidence are complete.
+
+## CI startup correction: imported audience mapper defaults
+
+The supplied PR #26 CI attempt built the images and brought identity, its database,
+the session store and people database to healthy state. It failed before the
+"API audience verified" checkpoint. Eight other required jobs, including the
+separate account-entry source job, passed; the aggregate gate correctly failed
+because authentication runtime acceptance had not run.
+
+A read-only inspection of the real provider representation reproduced a strict
+configuration mismatch. Keycloak 26.7.5 adds introspection.token.claim=true and
+userinfo.token.claim=false to the audience mapper; all three originally expected
+configuration fields matched. The initial local setup created a missing mapper
+and did not compare its readback, whereas a fresh CI realm already imported the
+mapper and entered the failing exact-comparison branch.
+
+Both the dedicated mapper manifest and embedded realm import now state those two
+existing provider defaults explicitly. Exact comparison remains required; unknown
+keys, duplicate named mappers, changed audiences or changed token claims are still
+rejected. Mapper creation now reads back and validates the stored representation.
+Known identity-configuration failures emit fixed diagnostic codes without provider
+response bodies, credentials, raw protocol addresses or query parameters.
+
+Verification of this correction:
+
+- All 46 backend source tests passed with zero skips. Eleven new cases cover the
+  original mismatch, fresh-import representation, repeated idempotent setup,
+  six genuine configuration drifts, duplicate mappers, creation readback and
+  invalid readback. Grant revocation is asserted on success and rejection.
+- The real existing provider mapper passed setup twice without any mapper update;
+  each temporary administrator grant was revoked.
+- Full credentialed desktop journey passed 6/6 with zero skips, one worker and
+  zero retries. Exact disposable identity/account cleanup, bootstrap preservation,
+  seven healthy services and unchanged legacy IDs/health were verified.
+- Ruff lint/format, all 13 structure tests and whitespace checks passed.
+- Tablet/mobile evidence remains the earlier complete 6/6 runs; UI/application
+  code did not change in this follow-up. No service rebuild, recreation, outage,
+  migration, timeout change, role change or broad cleanup was performed.
+
+The observed provider representation is retained privately in
+.local/account-entry/audience-representation.json. The original CI failure is not
+counted as a pass. A new remote run on the follow-up commit must prove fresh CI
+startup and the full required acceptance/recovery scope before merge. The product
+plan and Git index remain unchanged; these follow-up files remain unstaged.

@@ -6,6 +6,8 @@
   "config": {
     "included.custom.audience": "taskspace-portals-api",
     "id.token.claim": "false",
-    "access.token.claim": "true"
+    "access.token.claim": "true",
+    "introspection.token.claim": "true",
+    "userinfo.token.claim": "false"
   }
 }
