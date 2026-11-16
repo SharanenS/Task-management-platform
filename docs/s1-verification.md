@@ -248,3 +248,24 @@ Verification on the updated web image:
 The authoritative plan remains unchanged, S2 has not started, and all changes
 remain unstaged for owner review. Remote CI and the previously stated limits
 remain outstanding.
+
+## Retained CI dashboard locator correction — 16 November 2026
+
+The supplied main-branch merge-run log reports 9/10 domain cases passed. The
+retained dashboard case failed after keyboard navigation to Projects because a
+substring heading locator matched both the page h1 "Projects" and the empty-state
+h3 "No projects found". The aggregate quality gate then failed because that
+required browser job failed; it was not a second independent application failure.
+
+The assertion in legacy/frontend/tests/e2e/dashboard-acceptance.spec.ts now targets
+level 1 with the exact accessible name "Projects". Visibility, keyboard navigation,
+filter handoff, cursor reset, authorization and cleanup assertions remain required.
+No runtime source, timeout, service, account or product-plan change was made.
+
+Focused ESLint, legacy TypeScript checking and formatting passed. A credential-free
+Chromium reproduction of the reported two-heading DOM confirmed the old locator
+matches two nodes and the corrected locator identifies the visible page h1.
+Repository structure verification and all 12 structure tests passed. This isolated
+locator reproduction is not a full dashboard acceptance pass. The credentialed
+dashboard journey and aggregate quality gate require a new remote CI run on the
+follow-up commit. Rerunning the old commit alone does not apply this source fix.
