@@ -1,0 +1,64 @@
+services:
+  web:
+    environment:
+      ACCOUNT_GRAPHQL_URL: http://gateway:8000/graphql
+    depends_on:
+      gateway:
+        condition: service_healthy
+  gateway:
+    build:
+      context: ./services/gateway
+      additional_contexts:
+        security: ./packages/security
+    environment:
+      AUTH_ISSUER: http://127.0.0.1:8180/realms/taskspace-portals
+      AUTH_JWKS_URL: http://identity:8080/realms/taskspace-portals/protocol/openid-connect/certs
+      AUTH_ALLOW_LOCAL_HTTP: "true"
+      PEOPLE_URL: http://people:8000
+      PEOPLE_SERVICE_KEY: ${PEOPLE_SERVICE_KEY:?Use the account-entry wrapper}
+    ports:
+      - "127.0.0.1:8020:8000"
+    depends_on:
+      people:
+        condition: service_healthy
+      identity:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  people:
+    build:
+      context: ./services/people
+      additional_contexts:
+        security: ./packages/security
+    environment:
+      AUTH_ISSUER: http://127.0.0.1:8180/realms/taskspace-portals
+      AUTH_JWKS_URL: http://identity:8080/realms/taskspace-portals/protocol/openid-connect/certs
+      AUTH_ALLOW_LOCAL_HTTP: "true"
+      PEOPLE_SERVICE_KEY: ${PEOPLE_SERVICE_KEY:?Use the account-entry wrapper}
+      PEOPLE_DATABASE_URL: postgresql+psycopg://taskspace_people:${PEOPLE_DATABASE_PASSWORD:?Use the account-entry wrapper}@people-db:5432/taskspace_people
+    depends_on:
+      people-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  people-db:
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+    environment:
+      POSTGRES_DB: taskspace_people
+      POSTGRES_USER: taskspace_people
+      POSTGRES_PASSWORD: ${PEOPLE_DATABASE_PASSWORD:?Use the account-entry wrapper}
+    volumes:
+      - portal_people_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskspace_people -d taskspace_people"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  portal_people_data:

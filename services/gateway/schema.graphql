@@ -1,0 +1,11 @@
+type Query {
+  viewer: Viewer!
+}
+
+type Viewer {
+  accountId: ID!
+  employeeId: ID!
+  displayName: String!
+  companyRoles: [String!]!
+  permissions: [String!]!
+}

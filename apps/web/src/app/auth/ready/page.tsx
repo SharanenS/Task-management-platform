@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { currentSession, sessionCookie } from "@/shared/auth/session";
+import { accountEntry, AccountDenied } from "@/shared/api/account-entry";
 import { AuthFrame } from "@/shared/ui/auth-frame";
 export const dynamic = "force-dynamic";
 export default async function ReadyPage() {
@@ -11,19 +12,37 @@ export default async function ReadyPage() {
     redirect("/session-unavailable");
   }
   if (!session) redirect("/auth/expired");
+  let actor;
+  try {
+    actor = await accountEntry(session);
+  } catch (error) {
+    if (error instanceof AccountDenied)
+      return (
+        <AuthFrame
+          eyebrow="ACCESS RESTRICTED"
+          title="Your account isn’t ready."
+          description="Your account does not currently have access. Contact your company administrator."
+        >
+          <form method="post" action="/auth/logout">
+            <button className="secondary-button">Sign out</button>
+          </form>
+        </AuthFrame>
+      );
+    redirect("/session-unavailable");
+  }
   return (
     <AuthFrame
       eyebrow="SIGNED IN"
       title="You’re securely signed in."
-      description="Your identity has been verified. Your workspace is not available yet."
+      description="Your identity and active account have been verified. Your workspace is not available yet."
     >
       <div className="account-summary">
         <span className="avatar" aria-hidden="true">
           ✓
         </span>
         <div>
-          <strong>{session.displayName}</strong>
-          <p>Signed-in account</p>
+          <strong>{actor.displayName}</strong>
+          <p>{actor.companyRoles.join(", ")} · Verified account</p>
         </div>
       </div>
       <p className="support-note">You can sign out securely below.</p>

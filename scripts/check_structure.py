@@ -118,6 +118,8 @@ def check_repository(root: Path) -> list[str]:
             errors.append(f"Mandatory CI result is not checked: {name}")
     if "needs.s1-authentication.result" not in ci or "  s1-authentication:" not in ci:
         errors.append("S1 authentication CI gate is missing")
+    if "needs.s2-account-entry.result" not in ci or "  s2-account-entry:" not in ci:
+        errors.append("S2 account-entry CI gate is missing")
     if "needs.s0-structure.result" not in ci:
         errors.append("S0 CI gate is missing from mandatory result validation")
     for match in re.finditer(r"cache-dependency-path:\s*([^\n]+)", ci):

@@ -45,6 +45,10 @@ jobs:
         run: npm --prefix apps/web audit --omit=dev
       - name: Verify repository boundaries
         run: python scripts/run_structure_tests.py
+      - name: Verify GraphQL operation generation
+        run: |
+          npm --prefix apps/web run codegen
+          git diff --exit-code -- apps/web/src/shared/api/generated.ts
       - name: Verify application formatting
         run: npm --prefix apps/web run format:check
       - name: Verify application lint
@@ -436,13 +440,17 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
+      - name: Pin application npm
+        run: npm install --global npm@11.5.1 --ignore-scripts
       - name: Install application dependencies
         run: npm --prefix apps/web ci --ignore-scripts
       - name: Install Chromium
         working-directory: apps/web
         run: npx playwright install --with-deps chromium
       - name: Start isolated authentication stack
-        run: python scripts/auth-development.py up
+        run: python scripts/account-entry-development.py up --apply-migration
+      - name: Verify PostgreSQL account constraints and scoped rollback
+        run: python scripts/verify-account-entry-postgres.py
       - name: Verify desktop authentication
         run: python scripts/run-s1-acceptance.py --project desktop
       - name: Verify tablet authentication
@@ -453,7 +461,31 @@ jobs:
         run: python scripts/run-s1-acceptance.py --project desktop --recovery
       - name: Stop only the isolated authentication services
         if: always()
-        run: python scripts/auth-development.py stop
+        run: python scripts/account-entry-development.py stop
+
+  s2-account-entry:
+    name: Account Entry and Server Authorization
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Set up Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: "3.13"
+      - name: Install pinned service and verification dependencies
+        run: python -m pip install -r services/gateway/requirements.lock -r services/people/requirements.lock -r tests/account_entry/requirements.lock pip-audit==2.10.1
+      - name: Verify backend lint and formatting
+        run: |
+          python -m ruff check services packages/security tests/account_entry --select E,F,I --line-length 100
+          python -m ruff format --check services packages/security tests/account_entry --line-length 100
+      - name: Verify account authorization, schema and migration source
+        run: python scripts/run-s2-source-checks.py
+      - name: Audit new service dependency locks
+        run: |
+          pip-audit --no-deps --disable-pip -r services/gateway/requirements.lock
+          pip-audit --no-deps --disable-pip -r services/people/requirements.lock
 
   quality-gate:
     name: Phase 14 Quality Gate
@@ -461,6 +493,7 @@ jobs:
     needs:
       - s0-structure
       - s1-authentication
+      - s2-account-entry
       - static-and-unit
       - schema-and-codegen
       - dependency-audit
@@ -474,6 +507,7 @@ jobs:
           RESULTS=(
             "${{ needs.s0-structure.result }}"
             "${{ needs.s1-authentication.result }}"
+            "${{ needs.s2-account-entry.result }}"
             "${{ needs.static-and-unit.result }}"
             "${{ needs.schema-and-codegen.result }}"
             "${{ needs.dependency-audit.result }}"
@@ -484,6 +518,7 @@ jobs:
           NAMES=(
             "s0-structure"
             "s1-authentication"
+            "s2-account-entry"
             "static-and-unit"
             "schema-and-codegen"
             "dependency-audit"
@@ -505,4 +540,4 @@ jobs:
             echo "Phase 14 Quality Gate FAILED." >&2
             exit 1
           fi
-          echo "Phase 14 Quality Gate PASSED: All 8 mandatory CI jobs succeeded."
+          echo "Phase 14 Quality Gate PASSED: All 9 mandatory CI jobs succeeded."
