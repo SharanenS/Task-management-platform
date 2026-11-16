@@ -15,9 +15,11 @@
     "typecheck": "next typegen && tsc --noEmit",
     "format:check": "prettier --check .",
     "test": "node --conditions=react-server --experimental-strip-types --test tests/unit/*.test.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "codegen": "graphql-codegen --config codegen.ts && prettier --write src/shared/api/generated.ts"
   },
   "dependencies": {
+    "graphql": "17.0.2",
     "next": "16.4.3",
     "openid-client": "6.8.8",
     "react": "19.3.0",
@@ -26,6 +28,11 @@
     "server-only": "0.0.1"
   },
   "devDependencies": {
+    "@graphql-codegen/cli": "7.4.5",
+    "@graphql-codegen/typed-document-node": "7.1.1",
+    "@graphql-codegen/typescript": "6.1.1",
+    "@graphql-codegen/typescript-operations": "6.1.10",
+    "@graphql-typed-document-node/core": "3.2.0",
     "@playwright/test": "1.64.0",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "22.20.5",

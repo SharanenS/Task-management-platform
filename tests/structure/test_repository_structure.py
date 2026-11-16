@@ -35,6 +35,15 @@ class RepositoryStructureTests(unittest.TestCase):
             any("S1 authentication CI gate" in e for e in structure.check_repository(self.fixture))
         )
 
+    def test_missing_account_entry_ci_gate_is_rejected(self) -> None:
+        ci = self.fixture / ".github/workflows/ci.yml"
+        ci.write_text(
+            ci.read_text().replace("needs.s2-account-entry.result", "needs.omitted.result")
+        )
+        self.assertTrue(
+            any("S2 account-entry CI gate" in e for e in structure.check_repository(self.fixture))
+        )
+
     def test_current_repository_has_valid_boundaries(self) -> None:
         self.assertEqual(structure.check_repository(ROOT), [])
 

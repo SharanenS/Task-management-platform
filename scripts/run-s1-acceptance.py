@@ -35,7 +35,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project", choices=("desktop", "tablet", "mobile"), default="desktop")
     parser.add_argument("--recovery", action="store_true")
+    parser.add_argument("--account-entry-only", action="store_true")
     args = parser.parse_args()
+    if args.recovery and args.account_entry_only:
+        raise RuntimeError("Account entry focus cannot run outages")
     receipt_dir = ROOT / ".local/auth/runs"
     prior_receipts = set(receipt_dir.glob("*.json"))
     before = inventory()
@@ -48,11 +51,25 @@ def main() -> int:
     owned = [
         x for x in before if x["Config"]["Labels"].get("com.docker.compose.project") == PROJECT
     ]
-    if len(owned) != 4 or any(
-        not x["State"]["Running"] or x["State"].get("Health", {}).get("Status") != "healthy"
-        for x in owned
+    expected_services = {
+        "web",
+        "identity",
+        "identity-db",
+        "auth-sessions",
+        "gateway",
+        "people",
+        "people-db",
+    }
+    service_names = [x["Config"]["Labels"].get("com.docker.compose.service") for x in owned]
+    if (
+        len(owned) != 7
+        or set(service_names) != expected_services
+        or any(
+            not x["State"]["Running"] or x["State"].get("Health", {}).get("Status") != "healthy"
+            for x in owned
+        )
     ):
-        raise RuntimeError("Four healthy isolated authentication services are required")
+        raise RuntimeError("Seven healthy isolated account-entry services are required")
     env = os.environ.copy()
     if args.recovery:
         if args.project != "desktop":
@@ -69,6 +86,7 @@ def main() -> int:
                 "--project=" + args.project,
                 "--workers=1",
                 "--retries=0",
+                *(["--grep", "S2 current account status"] if args.account_entry_only else []),
             ],
             cwd=ROOT / "apps/web",
             env=env,
@@ -90,7 +108,7 @@ def main() -> int:
         while True:
             after = inventory()
             own_after = [x for x in after if x["Id"] in {v["Id"] for v in owned}]
-            if len(own_after) == 4 and all(
+            if len(own_after) == 7 and all(
                 x["State"]["Running"] and x["State"].get("Health", {}).get("Status") == "healthy"
                 for x in own_after
             ):
@@ -100,7 +118,7 @@ def main() -> int:
             time.sleep(1)
         if {x["Id"]: health(x) for x in after if x["Id"] in legacy} != legacy:
             raise RuntimeError("Legacy service state changed during acceptance")
-        print("Four new services healthy; legacy service IDs and health unchanged.", flush=True)
+        print("Seven new services healthy; legacy service IDs and health unchanged.", flush=True)
     if not args.recovery:
         created_receipts = set(receipt_dir.glob("*.json")) - prior_receipts
         if not created_receipts or (code == 0 and len(created_receipts) != 1):
@@ -109,7 +127,12 @@ def main() -> int:
             receipt = json.loads(path.read_text(encoding="utf-8"))
             if receipt.get("status") != "cleaned" or not all(
                 receipt.get(key)
-                for key in ("identityRemoved", "bootstrapPreserved", "grantsRevoked")
+                for key in (
+                    "identityRemoved",
+                    "bootstrapPreserved",
+                    "grantsRevoked",
+                    "accountRemoved",
+                )
             ):
                 raise RuntimeError(
                     "Scoped identity or administrator-grant cleanup was not verified"
@@ -119,7 +142,7 @@ def main() -> int:
             flush=True,
         )
     report = json.loads((ROOT / "apps/web/test-results/s1-acceptance.json").read_text())
-    expected = 2 if args.recovery else 5
+    expected = 1 if args.account_entry_only else (2 if args.recovery else 6)
     if (
         code
         or report["status"] != "passed"
@@ -130,9 +153,14 @@ def main() -> int:
         raise RuntimeError("Acceptance failed or did not execute its full required scope")
     destination = ROOT / "test-results/reports/s1"
     destination.mkdir(parents=True, exist_ok=True)
-    (
-        destination / f"{args.project}-{'recovery' if args.recovery else 'lifecycle'}.json"
-    ).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    scope = (
+        "account-entry"
+        if args.account_entry_only
+        else ("recovery" if args.recovery else "lifecycle")
+    )
+    (destination / f"{args.project}-{scope}.json").write_text(
+        json.dumps(report, indent=2) + "\n", encoding="utf-8"
+    )
     print("S1 acceptance scope and zero-skip report verified.", flush=True)
     if args.recovery:
         print(

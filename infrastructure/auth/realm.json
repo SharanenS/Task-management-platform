@@ -32,7 +32,20 @@
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://127.0.0.1:3020/signed-out"
-      }
+      },
+      "protocolMappers": [
+        {
+          "name": "taskspace-portals-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "taskspace-portals-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
     }
   ],
   "displayNameHtml": "Taskspace"

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { execFileSync } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -106,6 +107,54 @@ async function ownedUser() {
   ).toBe(true);
   return value;
 }
+function accountFixture(action: string, value?: string | boolean | null) {
+  const ids = execFileSync(
+    "docker",
+    [
+      "ps",
+      "--filter",
+      "label=com.docker.compose.project=taskspace-portals-development",
+      "--filter",
+      "label=com.docker.compose.service=people",
+      "--format",
+      "{{.ID}}",
+    ],
+    { encoding: "utf8" },
+  ).trim();
+  if (!/^[a-f0-9]{12}$/.test(ids))
+    throw new Error("People fixture ownership is ambiguous");
+  const item = JSON.parse(
+    execFileSync("docker", ["inspect", ids, "--format", "{{json .}}"], {
+      encoding: "utf8",
+    }),
+  );
+  if (
+    item.Config.Labels["com.docker.compose.project"] !==
+      "taskspace-portals-development" ||
+    item.Config.Labels["com.docker.compose.service"] !== "people" ||
+    item.State.Health.Status !== "healthy"
+  )
+    throw new Error("People fixture ownership or health mismatch");
+  const source = readFileSync(
+    resolve("../../tests/account_entry/fixture.py"),
+    "utf8",
+  );
+  const output = execFileSync(
+    "docker",
+    ["exec", "-i", ids, "python", "-c", source],
+    {
+      input: JSON.stringify({
+        runId,
+        subject: userId,
+        username,
+        action,
+        value,
+      }),
+      encoding: "utf8",
+    },
+  );
+  return JSON.parse(output);
+}
 async function login(page: import("@playwright/test").Page, invalid = false) {
   await page.goto("/sign-in");
   await page.getByRole("button", { name: "Continue to sign in" }).click();
@@ -170,6 +219,7 @@ test.beforeAll(async () => {
   userId = location.split("/").pop()!;
   receipt("created");
   expect((await ownedUser()).enabled).toBe(true);
+  accountFixture("create");
 });
 let testStartedAt = 0;
 test.beforeEach(() => {
@@ -180,6 +230,11 @@ test.afterEach(async ({ context, page }, info) => {
     const location = new URL(page.url());
     const scrub = (value: string) => {
       let text = value
+        .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [omitted]")
+        .replace(
+          /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
+          "[token omitted]",
+        )
         .replace(/https?:\/\/[^\s<>]+/g, "[address omitted]")
         .replace(
           /\b(?:code|state|nonce|session_state|id_token|access_token|session_code)=\S+/g,
@@ -193,6 +248,11 @@ test.afterEach(async ({ context, page }, info) => {
     mkdirSync(directory, { recursive: true });
     const diagnostic = {
       boundary: info.title,
+      errors: info.errors.map((error) => ({
+        message: scrub(error.message ?? ""),
+        locations:
+          error.stack?.match(/authentication\.spec\.ts:\d+:\d+/g) ?? [],
+      })),
       checkpoint: info.annotations
         .filter((value) => value.type === "auth-boundary")
         .at(-1)?.description,
@@ -259,12 +319,15 @@ test.afterEach(async ({ context, page }, info) => {
 });
 test.afterAll(async () => {
   let failure: unknown;
+  let accountRemoved = false;
   let identityRemoved = false;
   let bootstrapPreserved = false;
   let grantsRevoked = true;
   try {
     if (userId) {
       await ownedUser();
+      accountRemoved = accountFixture("cleanup").cleaned === true;
+      expect(accountRemoved).toBe(true);
       await admin(`${realm}/users/${userId}`, { method: "DELETE" });
       const check = await fetch(
         `${providerOrigin}/admin/realms/${realm}/users/${userId}`,
@@ -303,10 +366,14 @@ test.afterAll(async () => {
       }
     }
     receipt(
-      !failure && identityRemoved && bootstrapPreserved && grantsRevoked
+      !failure &&
+        accountRemoved &&
+        identityRemoved &&
+        bootstrapPreserved &&
+        grantsRevoked
         ? "cleaned"
         : "blocked",
-      { identityRemoved, bootstrapPreserved, grantsRevoked },
+      { identityRemoved, bootstrapPreserved, grantsRevoked, accountRemoved },
     );
   }
   if (failure) throw failure;
@@ -543,6 +610,122 @@ test("nonce mismatch rejects a valid provider response without an application se
       ),
     ).toBe(false);
     expect(await redis.exists(key)).toBe(0);
+  } finally {
+    await redis.quit();
+  }
+});
+
+test("S2 current account status and one company role govern entry and direct GraphQL", async ({
+  page,
+  context,
+}) => {
+  const query = { query: "{ viewer { accountId companyRoles permissions } }" };
+  const unauthenticatedHeaders: Record<string, string>[] = [
+    {},
+    { "X-Actor-Role": "ADMIN", "X-Actor-Id": "someone-else" },
+  ];
+  for (const headers of unauthenticatedHeaders) {
+    const response = await context.request.post(
+      "http://127.0.0.1:8020/graphql",
+      {
+        maxRetries: 0,
+        headers: {
+          "Content-Type": "application/json",
+          Connection: "close",
+          ...headers,
+        },
+        data: query,
+      },
+    );
+    expect(response.status()).toBe(401);
+  }
+  await login(page);
+  await expect(
+    page.getByRole("heading", { name: "You’re securely signed in." }),
+  ).toBeVisible();
+  const cookie = (await context.cookies(appOrigin)).find(
+    (c) => c.name === "taskspace_session",
+  );
+  expect(Boolean(cookie)).toBe(true);
+  const redis = createClient({
+    url: `redis://:${secrets.AUTH_REDIS_PASSWORD}@127.0.0.1:6381/0`,
+  });
+  redis.on("error", () => {});
+  await redis.connect();
+  try {
+    const raw = await redis.get(storageKey("session", cookie!.value));
+    expect(Boolean(raw)).toBe(true);
+    const session = JSON.parse(raw!);
+    expect(session.subject === userId).toBe(true);
+    const direct = () =>
+      context.request.post("http://127.0.0.1:8020/graphql", {
+        maxRetries: 0,
+        headers: {
+          "Content-Type": "application/json",
+          Connection: "close",
+          Authorization: `Bearer ${session.accessToken}`,
+          "X-Actor-Role": "ADMIN",
+          "X-Actor-Id": "someone-else",
+        },
+        data: query,
+      });
+    test.info().annotations.push({
+      type: "auth-boundary",
+      description: "s2-initial-authorized-account",
+    });
+    const allowed = await direct();
+    expect(allowed.status()).toBe(200);
+    const actor = (await allowed.json()).data.viewer;
+    expect(actor.accountId === runId).toBe(true);
+    expect(actor.companyRoles).toEqual(["EMPLOYEE"]);
+    expect(actor.permissions).toEqual(["account:self:read"]);
+    for (const [action, value] of [
+      ["account_active", false],
+      ["profile_active", false],
+      ["role", null],
+      ["profile_missing", null],
+    ] as const) {
+      test.info().annotations.push({
+        type: "auth-boundary",
+        description: `s2-${action}`,
+      });
+      await ownedUser();
+      accountFixture(action, value);
+      expect((await direct()).status()).toBe(403);
+      await page.reload();
+      await expect(
+        page.getByRole("heading", { name: "Your account isn’t ready." }),
+      ).toBeVisible();
+      if (action === "profile_missing") accountFixture("profile_restore");
+      else if (action === "role") accountFixture("role", "EMPLOYEE");
+      else accountFixture(action, true);
+    }
+    await ownedUser();
+    test.info().annotations.push({
+      type: "auth-boundary",
+      description: "s2-role-change-same-session",
+    });
+    accountFixture("role", "HR");
+    const changed = await direct();
+    expect(changed.status()).toBe(200);
+    expect((await changed.json()).data.viewer.companyRoles).toEqual(["HR"]);
+    await page.reload();
+    await expect(page.getByText("HR · Verified account")).toBeVisible();
+    expect(
+      (await context.cookies(appOrigin)).find(
+        (c) => c.name === "taskspace_session",
+      )?.value === cookie!.value,
+    ).toBe(true);
+    test.info().annotations.push({
+      type: "auth-boundary",
+      description: "s2-missing-account",
+    });
+    accountFixture("cleanup");
+    expect((await direct()).status()).toBe(403);
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: "Your account isn’t ready." }),
+    ).toBeVisible();
   } finally {
     await redis.quit();
   }

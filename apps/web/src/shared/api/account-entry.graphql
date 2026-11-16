@@ -1,0 +1,9 @@
+query AccountEntry {
+  viewer {
+    accountId
+    employeeId
+    displayName
+    companyRoles
+    permissions
+  }
+}
