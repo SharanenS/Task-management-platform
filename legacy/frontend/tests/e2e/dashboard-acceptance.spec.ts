@@ -283,7 +283,7 @@ test.describe("Phase 12: Advanced Dashboard + UX Refinement Acceptance", () => {
       await page.keyboard.press("Enter");
       await expect(page).toHaveURL(/.*\/projects\?status=ACTIVE/);
       await expect(
-        page.getByRole("heading", { name: "Projects" }),
+        page.getByRole("heading", { level: 1, name: "Projects", exact: true }),
       ).toBeVisible();
       // Verify no leftover pagination cursor in URL
       const currentUrl = page.url();

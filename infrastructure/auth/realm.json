@@ -1,0 +1,39 @@
+{
+  "realm": "taskspace-portals",
+  "displayName": "Taskspace",
+  "enabled": true,
+  "sslRequired": "external",
+  "loginTheme": "taskspace",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 28800,
+  "clients": [
+    {
+      "clientId": "taskspace-portals-web",
+      "name": "Taskspace",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://127.0.0.1:3020/auth/callback"
+      ],
+      "webOrigins": [
+        "http://127.0.0.1:3020"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://127.0.0.1:3020/signed-out"
+      }
+    }
+  ],
+  "displayNameHtml": "Taskspace"
+}

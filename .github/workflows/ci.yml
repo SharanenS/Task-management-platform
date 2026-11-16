@@ -49,6 +49,8 @@ jobs:
         run: npm --prefix apps/web run format:check
       - name: Verify application lint
         run: npm --prefix apps/web run lint
+      - name: Verify authentication unit tests
+        run: npm --prefix apps/web test
       - name: Verify application types
         run: npm --prefix apps/web run typecheck
       - name: Build application
@@ -417,11 +419,48 @@ jobs:
           docker compose --env-file .env.ci.recovery -p "${CI_REC_PROJECT}" -f compose.test.yaml down -v
           rm -f .env.ci.recovery
 
+  s1-authentication:
+    name: Authentication Lifecycle and Recovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Set up Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: "3.13"
+      - name: Set up Node
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install application dependencies
+        run: npm --prefix apps/web ci --ignore-scripts
+      - name: Install Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Start isolated authentication stack
+        run: python scripts/auth-development.py up
+      - name: Verify desktop authentication
+        run: python scripts/run-s1-acceptance.py --project desktop
+      - name: Verify tablet authentication
+        run: python scripts/run-s1-acceptance.py --project tablet
+      - name: Verify mobile authentication
+        run: python scripts/run-s1-acceptance.py --project mobile
+      - name: Verify isolated authentication recovery
+        run: python scripts/run-s1-acceptance.py --project desktop --recovery
+      - name: Stop only the isolated authentication services
+        if: always()
+        run: python scripts/auth-development.py stop
+
   quality-gate:
     name: Phase 14 Quality Gate
     if: always()
     needs:
       - s0-structure
+      - s1-authentication
       - static-and-unit
       - schema-and-codegen
       - dependency-audit
@@ -434,6 +473,7 @@ jobs:
         run: |
           RESULTS=(
             "${{ needs.s0-structure.result }}"
+            "${{ needs.s1-authentication.result }}"
             "${{ needs.static-and-unit.result }}"
             "${{ needs.schema-and-codegen.result }}"
             "${{ needs.dependency-audit.result }}"
@@ -443,6 +483,7 @@ jobs:
           )
           NAMES=(
             "s0-structure"
+            "s1-authentication"
             "static-and-unit"
             "schema-and-codegen"
             "dependency-audit"
@@ -464,4 +505,4 @@ jobs:
             echo "Phase 14 Quality Gate FAILED." >&2
             exit 1
           fi
-          echo "Phase 14 Quality Gate PASSED: All 7 mandatory CI jobs succeeded."
+          echo "Phase 14 Quality Gate PASSED: All 8 mandatory CI jobs succeeded."

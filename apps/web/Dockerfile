@@ -5,7 +5,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 
 FROM dependencies AS builder
-ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS=--max-old-space-size=1024
 COPY . .
 RUN npm run build
 
