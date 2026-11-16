@@ -75,7 +75,7 @@
       "previous_path": ".github/workflows/ci.yml",
       "current_path": ".github/workflows/ci.yml",
       "previous_sha256": "ead77ece19bdc04c0bb23b1e8730b96d9716dac3630170a60e3c6582cf70ef99",
-      "current_sha256": "b2f480d1151e99253d167059a0834391c2fcae8b644ef7c767c7ee06e3afdb51",
+      "current_sha256": "acd69cd4555ddb45c576c71fce10e1b48c0bfe92ff7b8aba633dd02e92db420a",
       "adapted": true
     },
     {
@@ -243,21 +243,21 @@
       "previous_path": "docs/portal-interface-transition.md",
       "current_path": "legacy/docs/portal-interface-transition.md",
       "previous_sha256": "9e23264d7b1fbc235f101c206fa8f06028f88f40053bf7e8a1baf61ae1b23a3f",
-      "current_sha256": "9e23264d7b1fbc235f101c206fa8f06028f88f40053bf7e8a1baf61ae1b23a3f",
+      "current_sha256": "b5b0559c553e007b8cb345a28101a487544af75bc79268fb17dd4dd16f01ec2e",
       "adapted": false
     },
     {
       "previous_path": "docs/portal-r2-review.md",
       "current_path": "legacy/docs/portal-r2-review.md",
       "previous_sha256": "876b76978ce4c96f254f39c239d6d5b6539279d898b8d5aea080af46a6c053db",
-      "current_sha256": "876b76978ce4c96f254f39c239d6d5b6539279d898b8d5aea080af46a6c053db",
+      "current_sha256": "503916322e48cfa2cf92586da3cd6798909c37290409b8f75ad39a0fd101c127",
       "adapted": false
     },
     {
       "previous_path": "docs/portal-refinement-plan.md",
       "current_path": "legacy/docs/portal-refinement-plan.md",
       "previous_sha256": "77515c861c1ee785a408f79fec166f575e2e46ba3b4a795e071b7b07d21bd8cd",
-      "current_sha256": "77515c861c1ee785a408f79fec166f575e2e46ba3b4a795e071b7b07d21bd8cd",
+      "current_sha256": "f9528a0542f6aa52b3fa65d9e8bbccc0f174f6be016fe302d7f3d5c5f9a9e33d",
       "adapted": false
     },
     {
@@ -2871,5 +2871,6 @@
       "current_sha256": "71f6c98a6067705d4406e96d31a694a7dab90e6c77b9d4d1e00c0c6d7245123e",
       "adapted": false
     }
-  ]
+  ],
+  "current_hash_normalization": "CRLF is normalized to LF for current_sha256; previous_sha256 retains original snapshot bytes."
 }

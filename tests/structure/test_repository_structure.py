@@ -26,6 +26,15 @@ class RepositoryStructureTests(unittest.TestCase):
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, destination)
 
+    def test_missing_authentication_ci_gate_is_rejected(self) -> None:
+        ci = self.fixture / ".github/workflows/ci.yml"
+        ci.write_text(
+            ci.read_text().replace("needs.s1-authentication.result", "needs.omitted.result")
+        )
+        self.assertTrue(
+            any("S1 authentication CI gate" in e for e in structure.check_repository(self.fixture))
+        )
+
     def test_current_repository_has_valid_boundaries(self) -> None:
         self.assertEqual(structure.check_repository(ROOT), [])
 

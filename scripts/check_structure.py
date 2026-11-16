@@ -17,6 +17,9 @@ LEGACY_JOBS = (
     "reliability-and-recovery",
 )
 REQUIRED_FILES = (
+    "compose.auth.yaml",
+    "scripts/run-s1-acceptance.py",
+    "apps/web/src/shared/auth/policy.ts",
     "scripts/run_structure_tests.py",
     "tests/structure/test_repository_structure.py",
     "apps/web/package.json",
@@ -113,6 +116,8 @@ def check_repository(root: Path) -> list[str]:
             errors.append(f"Legacy CI gate or relocated execution root is missing: {name}")
         if f"needs.{name}.result" not in ci:
             errors.append(f"Mandatory CI result is not checked: {name}")
+    if "needs.s1-authentication.result" not in ci or "  s1-authentication:" not in ci:
+        errors.append("S1 authentication CI gate is missing")
     if "needs.s0-structure.result" not in ci:
         errors.append("S0 CI gate is missing from mandatory result validation")
     for match in re.finditer(r"cache-dependency-path:\s*([^\n]+)", ci):

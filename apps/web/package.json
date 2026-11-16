@@ -13,14 +13,20 @@
     "start": "next start --hostname 127.0.0.1 --port 3020",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test": "node --conditions=react-server --experimental-strip-types --test tests/unit/*.test.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "next": "16.4.3",
+    "openid-client": "6.8.8",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "redis": "6.3.0",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.0",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "22.20.5",
     "@types/react": "19.3.0",

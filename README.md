@@ -4,19 +4,21 @@ Taskspace is being rebuilt as a portal-oriented corporate project and employee
 management platform using Next.js, React, TypeScript, Python, FastAPI, Strawberry
 GraphQL, PostgreSQL, Keycloak, Redis, RabbitMQ and Celery where required.
 
-S0 establishes source isolation and reproducible verification. Authentication
-begins in S1. No replacement portal or sign-in workflow is claimed in S0.
+S0 source isolation is merged. S1 introduces a new authentication experience.
+S1 is locally verified; owner review and remote CI remain. See
+docs/s1-verification.md for actual evidence.
+Company-role access and functional portals are later stages.
 
 ## Source layout
 
 | Path | Responsibility |
 | --- | --- |
-| apps/web | Independent new application with an honest preparation page |
+| apps/web | Independent authentication interface and server-side session boundary |
 | legacy/frontend | Accepted baseline frontend used by historical verification |
 | legacy/experiments/portal-web | Preserved uncommitted portal experiment; not the replacement app |
 | legacy | Preserved services, tests, scripts and historical records |
 | infrastructure | Existing operational configuration retained for the running legacy stack |
-| scripts | S0 source and build verification |
+| scripts | Source checks and isolated authentication operations/acceptance |
 | tests/structure | Isolation and CI path regression tests |
 | docs | Current architecture, file inventory and S0 verification |
 
@@ -39,20 +41,23 @@ npm --prefix apps/web ci --ignore-scripts
 The Bash equivalent is bash scripts/test-s0.sh. Neither verification entrypoint
 starts Docker, resets data, creates accounts or runs migrations.
 
-The optional local development command is npm --prefix apps/web run dev.
-Its default port is 3020 and it displays only the S0 preparation page.
-S0 verification does not start that server automatically.
+The S1 development origin is http://127.0.0.1:3020. Authentication also requires
+the separate identity and session services. Do not run an additional development
+server on that port while the web container owns it.
+The authentication wrapper uses local private credentials without changing .env.
+Starting the stack requires explicit runtime approval; see docs/s1-verification.md.
 
 ## Execution isolation
 
-The root compose.yaml declares only the new web scaffold and uses the independent
+The root compose.yaml declares only the new web application and uses the independent
 project name taskspace-portals-development. It creates no database, queue,
 worker, identity realm or session store. Do not launch it as part of source review.
 
 The existing stack remains under its original project name
 enterprise-task-platform-phase2. Its definition is legacy/compose.yaml.
 Its running frontend at port 3010 is the legacy application.
-New authentication and data will use a separate environment after authorization.
+The approved S1 authentication stack uses a separate realm, identity database
+and session store. Legacy accounts and data remain untouched.
 
 Read-only configuration checks from the repository root are:
 
@@ -79,3 +84,33 @@ in the verification report.
 
 Git history and GitHub changes remain manual owner actions. S1 starts only after
 S0 review and explicit authorization.
+
+## S1 verification entrypoints
+
+Source-only checks do not start services:
+
+```powershell
+npm --prefix apps/web test
+npm --prefix apps/web run format:check
+npm --prefix apps/web run lint
+npm --prefix apps/web run typecheck
+npm --prefix apps/web run build
+python scripts/run_structure_tests.py
+```
+
+After runtime approval, the isolated development commands from the repository
+root are:
+
+```powershell
+python scripts/auth-development.py preflight
+python scripts/auth-development.py up
+python scripts/auth-development.py status
+python scripts/run-s1-acceptance.py --project desktop
+python scripts/run-s1-acceptance.py --project tablet
+python scripts/run-s1-acceptance.py --project mobile
+python scripts/run-s1-acceptance.py --project desktop --recovery
+```
+
+The recovery opt-in stops only the new identity and session services, one at a
+time. Both the test and wrapper verify restoration. The wrapper then repeats the
+full credentialed desktop lifecycle. No command deletes persistent volumes.

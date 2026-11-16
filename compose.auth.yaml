@@ -1,0 +1,69 @@
+services:
+  web:
+    environment:
+      AUTH_APP_URL: http://127.0.0.1:3020
+      AUTH_ISSUER: http://127.0.0.1:8180/realms/taskspace-portals
+      AUTH_INTERNAL_ISSUER: http://identity:8080/realms/taskspace-portals
+      AUTH_ALLOW_LOCAL_HTTP: "true"
+      AUTH_REDIS_URL: redis://:${AUTH_REDIS_PASSWORD:?Use the authentication wrapper}@auth-sessions:6379/0
+    depends_on:
+      identity:
+        condition: service_healthy
+      auth-sessions:
+        condition: service_healthy
+  identity-db:
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+    environment:
+      POSTGRES_DB: taskspace_portal_identity
+      POSTGRES_USER: taskspace_portal_identity
+      POSTGRES_PASSWORD: ${AUTH_DATABASE_PASSWORD:?Use the authentication wrapper}
+    volumes:
+      - portal_identity_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskspace_portal_identity -d taskspace_portal_identity"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  identity:
+    image: taskspace-portals-identity:26.7.5
+    build:
+      context: ./infrastructure/auth
+    command: ["start", "--optimized", "--http-enabled=true", "--import-realm"]
+    environment:
+      JAVA_OPTS_KC_HEAP: -Xms128m -Xmx512m
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://identity-db:5432/taskspace_portal_identity
+      KC_DB_USERNAME: taskspace_portal_identity
+      KC_DB_PASSWORD: ${AUTH_DATABASE_PASSWORD:?Use the authentication wrapper}
+      KC_BOOTSTRAP_ADMIN_USERNAME: portal-bootstrap
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${AUTH_BOOTSTRAP_PASSWORD:?Use the authentication wrapper}
+      KC_HOSTNAME: http://127.0.0.1:8180
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_ACCESS_LOG_ENABLED: "false"
+    ports:
+      - "127.0.0.1:8180:8080"
+    volumes:
+      - ./infrastructure/auth/realm.json:/opt/keycloak/data/import/taskspace-portals.json:ro
+      - ./infrastructure/auth/themes/taskspace:/opt/keycloak/themes/taskspace:ro
+    depends_on:
+      identity-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.0\r\n\r\n' >&3; grep -q '200 OK' <&3"]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+  auth-sessions:
+    image: redis:8.4-alpine@sha256:0514fa59e3d84e2f3be66731c5401fc2a85b8ea71b49c0116c850f6a558076f4
+    environment:
+      REDIS_PASSWORD: ${AUTH_REDIS_PASSWORD:?Use the authentication wrapper}
+    command: ["sh", "-c", "exec redis-server --requirepass $$REDIS_PASSWORD --save '' --appendonly no"]
+    ports:
+      - "127.0.0.1:6381:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  portal_identity_data:
