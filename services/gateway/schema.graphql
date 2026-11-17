@@ -30,12 +30,97 @@ type AvailableAccount {
   companyRole: String!
 }
 
+type CalendarConfiguration {
+  timezone: String!
+  week: [CalendarWeekday!]!
+  holidays: [CalendarHoliday!]!
+  exceptions: [CalendarException!]!
+}
+
+input CalendarConfigurationInput {
+  timezone: String!
+  week: [CalendarWeekdayInput!]!
+  holidays: [CalendarHolidayInput!]!
+  exceptions: [CalendarExceptionInput!]!
+}
+
+type CalendarException {
+  date: String!
+  label: String!
+  working: Boolean!
+  opens: String
+  closes: String
+}
+
+input CalendarExceptionInput {
+  date: String!
+  label: String!
+  working: Boolean!
+  opens: String = null
+  closes: String = null
+}
+
+type CalendarHistory {
+  tzdbVersion: String!
+  id: ID!
+  number: Int!
+  actorId: ID!
+  createdAt: String!
+}
+
+type CalendarHoliday {
+  date: String!
+  label: String!
+}
+
+input CalendarHolidayInput {
+  date: String!
+  label: String!
+}
+
+type CalendarWeekday {
+  weekday: Int!
+  working: Boolean!
+  opens: String
+  closes: String
+}
+
+input CalendarWeekdayInput {
+  weekday: Int!
+  working: Boolean!
+  opens: String = null
+  closes: String = null
+}
+
 input ChangeAccountInput {
   requestId: ID!
   accountId: ID!
   version: Int!
   action: String!
   role: String = null
+}
+
+type CompanyCalendarPreview {
+  tzdbVersion: String!
+  previewId: ID!
+  baseNumber: Int!
+  expiresAt: String!
+  config: CalendarConfiguration!
+  changedSections: [String!]!
+}
+
+type CompanyCalendarVersion {
+  tzdbVersion: String!
+  id: ID!
+  number: Int!
+  actorId: ID!
+  createdAt: String!
+  config: CalendarConfiguration!
+}
+
+type CompanyCalendarWorkspace {
+  current: CompanyCalendarVersion
+  history: [CalendarHistory!]!
 }
 
 input CreateAccountInput {
@@ -77,6 +162,8 @@ type ManagedEmployee {
 
 type Mutation {
   changeOrganization(input: OrganizationChangeInput!): OrganizationChangeResult!
+  previewCompanyCalendar(input: CalendarConfigurationInput!): CompanyCalendarPreview!
+  publishCompanyCalendar(input: PublishCalendarInput!): CompanyCalendarVersion!
   createAccount(input: CreateAccountInput!): AccountCommandResult!
   changeAccount(input: ChangeAccountInput!): AccountCommandResult!
   recoverAccount(input: RecoverAccountInput!): AccountCommandResult!
@@ -136,8 +223,16 @@ type ProvisioningOperation {
   failureCode: String
 }
 
+input PublishCalendarInput {
+  previewId: ID!
+  requestId: ID!
+  confirm: Boolean!
+}
+
 type Query {
   organizationWorkspace(page: Int! = 0, search: String! = ""): OrganizationWorkspace!
+  companyCalendar: CompanyCalendarWorkspace!
+  calculateWorkingDays(input: WorkingDaysInput!): WorkingDaysResult!
   viewer: Viewer!
   adminWorkspace: AdminWorkspace!
   accountAdministration(page: Int! = 0): AccountAdministration!
@@ -154,4 +249,26 @@ type Viewer {
   displayName: String!
   companyRoles: [String!]!
   permissions: [String!]!
+}
+
+input WorkingDaysInput {
+  versionId: ID!
+  start: String!
+  duration: Int!
+}
+
+type WorkingDaysResult {
+  tzdbVersion: String!
+  versionId: ID!
+  versionNumber: Int!
+  requestedStart: String!
+  effectiveStart: String!
+  adjusted: Boolean!
+  duration: Int!
+  countedDates: [String!]!
+  timezone: String!
+  startsAt: String!
+  dueAt: String!
+  dueLocal: String!
+  nextHandoff: String!
 }

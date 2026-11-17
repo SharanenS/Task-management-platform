@@ -27,6 +27,7 @@ const disposablePasswords = new Set([password]);
 let reauthenticationProved = false;
 let organizationSubject = "";
 let organizationCleanupVerified = true;
+let calendarCleanupVerified = true;
 let organizationCreatedEarliest = 0;
 let organizationCreatedLatest = 0;
 let createdEarliest = 0;
@@ -54,6 +55,7 @@ function receipt(status: string, extra: Record<string, unknown> = {}) {
         organizationCreatedEarliest,
         organizationCreatedLatest,
         organizationCleanupVerified,
+        calendarCleanupVerified,
         ...extra,
       },
       null,
@@ -497,6 +499,7 @@ test.afterAll(async () => {
   let grantsRevoked = true;
   try {
     if (userId) {
+      await cleanupCalendar();
       await cleanupOrganization();
       await cleanupManaged();
       await ownedUser();
@@ -539,6 +542,8 @@ test.afterAll(async () => {
         failure ??= new Error("Administrator grant cleanup failed");
       }
     }
+    if (!calendarCleanupVerified)
+      failure ??= new Error("Calendar cleanup failed");
     if (!organizationCleanupVerified)
       failure ??= new Error("Organization cleanup failed");
     if (!recipientCleanupVerified)
@@ -1027,6 +1032,7 @@ test("S3 administrator workspace, password change and revoked-role denial", asyn
   for (const [name, href] of [
     ["Employees", "/admin/employees"],
     ["Company structure", "/admin/organization"],
+    ["Working calendar", "/admin/calendar"],
   ] as const) {
     const link = navigation.getByRole("link", { name, exact: true });
     await expect(link).toBeVisible();
@@ -1816,6 +1822,251 @@ test("S5 company structure, directory-first reporting and verified account assoc
       JSON.stringify(diagnostic, null, 2),
     );
     throw new Error(`S5 boundary failed: ${boundary}`);
+  } finally {
+    accountFixture("role", "EMPLOYEE");
+  }
+});
+
+function calendarFixture(action: "inspect" | "cleanup") {
+  const ids = execFileSync(
+    "docker",
+    [
+      "ps",
+      "-q",
+      "--filter",
+      "label=com.docker.compose.project=taskspace-portals-development",
+      "--filter",
+      "label=com.docker.compose.service=project-work",
+    ],
+    { encoding: "utf8" },
+  )
+    .trim()
+    .split(/\s+/);
+  if (ids.length !== 1 || !/^[a-f0-9]{12,64}$/.test(ids[0]))
+    throw new Error("Calendar service ownership ambiguous");
+  const item = JSON.parse(
+    execFileSync("docker", ["inspect", ids[0]], { encoding: "utf8" }),
+  )[0];
+  if (
+    item.Config.Labels["com.docker.compose.project"] !==
+      "taskspace-portals-development" ||
+    item.Config.Labels["com.docker.compose.service"] !== "project-work" ||
+    item.State.Health.Status !== "healthy"
+  )
+    throw new Error("Calendar service ownership or health mismatch");
+  return JSON.parse(
+    execFileSync(
+      "docker",
+      [
+        "exec",
+        "-i",
+        ids[0],
+        "python",
+        "-c",
+        readFileSync(
+          resolve("../../tests/working_calendar/fixture.py"),
+          "utf8",
+        ),
+      ],
+      { input: JSON.stringify({ runId, action }), encoding: "utf8" },
+    ),
+  );
+}
+async function cleanupCalendar() {
+  if (calendarCleanupVerified) return;
+  await ownedUser();
+  expect(calendarFixture("cleanup").cleaned).toBe(true);
+  const after = calendarFixture("inspect");
+  expect(after.versions.length === 0 && after.previews === 0).toBe(true);
+  calendarCleanupVerified = true;
+  receipt("calendar-cleaned");
+}
+
+test("S6 versioned working calendar, approved counting and administrator-only publication", async ({
+  page,
+  context,
+}) => {
+  let boundary = "calendar entry";
+  calendarCleanupVerified = false;
+  receipt("calendar-started");
+  try {
+    accountFixture("role", "ADMIN");
+    await login(page);
+    const baselineNumber = calendarFixture("inspect").currentNumber;
+    await page.goto("/admin/calendar");
+    await expect(
+      page.getByRole("heading", { name: "Working calendar", exact: true }),
+    ).toBeVisible();
+    await page.getByLabel("Company timezone", { exact: true }).fill("Etc/UTC");
+    for (const day of [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+    ]) {
+      await page.getByLabel(`${day} working`, { exact: true }).check();
+      await page.getByLabel(`${day} opens`, { exact: true }).fill("09:00");
+      await page.getByLabel(`${day} closes`, { exact: true }).fill("17:00");
+    }
+    for (const day of ["Saturday", "Sunday"])
+      await page.getByLabel(`${day} working`, { exact: true }).uncheck();
+    while (await page.getByRole("button", { name: /^Remove holiday / }).count())
+      await page
+        .getByRole("button", { name: /^Remove holiday / })
+        .first()
+        .click();
+    while (
+      await page.getByRole("button", { name: /^Remove exception / }).count()
+    )
+      await page
+        .getByRole("button", { name: /^Remove exception / })
+        .first()
+        .click();
+    await page
+      .getByRole("button", { name: "Add holiday", exact: true })
+      .click();
+    await page.getByLabel("Holiday 1 date", { exact: true }).fill("2099-12-31");
+    await page
+      .getByLabel("Holiday 1 name", { exact: true })
+      .fill(`Calendar acceptance ${runId}`);
+    boundary = "preview and confirmed publication";
+    await page
+      .getByRole("button", { name: "Preview calendar changes", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", {
+        name: "Review calendar changes",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: "Publish calendar version",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await page.getByLabel("I confirm this calendar publication").check();
+    await page
+      .getByRole("button", { name: "Publish calendar version", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", {
+        name: `Edit from version ${baselineNumber + 1}`,
+        exact: true,
+      }),
+    ).toBeVisible();
+    const first = calendarFixture("inspect").versions[0];
+    boundary = "approved working-day calculation";
+    await page.getByLabel("Planned start", { exact: true }).fill("2026-11-20");
+    await page.getByLabel("Working days", { exact: true }).fill("3");
+    await page
+      .getByRole("button", { name: "Calculate dates", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toContainText(
+      "2026-11-24T17:00:00+00:00",
+    );
+    boundary = "new version preserves old calculation";
+    await page
+      .getByRole("button", { name: "Add holiday", exact: true })
+      .click();
+    await page.getByLabel("Holiday 2 date", { exact: true }).fill("2026-11-23");
+    await page
+      .getByLabel("Holiday 2 name", { exact: true })
+      .fill(`Calendar holiday ${runId}`);
+    await page
+      .getByRole("button", { name: "Preview calendar changes", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", {
+        name: "Review calendar changes",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.getByLabel("I confirm this calendar publication").check();
+    await page
+      .getByRole("button", { name: "Publish calendar version", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", {
+        name: `Edit from version ${first.number + 1}`,
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.getByLabel("Planned start", { exact: true }).fill("2026-11-20");
+    await page.getByLabel("Working days", { exact: true }).fill("3");
+    await page
+      .getByRole("button", { name: "Calculate dates", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toContainText(
+      "2026-11-25T17:00:00+00:00",
+    );
+    await page
+      .getByLabel("Calendar version", { exact: true })
+      .selectOption(first.id);
+    await page
+      .getByRole("button", { name: "Calculate dates", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toContainText(
+      "2026-11-24T17:00:00+00:00",
+    );
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    boundary = "calendar authorization and request origin";
+    expect(
+      (
+        await context.request.post(`${appOrigin}/admin/calendar/command`, {
+          headers: { Origin: "http://untrusted.invalid" },
+          data: { action: "publish", input: {} },
+        })
+      ).status(),
+    ).toBe(403);
+    const token = await ownAccessToken(context);
+    for (const role of ["EMPLOYEE", "MANAGER", "HR"]) {
+      accountFixture("role", role);
+      const denied = await context.request.post(
+        "http://127.0.0.1:8020/graphql",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "X-Actor-Role": "ADMIN",
+          },
+          data: { query: "{ companyCalendar { current { id } } }" },
+        },
+      );
+      expect((await denied.json()).errors[0].extensions.code).toBe("FORBIDDEN");
+      await page.goto("/admin/calendar");
+      await expect(page).toHaveURL(new URL("/access-denied", appOrigin).href);
+    }
+    boundary = "calendar scoped cleanup";
+    await cleanupCalendar();
+  } catch (error) {
+    let message =
+      error instanceof Error ? error.message : "Calendar boundary failed";
+    for (const secret of [...disposablePasswords, ...Object.values(secrets)])
+      message = message.split(secret).join("[private]");
+    message = message
+      .replace(/https?:\/\/[^\s<>]+/g, "[address omitted]")
+      .slice(0, 2000);
+    mkdirSync(resolve("../../test-results/reports/s6"), { recursive: true });
+    writeFileSync(
+      resolve(`../../test-results/reports/s6/${runId}.json`),
+      JSON.stringify(
+        {
+          stage: boundary,
+          message,
+          project: test.info().project.name,
+          status: "failed",
+          applicationOrigin: new URL(page.url()).origin === appOrigin,
+        },
+        null,
+        2,
+      ),
+    );
+    throw new Error(`S6 boundary failed: ${boundary}`);
   } finally {
     accountFixture("role", "EMPLOYEE");
   }

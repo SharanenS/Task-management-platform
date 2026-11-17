@@ -4,14 +4,13 @@ Taskspace is being rebuilt as a portal-oriented corporate project and employee
 management platform using Next.js, React, TypeScript, Python, FastAPI, Strawberry
 GraphQL, PostgreSQL, Keycloak, Redis, RabbitMQ and Celery where required.
 
-S0 through S4 are merged. S5 adds shared departments, job titles, reporting
-relationships and optional employee/account associations. Employees may exist
-before a login account; titles and reporting changes never grant company roles.
-S5 migration and local PostgreSQL/desktop/tablet/mobile acceptance are verified;
-the owner reported a successful website review; source review and remote CI remain pending.
-See [S5 verification](docs/s5-verification.md) for current evidence and limits.
-Gmail uses dailygotasks@gmail.com; the owner reported activation receipt and
-first-login success. Real Gmail reset-link checks remain on the pre-final checklist.
+S0 through S5 are merged. S6 introduces the versioned company working calendar
+in the project-work service. Counting rules were approved on 17 November 2026;
+source, migration, PostgreSQL concurrency and desktop/tablet/mobile acceptance
+are locally verified. The owner confirmed the working calendar works; source
+review and remote CI remain pending. See [S6 verification](docs/s6-verification.md)
+and [approved calendar rules](docs/s6-calendar-rules.md).
+Gmail remains configured as dailygotasks@gmail.com; no S6 test sends real email.
 
 ## Source layout
 
@@ -19,6 +18,7 @@ first-login success. Real Gmail reset-link checks remain on the pre-final checkl
 | --- | --- |
 | apps/web | Independent authentication interface and server-side session boundary |
 | services/gateway | Public GraphQL account-entry API and verified identity orchestration |
+| services/project-work | Versioned company calendar and approved working-day calculations; future work-domain owner |
 | services/people | Authoritative accounts, employee associations and company-role grants |
 | packages/security | Shared provider JWT validation; no business data ownership |
 | legacy/frontend | Accepted baseline frontend used by historical verification |

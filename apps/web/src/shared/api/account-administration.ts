@@ -4,6 +4,11 @@ import type { TypedDocumentNode } from "@graphql-typed-document-node/core";
 import type { Session } from "@/shared/auth/policy";
 import { AccountDenied } from "./account-entry";
 export class AccountChangeRejected extends Error {}
+export class CalendarChangeRejected extends Error {
+  constructor(readonly reason: string) {
+    super("Calendar request rejected");
+  }
+}
 export async function administrationRequest<T, V>(
   session: Session,
   document: TypedDocumentNode<T, V>,
@@ -53,6 +58,14 @@ export async function administrationRequest<T, V>(
     )
   )
     throw new AccountChangeRejected();
+  const calendarError = value.errors?.find(
+    (e: { extensions?: { code?: string; reason?: string } }) =>
+      e.extensions?.code === "CALENDAR_REJECTED",
+  );
+  if (calendarError)
+    throw new CalendarChangeRejected(
+      String(calendarError.extensions?.reason ?? "calendar_rejected"),
+    );
   if (value.errors || !value.data)
     throw new Error("Account service unavailable");
   return value.data;

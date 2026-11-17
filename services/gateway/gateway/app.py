@@ -15,6 +15,7 @@ from strawberry.types import Info
 from taskspace_security.settings import SecuritySettings
 from taskspace_security.tokens import TokenVerifier
 
+from .calendar_schema import CalendarMutation, CalendarQuery
 from .organization_schema import OrganizationMutation, OrganizationQuery
 
 
@@ -105,16 +106,17 @@ class RecoverAccountInput:
 
 
 class ActorContext(BaseContext):
-    def __init__(self, viewer, load_admin_workspace, administer, organization):
+    def __init__(self, viewer, load_admin_workspace, administer, organization, calendar):
         super().__init__()
         self.viewer = viewer
         self.load_admin_workspace = load_admin_workspace
         self.administer = administer
         self.organization = organization
+        self.calendar = calendar
 
 
 @strawberry.type
-class Query(OrganizationQuery):
+class Query(OrganizationQuery, CalendarQuery):
     @strawberry.field
     def viewer(self, info: Info[ActorContext, None]) -> Viewer:
         return info.context.viewer
@@ -147,7 +149,7 @@ class Query(OrganizationQuery):
 
 
 @strawberry.type
-class Mutation(OrganizationMutation):
+class Mutation(OrganizationMutation, CalendarMutation):
     @strawberry.mutation
     async def create_account(
         self, info: Info[ActorContext, None], input: CreateAccountInput
@@ -346,7 +348,95 @@ def create_app(settings=None, verifier=None, transport=None):
         async def organization(command, value):
             return await administer(command, value, "organization")
 
-        return ActorContext(viewer, load_admin_workspace, administer, organization)
+        async def calendar(command, value):
+            if viewer.company_roles != ["ADMIN"]:
+                raise GraphQLError("Access denied", extensions={"code": "FORBIDDEN"})
+            origin = os.environ.get("PROJECT_WORK_URL", "http://project-work:8000")
+            boundary = urlsplit(origin)
+            local = os.environ.get("AUTH_ALLOW_LOCAL_HTTP") == "true"
+            if (
+                boundary.username
+                or boundary.password
+                or boundary.query
+                or boundary.fragment
+                or boundary.path not in {"", "/"}
+                or not boundary.netloc
+                or (
+                    boundary.scheme != "https"
+                    and not (local and origin == "http://project-work:8000")
+                )
+            ):
+                raise GraphQLError(
+                    "Service unavailable", extensions={"code": "SERVICE_UNAVAILABLE"}
+                )
+            try:
+                key = os.environ["PROJECT_WORK_SERVICE_KEY"]
+                if len(key) < 43:
+                    raise ValueError()
+                async with httpx.AsyncClient(
+                    timeout=20, transport=transport, follow_redirects=False
+                ) as client:
+                    headers = {"Authorization": authorization, "X-Service-Key": key}
+                    if command == "workspace":
+                        response = await client.get(
+                            origin.rstrip("/") + "/internal/admin/calendar", headers=headers
+                        )
+                    else:
+                        response = await client.post(
+                            origin.rstrip("/") + "/internal/admin/calendar/" + command,
+                            json=value,
+                            headers=headers,
+                        )
+                if response.status_code in {401, 403}:
+                    raise GraphQLError("Access denied", extensions={"code": "FORBIDDEN"})
+                if response.status_code in {400, 404, 409, 422}:
+                    reasons = {
+                        "invalid_calendar",
+                        "invalid_timezone",
+                        "invalid_week",
+                        "invalid_working_hours",
+                        "non_working_hours",
+                        "invalid_working_status",
+                        "no_regular_working_day",
+                        "invalid_special_dates",
+                        "invalid_date",
+                        "invalid_label",
+                        "duplicate_special_date",
+                        "invalid_duration",
+                        "ambiguous_or_nonexistent_time",
+                        "unsupported_schedule_window",
+                        "unsupported_timezone_version",
+                        "preview_expired",
+                        "stale_calendar_preview",
+                        "preview_not_owned",
+                        "preview_already_published",
+                        "request_conflict",
+                        "confirmation_required",
+                        "no_calendar_changes",
+                        "calendar_version_not_found",
+                        "invalid_identifier",
+                        "invalid_calendar_preview",
+                    }
+                    reason = response.json().get("detail")
+                    raise GraphQLError(
+                        "Calendar change or calculation rejected",
+                        extensions={
+                            "code": "CALENDAR_REJECTED",
+                            "reason": reason
+                            if isinstance(reason, str) and reason in reasons
+                            else "calendar_rejected",
+                        },
+                    )
+                response.raise_for_status()
+                return response.json()
+            except GraphQLError:
+                raise
+            except Exception:
+                raise GraphQLError(
+                    "Service unavailable", extensions={"code": "SERVICE_UNAVAILABLE"}
+                ) from None
+
+        return ActorContext(viewer, load_admin_workspace, administer, organization, calendar)
 
     app.include_router(
         GraphQLRouter(
