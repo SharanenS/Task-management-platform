@@ -38,8 +38,7 @@ def create_app(settings=None, sessions=None, verifier=None):
         except Exception:
             raise HTTPException(503, "Service unavailable") from None
 
-    @app.get("/internal/actor")
-    def actor(request: Request):
+    def current_actor(request: Request):
         service_key = request.headers.get("x-service-key", "")
         if not service_key.isascii() or not compare_digest(service_key, settings.service_key):
             raise HTTPException(401, "Authentication required")
@@ -53,11 +52,22 @@ def create_app(settings=None, sessions=None, verifier=None):
         try:
             with sessions() as session:
                 value = resolve_actor(session, identity)
-                return asdict(value)
+                return value
         except AccessDenied:
             raise HTTPException(403, "Access denied") from None
         except Exception:
             raise HTTPException(503, "Service unavailable") from None
+
+    @app.get("/internal/actor")
+    def actor(request: Request):
+        return asdict(current_actor(request))
+
+    @app.get("/internal/admin/workspace")
+    def admin_workspace(request: Request):
+        actor = current_actor(request)
+        if actor.company_roles != ("ADMIN",) or "admin:workspace:read" not in actor.permissions:
+            raise HTTPException(403, "Access denied")
+        return asdict(actor)
 
     @app.middleware("http")
     async def private_responses(request, call_next):

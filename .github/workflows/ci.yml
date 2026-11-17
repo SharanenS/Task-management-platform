@@ -457,6 +457,8 @@ jobs:
         run: python scripts/run-s1-acceptance.py --project tablet
       - name: Verify mobile authentication
         run: python scripts/run-s1-acceptance.py --project mobile
+      - name: Verify fresh initial administrator provisioning and repeat safety
+        run: python scripts/initial-admin.py --verify --expect-created
       - name: Verify isolated authentication recovery
         run: python scripts/run-s1-acceptance.py --project desktop --recovery
       - name: Stop only the isolated authentication services

@@ -48,6 +48,11 @@ export async function GET(request: NextRequest) {
       !tokens.expires_in
     )
       throw new Error("Invalid identity response");
+    if (
+      transaction.expectedSubject &&
+      claims.sub !== transaction.expectedSubject
+    )
+      throw new Error("Identity action subject mismatch");
     const ttl = sessionLifetime(tokens.expires_in, claims.exp);
     if (ttl < 1) throw new Error("Expired identity response");
     const old = request.cookies.get(c.sessionCookie)?.value;

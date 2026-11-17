@@ -62,12 +62,16 @@ def test_missing_and_wrong_issuer_cannot_claim_existing_account(sessions):
 
 
 @pytest.mark.parametrize("role", ["ADMIN", "MANAGER", "EMPLOYEE", "HR"])
-def test_company_role_only_grants_own_account_read(sessions, role):
+def test_company_role_grants_only_implemented_non_project_capabilities(sessions, role):
     with sessions() as s:
         identity = provision(s, role=role)
         actor = resolve_actor(s, identity)
         assert actor.company_roles == (role,)
-        assert actor.permissions == ("account:self:read",)
+        assert actor.permissions == (
+            ("account:self:read", "admin:workspace:read")
+            if role == "ADMIN"
+            else ("account:self:read",)
+        )
 
 
 def test_changes_are_observed_without_reissuing_identity_token(sessions):

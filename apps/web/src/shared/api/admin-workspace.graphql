@@ -1,0 +1,11 @@
+query AdminWorkspace {
+  adminWorkspace {
+    viewer {
+      accountId
+      employeeId
+      displayName
+      companyRoles
+      permissions
+    }
+  }
+}

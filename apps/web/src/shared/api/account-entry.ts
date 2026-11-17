@@ -1,13 +1,14 @@
 import "server-only";
 import { print } from "graphql";
-import { AccountEntryDocument } from "./generated";
+import { AccountEntryDocument, AdminWorkspaceDocument } from "./generated";
 import type { Session } from "@/shared/auth/policy";
-import type { AccountEntryQuery } from "./generated";
+import type { AccountEntryQuery, AdminWorkspaceQuery } from "./generated";
 
 export class AccountDenied extends Error {}
-export async function accountEntry(
+async function execute(
   session: Session,
-): Promise<AccountEntryQuery["viewer"]> {
+  document: typeof AccountEntryDocument | typeof AdminWorkspaceDocument,
+) {
   const endpoint = new URL(
     process.env.ACCOUNT_GRAPHQL_URL ?? "http://gateway:8000/graphql",
   );
@@ -32,14 +33,22 @@ export async function accountEntry(
       "Content-Type": "application/json",
       Authorization: `Bearer ${session.accessToken}`,
     },
-    body: JSON.stringify({ query: print(AccountEntryDocument) }),
+    body: JSON.stringify({ query: print(document) }),
     signal: AbortSignal.timeout(5000),
   });
   if (response.status === 401 || response.status === 403)
     throw new AccountDenied();
   if (!response.ok) throw new Error("Account service unavailable");
   const result = await response.json();
-  const actor = result.data?.viewer;
+  if (
+    result.errors?.some(
+      (error: { extensions?: { code?: string } }) =>
+        error.extensions?.code === "FORBIDDEN",
+    )
+  )
+    throw new AccountDenied();
+  if (result.errors) throw new Error("Account service unavailable");
+  const actor = result.data?.viewer ?? result.data?.adminWorkspace?.viewer;
   if (
     result.errors ||
     !actor ||
@@ -54,9 +63,22 @@ export async function accountEntry(
         ["ADMIN", "MANAGER", "EMPLOYEE", "HR"].includes(role),
     ) ||
     !Array.isArray(actor.permissions) ||
-    actor.permissions.length !== 1 ||
-    actor.permissions[0] !== "account:self:read"
+    actor.permissions.join(",") !==
+      (actor.companyRoles[0] === "ADMIN"
+        ? "account:self:read,admin:workspace:read"
+        : "account:self:read")
   )
     throw new Error("Invalid account response");
   return actor;
+}
+
+export async function accountEntry(
+  session: Session,
+): Promise<AccountEntryQuery["viewer"]> {
+  return execute(session, AccountEntryDocument);
+}
+export async function adminWorkspace(
+  session: Session,
+): Promise<AdminWorkspaceQuery["adminWorkspace"]["viewer"]> {
+  return execute(session, AdminWorkspaceDocument);
 }

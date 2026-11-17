@@ -43,8 +43,10 @@ test("store keys do not expose the browser session identifier", () => {
   assert.ok(!storageKey("session", id).includes(id));
   assert.notEqual(storageKey("session", id), storageKey("transaction", id));
 });
-test("return destinations cannot escape the implemented authenticated page", () => {
+test("return destinations are restricted to implemented authentication targets", () => {
+  assert.equal(returnPath("/admin/security"), "/admin/security");
   for (const path of [
+    "/admin/security?next=evil",
     "https://evil.invalid",
     "//evil.invalid",
     "/\\evil.invalid",
@@ -165,4 +167,29 @@ test("session-store failure is never replaced by an authenticated fallback", asy
     throw new Error("offline");
   };
   await assert.rejects(readSession(store, identifier()));
+});
+
+test("identity actions retain a valid subject binding and reject malformed bindings", async () => {
+  for (const expectedSubject of ["verified-person", "", false, 123]) {
+    const { store } = memory();
+    const id = identifier();
+    await store.put(
+      storageKey("transaction", id),
+      JSON.stringify({
+        state: "state",
+        nonce: "nonce",
+        verifier: "verifier",
+        returnTo: "/admin/security",
+        createdAt: 1000,
+        expectedSubject,
+      }),
+      300,
+    );
+    if (expectedSubject === "verified-person") {
+      assert.equal(
+        (await consumeTransaction(store, id, "state", 1001)).expectedSubject,
+        "verified-person",
+      );
+    } else await assert.rejects(consumeTransaction(store, id, "state", 1001));
+  }
 });

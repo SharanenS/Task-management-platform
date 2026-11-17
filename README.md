@@ -4,9 +4,10 @@ Taskspace is being rebuilt as a portal-oriented corporate project and employee
 management platform using Next.js, React, TypeScript, Python, FastAPI, Strawberry
 GraphQL, PostgreSQL, Keycloak, Redis, RabbitMQ and Celery where required.
 
-S0 source isolation and S1 authentication are merged. S2 adds authoritative
-account/profile association and server-side company-role checks. S2 is locally verified;
-owner review and remote CI remain. See docs/s2-verification.md. Functional portals remain later stages.
+S0 source isolation, S1 authentication and S2 account-entry permissions are merged.
+S3 adds the administrator portal and safe initial administrator provisioning.
+S3 is locally verified; owner review and remote CI remain. See docs/s3-verification.md.
+Full account/role administration belongs to S4.
 
 ## Source layout
 
@@ -147,3 +148,31 @@ new-realm client API-audience mapper and revokes its bootstrap grant. Existing
 identity accounts are not automatically associated with application profiles.
 Use `python scripts/verify-account-entry-postgres.py` after approved startup to
 verify migration parity and constraint probes which are always rolled back.
+
+## S3 administrator portal
+
+The implemented administrator routes are /admin, /admin/profile and /admin/security.
+Current ADMIN authority is checked independently by the pages, GraphQL gateway
+and private people service. The security entry uses the identity provider's own
+reauthentication/password form; application JavaScript never receives passwords.
+
+After explicit runtime/migration approval, start the stack using the account-entry
+wrapper above, then provision the initial application administrator explicitly:
+
+```powershell
+python scripts/initial-admin.py --verify
+```
+
+The configurable username defaults to ADMIN. Its generated temporary credential
+is private in .local/admin/initial-admin.json and must be changed on first login.
+Existing administrators and changed passwords are preserved. The operator command
+never resets an existing identity's password or automatically promotes an unrelated
+identity. The new migration records ownership so interrupted setup can resume
+without duplicating accounts. Ordinary service startup never resets credentials.
+
+The combined browser wrapper now requires seven cases, including admin navigation,
+forced first-login password change, self-service password change, current-role
+authorization and repeated provisioning safety. Runtime and provisioning approval
+is required before these tests; only verified disposable identities are reset or
+deleted. The dedicated initial account remains for manual review. See the S3
+verification record for exact results, scope, private credential retrieval and limits.
