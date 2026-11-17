@@ -176,3 +176,46 @@ $initialAdministrator.temporaryPassword
 Complete the required password change before entering the portal. If a previous
 review account is still signed in, sign it out first. The private file retains
 the initial password only; it does not track your replacement password.
+
+## CI dependency advisory correction — 17 November 2026
+
+The supplied S3 PR run passed authentication/recovery, account entry, static/unit,
+GraphQL, PostgreSQL, browser acceptance and reliability jobs. Both portal structure
+and retained dependency audit jobs failed on GHSA-mfr8-8qww-v76h; the aggregate gate
+correctly failed as a consequence. This is a dependency audit boundary, not an
+authentication or provisioning failure. The advisory database entry was published
+on 16 November, after the earlier clean local audit evidence.
+
+Both apps/web and legacy/frontend pinned Next.js 16.4.3. Their exact production
+pins and lockfiles now use 16.4.6. Only Next.js, its environment package and matching
+SWC runtime entries changed; unrelated cross-platform optional entries were
+preserved. No audit threshold, CI job, authorization rule or cleanup check changed.
+This narrow retained-frontend dependency correction supplements the original S3
+implementation; no legacy application behavior or data was changed.
+
+[Advisory GHSA-mfr8-8qww-v76h](https://github.com/advisories/GHSA-mfr8-8qww-v76h)
+lists versions through 16.4.4 as affected and 16.4.5 as the first patched version.
+The installed 16.4.6 pins are outside that range. Both final production lockfile
+audits report zero vulnerabilities. Local authentication tests passed 22/22,
+retained frontend unit tests 84/84 and structure tests 14/14, all with zero skips.
+Both applications passed lint, typecheck and changed dependency-file formatting.
+Both portal and retained frontend production builds passed on 16.4.6.
+
+Initial package downloads timed out; subsequent installs completed and installed
+versions were checked explicitly. One restricted local protocol-test run could not
+connect to its mock server; a rerun with local network access passed all 22 cases.
+No test assertion or timeout was changed to accommodate either condition.
+
+The running Docker images were not rebuilt or recreated for this correction.
+Earlier browser acceptance evidence applies to the prior image; patched-image
+browser acceptance and the final aggregate gate require the new remote CI run.
+No credentials, volumes, administrator passwords or product plan were changed.
+All correction files remain unstaged for owner review.
+
+The exact retained test-audit.sh invocation passed its npm audit, then stalled
+bootstrapping a temporary pip environment (pip install --upgrade pip wheel
+setuptools) before a Python audit result. That invocation was stopped and is not
+recorded as a full-script pass. Direct fully pinned Python lockfile auditing was
+run separately with --disable-pip --no-deps, without pip environment bootstrap.
+All seven retained Python lockfiles reported no known vulnerabilities. This checks
+the explicitly pinned packages; it does not replace a successful full-script CI run.
