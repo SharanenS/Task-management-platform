@@ -14,7 +14,9 @@ export function storageKey(kind: "session" | "transaction", id: string) {
   return `taskspace:portals:auth:v1:${kind}:${createHash("sha256").update(id).digest("hex")}`;
 }
 export function returnPath(value: string | null | undefined) {
-  return value === "/auth/ready" ? value : "/auth/ready";
+  return value === "/auth/ready" || value === "/admin/security"
+    ? value
+    : "/auth/ready";
 }
 export function sameOrigin(origin: string | null, expected: string) {
   return origin === expected;
@@ -46,6 +48,7 @@ export type Transaction = {
   verifier: string;
   returnTo: string;
   createdAt: number;
+  expectedSubject?: string;
 };
 export interface Store {
   put(key: string, value: string, ttl: number): Promise<void>;
@@ -98,6 +101,8 @@ export async function consumeTransaction(
     state !== value.state ||
     typeof value.nonce !== "string" ||
     typeof value.verifier !== "string" ||
+    (value.expectedSubject !== undefined &&
+      (typeof value.expectedSubject !== "string" || !value.expectedSubject)) ||
     !Number.isFinite(value.createdAt) ||
     value.createdAt > now ||
     now - value.createdAt >= TRANSACTION_TTL * 1000

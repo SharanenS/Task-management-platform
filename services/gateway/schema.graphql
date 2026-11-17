@@ -1,5 +1,10 @@
+type AdminWorkspace {
+  viewer: Viewer!
+}
+
 type Query {
   viewer: Viewer!
+  adminWorkspace: AdminWorkspace!
 }
 
 type Viewer {

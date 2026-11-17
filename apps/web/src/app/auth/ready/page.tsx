@@ -30,6 +30,7 @@ export default async function ReadyPage() {
       );
     redirect("/session-unavailable");
   }
+  if (actor.companyRoles[0] === "ADMIN") redirect("/admin");
   return (
     <AuthFrame
       eyebrow="SIGNED IN"

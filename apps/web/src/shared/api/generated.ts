@@ -18,8 +18,14 @@ export type Scalars = {
   Float: { input: number; output: number };
 };
 
+export type AdminWorkspace = {
+  __typename?: "AdminWorkspace";
+  viewer: Viewer;
+};
+
 export type Query = {
   __typename?: "Query";
+  adminWorkspace: AdminWorkspace;
   viewer: Viewer;
 };
 
@@ -41,6 +47,20 @@ export type AccountEntryQuery = {
     displayName: string;
     companyRoles: Array<string>;
     permissions: Array<string>;
+  };
+};
+
+export type AdminWorkspaceQueryVariables = Exact<{ [key: string]: never }>;
+
+export type AdminWorkspaceQuery = {
+  adminWorkspace: {
+    viewer: {
+      accountId: string;
+      employeeId: string;
+      displayName: string;
+      companyRoles: Array<string>;
+      permissions: Array<string>;
+    };
   };
 };
 
@@ -76,3 +96,56 @@ export const AccountEntryDocument = {
     },
   ],
 } as unknown as DocumentNode<AccountEntryQuery, AccountEntryQueryVariables>;
+export const AdminWorkspaceDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "AdminWorkspace" },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "adminWorkspace" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "viewer" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "accountId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "employeeId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "displayName" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "companyRoles" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "permissions" },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<AdminWorkspaceQuery, AdminWorkspaceQueryVariables>;

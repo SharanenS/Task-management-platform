@@ -44,6 +44,19 @@ class RepositoryStructureTests(unittest.TestCase):
             any("S2 account-entry CI gate" in e for e in structure.check_repository(self.fixture))
         )
 
+    def test_initial_administrator_ci_acceptance_cannot_be_removed(self) -> None:
+        ci = self.fixture / ".github/workflows/ci.yml"
+        ci.write_text(
+            ci.read_text().replace(
+                "python scripts/initial-admin.py --verify --expect-created", "echo omitted"
+            )
+        )
+        self.assertTrue(
+            any(
+                "S3 initial administrator CI" in e for e in structure.check_repository(self.fixture)
+            )
+        )
+
     def test_current_repository_has_valid_boundaries(self) -> None:
         self.assertEqual(structure.check_repository(ROOT), [])
 

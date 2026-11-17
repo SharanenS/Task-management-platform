@@ -17,6 +17,9 @@ LEGACY_JOBS = (
     "reliability-and-recovery",
 )
 REQUIRED_FILES = (
+    "scripts/initial-admin.py",
+    "apps/web/src/app/admin/layout.tsx",
+    "services/people/migrations/versions/0002_initial_admin.py",
     "compose.auth.yaml",
     "scripts/run-s1-acceptance.py",
     "apps/web/src/shared/auth/policy.ts",
@@ -120,6 +123,8 @@ def check_repository(root: Path) -> list[str]:
         errors.append("S1 authentication CI gate is missing")
     if "needs.s2-account-entry.result" not in ci or "  s2-account-entry:" not in ci:
         errors.append("S2 account-entry CI gate is missing")
+    if "python scripts/initial-admin.py --verify --expect-created" not in ci:
+        errors.append("S3 initial administrator CI acceptance is missing")
     if "needs.s0-structure.result" not in ci:
         errors.append("S0 CI gate is missing from mandatory result validation")
     for match in re.finditer(r"cache-dependency-path:\s*([^\n]+)", ci):

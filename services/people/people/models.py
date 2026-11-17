@@ -49,3 +49,20 @@ class CompanyRoleGrant(Base):
     )
     role: Mapped[str] = mapped_column(String(16), primary_key=True)
     account: Mapped[Account] = relationship(back_populates="grants")
+
+
+class InitialAdminProvisioning(Base):
+    __tablename__ = "initial_admin_provisioning"
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('PENDING_IDENTITY', 'IDENTITY_CREATED', 'COMPLETE')",
+            name="ck_admin_provisioning_state",
+        ),
+    )
+    key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    operation_id: Mapped[str] = mapped_column(String(36), unique=True)
+    username: Mapped[str] = mapped_column(String(100))
+    email_marker: Mapped[str] = mapped_column(String(254))
+    subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    state: Mapped[str] = mapped_column(String(32))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

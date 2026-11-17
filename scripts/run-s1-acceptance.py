@@ -36,8 +36,11 @@ def main() -> int:
     parser.add_argument("--project", choices=("desktop", "tablet", "mobile"), default="desktop")
     parser.add_argument("--recovery", action="store_true")
     parser.add_argument("--account-entry-only", action="store_true")
+    parser.add_argument("--admin-only", action="store_true")
     args = parser.parse_args()
-    if args.recovery and args.account_entry_only:
+    if (args.recovery and (args.account_entry_only or args.admin_only)) or (
+        args.account_entry_only and args.admin_only
+    ):
         raise RuntimeError("Account entry focus cannot run outages")
     receipt_dir = ROOT / ".local/auth/runs"
     prior_receipts = set(receipt_dir.glob("*.json"))
@@ -87,6 +90,7 @@ def main() -> int:
                 "--workers=1",
                 "--retries=0",
                 *(["--grep", "S2 current account status"] if args.account_entry_only else []),
+                *(["--grep", "S3 administrator workspace"] if args.admin_only else []),
             ],
             cwd=ROOT / "apps/web",
             env=env,
@@ -142,7 +146,7 @@ def main() -> int:
             flush=True,
         )
     report = json.loads((ROOT / "apps/web/test-results/s1-acceptance.json").read_text())
-    expected = 1 if args.account_entry_only else (2 if args.recovery else 6)
+    expected = 1 if (args.account_entry_only or args.admin_only) else (2 if args.recovery else 7)
     if (
         code
         or report["status"] != "passed"
@@ -154,7 +158,9 @@ def main() -> int:
     destination = ROOT / "test-results/reports/s1"
     destination.mkdir(parents=True, exist_ok=True)
     scope = (
-        "account-entry"
+        "admin"
+        if args.admin_only
+        else "account-entry"
         if args.account_entry_only
         else ("recovery" if args.recovery else "lifecycle")
     )

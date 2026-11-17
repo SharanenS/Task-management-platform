@@ -19,6 +19,7 @@ let adminId = "";
 const runId = randomUUID();
 const username = `s1-${runId}`;
 const password = randomBytes(32).toString("base64url");
+const disposablePasswords = new Set([password]);
 let reauthenticationProved = false;
 let createdEarliest = 0;
 let createdLatest = 0;
@@ -155,7 +156,49 @@ function accountFixture(action: string, value?: string | boolean | null) {
   );
   return JSON.parse(output);
 }
-async function login(page: import("@playwright/test").Page, invalid = false) {
+async function ownAccessToken(
+  context: import("@playwright/test").BrowserContext,
+) {
+  const cookie = (await context.cookies(appOrigin)).find(
+    (value) => value.name === "taskspace_session",
+  );
+  expect(Boolean(cookie)).toBe(true);
+  const client = createClient({
+    url: `redis://:${secrets.AUTH_REDIS_PASSWORD}@127.0.0.1:6381/0`,
+  });
+  client.on("error", () => {});
+  await client.connect();
+  try {
+    const raw = await client.get(storageKey("session", cookie!.value));
+    expect(Boolean(raw)).toBe(true);
+    const value = JSON.parse(raw!);
+    expect(value.subject === userId).toBe(true);
+    return value.accessToken as string;
+  } finally {
+    await client.quit();
+  }
+}
+async function captureAdmin(
+  page: import("@playwright/test").Page,
+  name: string,
+) {
+  if (process.env.S3_CAPTURE_ADMIN !== "1") return;
+  const directory = resolve(
+    "../../.local/admin/screens",
+    runId,
+    test.info().project.name,
+  );
+  mkdirSync(directory, { recursive: true });
+  await page.screenshot({
+    path: resolve(directory, `${name}.png`),
+    fullPage: true,
+  });
+}
+async function login(
+  page: import("@playwright/test").Page,
+  invalid = false,
+  credential = password,
+) {
   await page.goto("/sign-in");
   await page.getByRole("button", { name: "Continue to sign in" }).click();
   await expect
@@ -172,7 +215,7 @@ async function login(page: import("@playwright/test").Page, invalid = false) {
   }
   await page
     .locator("#password")
-    .fill(invalid ? "incorrect-disposable-password" : password);
+    .fill(invalid ? "incorrect-disposable-password" : credential);
   await page.locator("#kc-login").click();
 }
 test.beforeAll(async () => {
@@ -240,7 +283,11 @@ test.afterEach(async ({ context, page }, info) => {
           /\b(?:code|state|nonce|session_state|id_token|access_token|session_code)=\S+/g,
           "[protocol parameter omitted]",
         );
-      for (const value of [username, password, ...Object.values(secrets)])
+      for (const value of [
+        username,
+        ...disposablePasswords,
+        ...Object.values(secrets),
+      ])
         text = text.split(value).join("[private]");
       return text.slice(0, 300);
     };
@@ -729,4 +776,239 @@ test("S2 current account status and one company role govern entry and direct Gra
   } finally {
     await redis.quit();
   }
+});
+
+test("S3 administrator workspace, password change and revoked-role denial", async ({
+  page,
+  context,
+  request,
+}) => {
+  test.info().annotations.push({
+    type: "auth-boundary",
+    description: "s3-unauthenticated-admin-entry",
+  });
+  await page.goto("/admin");
+  await expect(
+    page.getByRole("heading", { name: "Make room for your best work." }),
+  ).toBeVisible();
+  expect((await request.get("/auth/change-password")).status()).toBe(405);
+  expect(
+    (
+      await request.post("/auth/change-password", {
+        headers: { Origin: "https://untrusted.invalid" },
+      })
+    ).status(),
+  ).toBe(403);
+  await ownedUser();
+  accountFixture("cleanup");
+  accountFixture("create");
+  await login(page);
+  await expect(
+    page.getByRole("heading", { name: "You’re securely signed in." }),
+  ).toBeVisible();
+  const adminQuery = {
+    query: "{ adminWorkspace { viewer { accountId companyRoles } } }",
+  };
+  const directAdmin = async () =>
+    request.post("http://127.0.0.1:8020/graphql", {
+      headers: {
+        Authorization: `Bearer ${await ownAccessToken(context)}`,
+        "X-Actor-Role": "ADMIN",
+        "X-Actor-Id": "another-person",
+        Connection: "close",
+      },
+      data: adminQuery,
+      maxRetries: 0,
+    });
+  const denied = await directAdmin();
+  expect(denied.status()).toBe(200);
+  const deniedResult = await denied.json();
+  expect(deniedResult.data).toBeNull();
+  expect(deniedResult.errors[0].extensions.code).toBe("FORBIDDEN");
+  await page.goto("/admin/profile");
+  await expect(
+    page.getByRole("heading", { name: "You don’t have access to this page." }),
+  ).toBeVisible();
+  expect(
+    (
+      await context.request.post("/auth/change-password", {
+        headers: { Origin: appOrigin },
+        maxRedirects: 0,
+      })
+    ).status(),
+  ).toBe(403);
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(
+    page.getByRole("heading", { name: "See you next time." }),
+  ).toBeVisible();
+  accountFixture("role", "ADMIN");
+  await ownedUser();
+  await admin(`${realm}/users/${userId}/reset-password`, {
+    method: "PUT",
+    body: JSON.stringify({
+      type: "password",
+      value: password,
+      temporary: true,
+    }),
+  });
+  expect((await ownedUser()).requiredActions.includes("UPDATE_PASSWORD")).toBe(
+    true,
+  );
+  test.info().annotations.push({
+    type: "auth-boundary",
+    description: "s3-required-first-password-change",
+  });
+  await login(page);
+  await expect(page.locator("#password-new")).toBeVisible();
+  expect(new URL(page.url()).origin === providerOrigin).toBe(true);
+  expect(
+    (await context.cookies(appOrigin)).some(
+      (c) => c.name === "taskspace_session",
+    ),
+  ).toBe(false);
+  const firstPassword = randomBytes(32).toString("base64url") + "aA1!";
+  const finalPassword = randomBytes(32).toString("base64url") + "bB2!";
+  disposablePasswords.add(firstPassword);
+  disposablePasswords.add(finalPassword);
+  await page.locator("#password-new").fill(firstPassword);
+  await page.locator("#password-confirm").fill(firstPassword);
+  await page.getByRole("button", { name: /submit/i }).click();
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Administration",
+      exact: true,
+    }),
+  ).toBeVisible();
+  expect((await ownedUser()).requiredActions.includes("UPDATE_PASSWORD")).toBe(
+    false,
+  );
+  await expect(
+    page.getByRole("navigation", { name: "Administration" }),
+  ).toBeVisible();
+  expect(
+    await page
+      .getByRole("link", {
+        name: /Projects|Employees|Workflows|Reports|Design system/,
+      })
+      .count(),
+  ).toBe(0);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await captureAdmin(page, "overview");
+  const authorized = await directAdmin();
+  expect(authorized.status()).toBe(200);
+  expect(
+    (await authorized.json()).data.adminWorkspace.viewer.accountId === runId,
+  ).toBe(true);
+  const profileLink = page
+    .getByRole("navigation", { name: "Administration" })
+    .getByRole("link", { name: "Your profile" });
+  await profileLink.focus();
+  await expect(profileLink).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(new URL("/admin/profile", appOrigin).href);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Your profile", exact: true }),
+  ).toBeVisible();
+  await captureAdmin(page, "profile");
+  await page
+    .getByRole("navigation", { name: "Administration" })
+    .getByRole("link", { name: "Account security" })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Account security",
+      exact: true,
+    }),
+  ).toBeVisible();
+  test.info().annotations.push({
+    type: "auth-boundary",
+    description: "s3-initiated-password-change",
+  });
+  await captureAdmin(page, "security");
+  await page.getByRole("button", { name: "Change password" }).click();
+  await expect(page.locator("#password")).toBeVisible();
+  expect(new URL(page.url()).origin === providerOrigin).toBe(true);
+  const usernameInput = page.locator("#username");
+  if (await usernameInput.isVisible()) await usernameInput.fill(username);
+  else {
+    expect(
+      (await page.locator("#kc-attempted-username").inputValue()) === username,
+    ).toBe(true);
+    reauthenticationProved = true;
+  }
+  await page.locator("#password").fill(firstPassword);
+  await page.locator("#kc-login").click();
+  await expect(page.locator("#password-new")).toBeVisible();
+  await page.locator("#password-new").fill(finalPassword);
+  await page.locator("#password-confirm").fill(finalPassword);
+  await page.getByRole("button", { name: /submit/i }).click();
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Account security",
+      exact: true,
+    }),
+  ).toBeVisible();
+  test.info().annotations.push({
+    type: "auth-boundary",
+    description: "s3-repeat-provisioning-preserves-password",
+  });
+  const adminsBefore = await (
+    await admin(`${realm}/users?username=admin&exact=true`)
+  ).json();
+  execFileSync("python", ["scripts/initial-admin.py", "--verify"], {
+    cwd: resolve("../.."),
+    encoding: "utf8",
+  });
+  const provision = JSON.parse(
+    readFileSync(resolve("../../.local/admin/last-result.json"), "utf8"),
+  );
+  expect(provision.created).toBe(false);
+  const adminsAfter = await (
+    await admin(`${realm}/users?username=admin&exact=true`)
+  ).json();
+  expect(
+    JSON.stringify(adminsBefore.map((u: { id: string }) => u.id).sort()) ===
+      JSON.stringify(adminsAfter.map((u: { id: string }) => u.id).sort()),
+  ).toBe(true);
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(
+    page.getByRole("heading", { name: "See you next time." }),
+  ).toBeVisible();
+  await login(page, false, firstPassword);
+  await expect(page.locator("#input-error-username")).toBeVisible();
+  expect(
+    (await context.cookies(appOrigin)).some(
+      (c) => c.name === "taskspace_session",
+    ),
+  ).toBe(false);
+  await login(page, false, finalPassword);
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Administration",
+      exact: true,
+    }),
+  ).toBeVisible();
+  test.info().annotations.push({
+    type: "auth-boundary",
+    description: "s3-role-revoked-same-session",
+  });
+  await ownedUser();
+  accountFixture("role", "EMPLOYEE");
+  const revoked = await directAdmin();
+  expect(revoked.status()).toBe(200);
+  const revokedResult = await revoked.json();
+  expect(revokedResult.data).toBeNull();
+  expect(revokedResult.errors[0].extensions.code).toBe("FORBIDDEN");
+  await page.goto("/admin/security");
+  await expect(
+    page.getByRole("heading", { name: "You don’t have access to this page." }),
+  ).toBeVisible();
 });

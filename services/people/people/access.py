@@ -36,6 +36,7 @@ def resolve_actor(session: Session, identity: Identity) -> Actor:
     if len(roles) != 1 or not set(roles).issubset(COMPANY_ROLES):
         raise AccessDenied()
     # Company roles grant no project membership, leadership or business authority.
-    return Actor(
-        account.id, account.profile.id, account.profile.display_name, roles, ("account:self:read",)
-    )
+    permissions = ("account:self:read",)
+    if roles == ("ADMIN",):
+        permissions += ("admin:workspace:read",)
+    return Actor(account.id, account.profile.id, account.profile.display_name, roles, permissions)
