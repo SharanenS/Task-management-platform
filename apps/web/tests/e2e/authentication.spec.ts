@@ -1023,10 +1023,19 @@ test("S3 administrator workspace, password change and revoked-role denial", asyn
   await expect(
     page.getByRole("navigation", { name: "Administration" }),
   ).toBeVisible();
+  const navigation = page.getByRole("navigation", { name: "Administration" });
+  for (const [name, href] of [
+    ["Employees", "/admin/employees"],
+    ["Company structure", "/admin/organization"],
+  ] as const) {
+    const link = navigation.getByRole("link", { name, exact: true });
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute("href", href);
+  }
   expect(
     await page
       .getByRole("link", {
-        name: /Projects|Employees|Workflows|Reports|Design system/,
+        name: /Projects|Workflows|Reports|Design system/,
       })
       .count(),
   ).toBe(0);

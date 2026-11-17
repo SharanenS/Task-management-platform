@@ -181,3 +181,40 @@ Selected-employee email activation was source-tested with recovery; S5 live chec
 covered form selection and verified linking without sending mail. Existing real
 Gmail reset/used-expired-link evidence remains a separate pre-final email gate.
 S6 has not started, and the authoritative plan has not been edited.
+
+
+## CI administrator navigation correction — 17 November 2026
+
+The owner supplied the PR #29 CI failure after commit 5308166. Its desktop
+lifecycle run executed all nine cases: eight passed, including S4 and S5; S3
+failed at the obsolete assertion that no Employees link exists. The final quality
+gate correctly failed because this required job failed. Tablet/mobile steps in
+that CI job were not executed; no full remote pass is claimed.
+
+S5 intentionally adds the administrator Employees and Company structure links.
+The S3 journey now explicitly requires both exact navigation labels and their
+new-portal hrefs (/admin/employees and /admin/organization), while retaining the
+absence checks for unimplemented Projects, Workflows, Reports and Design system.
+Password, session, authorization and revoked-role assertions remain unchanged.
+No production code, timeout, service, SMTP setting or dependency was changed.
+
+Executed the exact affected S3 journey using the credential-safe repository-root
+wrapper with --admin-only, separately on desktop, tablet and mobile. Each run
+passed 1/1 with zero skips, one worker and zero retries. This focus creates an
+already-verified disposable identity and changes only its password; no activation
+or reset email endpoint is called. The existing ADMIN repeat-provisioning and
+password-preservation assertions passed. Reports are under
+ test-results/reports/s1/desktop-admin.json,
+ test-results/reports/s1/tablet-admin.json and
+ test-results/reports/s1/mobile-admin.json.
+
+Frontend lint, full formatting, typecheck and git diff --check passed. Every run
+verified scoped fixture/session/grant cleanup. An independent current-baseline
+comparison verified all existing people rows, realm identities and credential
+fingerprints, full Gmail SMTP fingerprint, data mounts and container IDs unchanged.
+All 34 scoped services remain healthy. The original plan and Git index are
+unchanged; these two correction files remain unstaged for owner review.
+
+The full nine-case lifecycle suite is not rerun against live Gmail. The owner must
+review/commit/push this correction and obtain a green remote CI run before merging.
+S5 is not closed and S6 has not started.
