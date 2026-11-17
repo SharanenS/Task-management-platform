@@ -4,10 +4,12 @@ Taskspace is being rebuilt as a portal-oriented corporate project and employee
 management platform using Next.js, React, TypeScript, Python, FastAPI, Strawberry
 GraphQL, PostgreSQL, Keycloak, Redis, RabbitMQ and Celery where required.
 
-S0 source isolation, S1 authentication and S2 account-entry permissions are merged.
-S3 adds the administrator portal and safe initial administrator provisioning.
-S3 is locally verified; owner review and remote CI remain. See docs/s3-verification.md.
-Full account/role administration belongs to S4.
+S0 source isolation through S3 administrator access are merged. S4 adds account
+management, email activation/reset initiation and provisioning recovery. Local
+acceptance passes; the owner has now requested Gmail setup during S4 using
+dailygotasks@gmail.com. Gmail authentication/configuration passed; real recipient
+delivery verification, owner review and remote CI remain.
+See [S4 verification](docs/s4-verification.md) for exact evidence and limits.
 
 ## Source layout
 
@@ -170,9 +172,29 @@ never resets an existing identity's password or automatically promotes an unrela
 identity. The new migration records ownership so interrupted setup can resume
 without duplicating accounts. Ordinary service startup never resets credentials.
 
-The combined browser wrapper now requires seven cases, including admin navigation,
+The combined browser wrapper now requires eight cases, including admin navigation,
 forced first-login password change, self-service password change, current-role
 authorization and repeated provisioning safety. Runtime and provisioning approval
 is required before these tests; only verified disposable identities are reset or
 deleted. The dedicated initial account remains for manual review. See the S3
 verification record for exact results, scope, private credential retrieval and limits.
+
+## S4 account management (local acceptance verified)
+
+The administrator account controls are at `/admin/accounts`. The people service
+owns provisioning, current company access and audit history; GraphQL and every
+protected page enforce current administrator authority. Creation and resets send
+Keycloak activation/action links rather than exposing passwords.
+
+The S4 development wrapper is
+`python scripts/account-management-development.py up --apply-migration`.
+Run it only after approving the migration, limited service
+updates and local mailbox setup. Mailpit captures mail privately at
+http://127.0.0.1:8025 with no external relay. Its SMTP port stays inside Compose.
+Gmail sender: dailygotasks@gmail.com. Complete setup privately with
+`python scripts/configure-email.py gmail`; use `python scripts/configure-email.py status`
+to inspect the actual delivery mode. Google app passwords are entered with echo
+disabled, never as command arguments or in chat. Email acceptance tests require
+local capture and refuse to run against a live Gmail configuration. Gmail authentication and realm configuration passed; real inbox receipt still
+needs verification. Credentials belong outside committed source.
+See [S4 verification](docs/s4-verification.md) for actual evidence and gaps.

@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location(
-    "account_entry", ROOT / "scripts/account-entry-development.py"
+    "account_entry", ROOT / "scripts/account-management-development.py"
 )
 assert spec and spec.loader
 module = importlib.util.module_from_spec(spec)
@@ -29,3 +29,19 @@ if __name__ == "__main__":
         )
         sys.exit(1)
     print("PostgreSQL schema constraints and scoped rollback verified.")
+    concurrency = module.compose(
+        "exec",
+        "-T",
+        "people",
+        "python",
+        "-c",
+        (ROOT / "tests/account_entry/postgres_management_check.py").read_text(encoding="utf-8"),
+        capture=True,
+    )
+    if concurrency.returncode:
+        print(
+            "Scoped account concurrency verification failed; private details omitted.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    print("Account concurrency, last-administrator preservation and owned probe cleanup verified.")

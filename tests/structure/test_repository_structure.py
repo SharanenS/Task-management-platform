@@ -133,6 +133,36 @@ class RepositoryStructureTests(unittest.TestCase):
             any("Required source" in e for e in structure.check_repository(self.fixture))
         )
 
+    def test_account_management_runtime_cannot_be_omitted(self) -> None:
+        ci = self.fixture / ".github/workflows/ci.yml"
+        ci.write_text(
+            ci.read_text(encoding="utf-8").replace(
+                "python scripts/account-management-development.py up --apply-migration", "omitted"
+            ),
+            encoding="utf-8",
+        )
+        self.assertTrue(
+            any(
+                "S4 account management runtime" in e
+                for e in structure.check_repository(self.fixture)
+            )
+        )
+
+    def test_real_email_guard_cannot_be_removed(self) -> None:
+        runner = self.fixture / "scripts/run-s1-acceptance.py"
+        runner.write_text(
+            runner.read_text(encoding="utf-8").replace(
+                "assert_capture_delivery()", "omitted_guard()"
+            ),
+            encoding="utf-8",
+        )
+        self.assertTrue(
+            any(
+                "Gmail-safe browser acceptance" in e
+                for e in structure.check_repository(self.fixture)
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

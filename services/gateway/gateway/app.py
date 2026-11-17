@@ -30,11 +30,83 @@ class AdminWorkspace:
     viewer: Viewer
 
 
+@strawberry.type
+class ManagedAccount:
+    id: strawberry.ID
+    display_name: str
+    username: str
+    email: str
+    active: bool
+    profile_active: bool
+    role: str
+    version: int
+
+
+@strawberry.type
+class ProvisioningOperation:
+    id: strawberry.ID
+    username: str
+    email: str
+    state: str
+    failure_code: str | None
+
+
+@strawberry.type
+class AccountHistory:
+    id: strawberry.ID
+    actor_id: strawberry.ID
+    target_id: strawberry.ID | None
+    action: str
+    state: str
+    before: str
+    after: str
+    created_at: str
+
+
+@strawberry.type
+class AccountAdministration:
+    accounts: list[ManagedAccount]
+    operations: list[ProvisioningOperation]
+    history: list[AccountHistory]
+    has_more: bool
+
+
+@strawberry.type
+class AccountCommandResult:
+    operation_id: strawberry.ID
+    state: str
+
+
+@strawberry.input
+class CreateAccountInput:
+    request_id: strawberry.ID
+    username: str
+    email: str
+    display_name: str
+    role: str
+
+
+@strawberry.input
+class ChangeAccountInput:
+    request_id: strawberry.ID
+    account_id: strawberry.ID
+    version: int
+    action: str
+    role: str | None = None
+
+
+@strawberry.input
+class RecoverAccountInput:
+    request_id: strawberry.ID
+    operation_id: strawberry.ID
+
+
 class ActorContext(BaseContext):
-    def __init__(self, viewer, load_admin_workspace):
+    def __init__(self, viewer, load_admin_workspace, administer):
         super().__init__()
         self.viewer = viewer
         self.load_admin_workspace = load_admin_workspace
+        self.administer = administer
 
 
 @strawberry.type
@@ -57,13 +129,54 @@ class Query:
                 extensions={"code": code},
             ) from None
 
+    @strawberry.field
+    async def account_administration(
+        self, info: Info[ActorContext, None], page: int = 0
+    ) -> AccountAdministration:
+        value = await info.context.administer("list", {"page": page})
+        return AccountAdministration(
+            accounts=[ManagedAccount(**a) for a in value["accounts"]],
+            operations=[ProvisioningOperation(**o) for o in value["operations"]],
+            history=[AccountHistory(**h) for h in value["history"]],
+            has_more=value["has_more"],
+        )
+
+
+@strawberry.type
+class Mutation:
+    @strawberry.mutation
+    async def create_account(
+        self, info: Info[ActorContext, None], input: CreateAccountInput
+    ) -> AccountCommandResult:
+        from dataclasses import asdict
+
+        return AccountCommandResult(**await info.context.administer("create", asdict(input)))
+
+    @strawberry.mutation
+    async def change_account(
+        self, info: Info[ActorContext, None], input: ChangeAccountInput
+    ) -> AccountCommandResult:
+        from dataclasses import asdict
+
+        return AccountCommandResult(**await info.context.administer("change", asdict(input)))
+
+    @strawberry.mutation
+    async def recover_account(
+        self, info: Info[ActorContext, None], input: RecoverAccountInput
+    ) -> AccountCommandResult:
+        from dataclasses import asdict
+
+        return AccountCommandResult(**await info.context.administer("recover", asdict(input)))
+
 
 class SafeSchema(strawberry.Schema):
     def process_errors(self, errors, execution_context=None):
         logging.getLogger("gateway").warning("graphql_request_rejected")
 
 
-schema = SafeSchema(query=Query, extensions=[lambda: QueryDepthLimiter(max_depth=5)])
+schema = SafeSchema(
+    query=Query, mutation=Mutation, extensions=[lambda: QueryDepthLimiter(max_depth=5)]
+)
 
 
 def create_app(settings=None, verifier=None, transport=None):
@@ -117,7 +230,13 @@ def create_app(settings=None, verifier=None, transport=None):
                 value = response.json()
                 if (
                     set(value)
-                    != {"account_id", "employee_id", "display_name", "company_roles", "permissions"}
+                    != {
+                        "account_id",
+                        "employee_id",
+                        "display_name",
+                        "company_roles",
+                        "permissions",
+                    }
                     or value["company_roles"] not in [["ADMIN"], ["MANAGER"], ["EMPLOYEE"], ["HR"]]
                     or value["permissions"]
                     != (
@@ -145,11 +264,69 @@ def create_app(settings=None, verifier=None, transport=None):
                 raise HTTPException(403, "Access denied")
             return current
 
-        return ActorContext(viewer, load_admin_workspace)
+        async def administer(command, value):
+            if viewer.company_roles != ["ADMIN"]:
+                raise GraphQLError("Access denied", extensions={"code": "FORBIDDEN"})
+            try:
+                async with httpx.AsyncClient(
+                    timeout=20, transport=transport, follow_redirects=False
+                ) as client:
+                    headers = {
+                        "Authorization": authorization,
+                        "X-Service-Key": settings.service_key,
+                    }
+                    if command == "list":
+                        response = await client.get(
+                            people_url.rstrip("/") + "/internal/admin/accounts",
+                            params=value,
+                            headers=headers,
+                        )
+                    else:
+                        response = await client.post(
+                            people_url.rstrip("/") + "/internal/admin/accounts/" + command,
+                            json=value,
+                            headers=headers,
+                        )
+                if response.status_code in {401, 403}:
+                    raise GraphQLError("Access denied", extensions={"code": "FORBIDDEN"})
+                if response.status_code in {400, 404, 409}:
+                    allowed = {
+                        "invalid_request",
+                        "invalid_account_details",
+                        "request_conflict",
+                        "account_already_requested",
+                        "not_found",
+                        "already_complete",
+                        "invalid_action",
+                        "stale_account",
+                        "invalid_role",
+                        "self_access_change_denied",
+                        "last_administrator_required",
+                        "inactive_profile",
+                        "provisioning_incomplete",
+                    }
+                    detail = response.json().get("detail")
+                    raise GraphQLError(
+                        detail if detail in allowed else "Account change rejected",
+                        extensions={"code": "ACCOUNT_CHANGE_REJECTED"},
+                    )
+                response.raise_for_status()
+                return response.json()
+            except GraphQLError:
+                raise
+            except Exception:
+                raise GraphQLError(
+                    "Service unavailable", extensions={"code": "SERVICE_UNAVAILABLE"}
+                ) from None
+
+        return ActorContext(viewer, load_admin_workspace, administer)
 
     app.include_router(
         GraphQLRouter(
-            schema, context_getter=context, graphql_ide=None, allow_queries_via_get=False
+            schema,
+            context_getter=context,
+            graphql_ide=None,
+            allow_queries_via_get=False,
         ),
         prefix="/graphql",
     )

@@ -9,7 +9,13 @@ import os
 import sys
 from uuid import UUID, uuid5
 
-from people.models import Account, CompanyRoleGrant, EmployeeProfile
+from people.models import (
+    Account,
+    AccountAudit,
+    AccountProvisioning,
+    CompanyRoleGrant,
+    EmployeeProfile,
+)
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import Session
 
@@ -25,6 +31,8 @@ def main():
     action = value["action"]
     if action not in {
         "create",
+        "managed_inspect",
+        "managed_cleanup",
         "cleanup",
         "account_active",
         "profile_active",
@@ -71,6 +79,80 @@ def main():
                 or any(g.role not in {"ADMIN", "MANAGER", "EMPLOYEE", "HR"} for g in account.grants)
             ):
                 raise ValueError("Fixture account ownership mismatch")
+            if action in {"managed_inspect", "managed_cleanup"}:
+                operation_id = str(UUID(value["value"]))
+                operation = session.get(AccountProvisioning, operation_id)
+                if not operation:
+                    print(json.dumps({"absent": True}))
+                    return
+                creation = session.scalar(
+                    select(AccountAudit).where(AccountAudit.request_id == operation.id)
+                )
+                if (
+                    operation.username != "s4-" + run_id
+                    or operation.email != "s4-" + run_id + "@example.invalid"
+                    or operation.issuer != ISSUER
+                    or not creation
+                    or creation.actor_id != run_id
+                    or creation.action != "CREATE"
+                ):
+                    raise ValueError("Managed fixture ownership mismatch")
+                target = (
+                    session.get(Account, operation.account_id) if operation.account_id else None
+                )
+                if target and (
+                    target.subject != operation.subject
+                    or target.profile.display_name != "Managed Acceptance"
+                ):
+                    raise ValueError("Managed fixture association mismatch")
+                result = {
+                    "subject": operation.subject,
+                    "operationId": operation.id,
+                    "accountId": operation.account_id,
+                    "state": operation.state,
+                }
+                if action == "managed_cleanup":
+                    records = (
+                        session.scalars(
+                            select(AccountAudit).where(
+                                (AccountAudit.operation_id == operation.id)
+                                | (AccountAudit.target_id == operation.account_id)
+                            )
+                        ).all()
+                        if operation.account_id
+                        else session.scalars(
+                            select(AccountAudit).where(AccountAudit.operation_id == operation.id)
+                        ).all()
+                    )
+                    if any(
+                        r.actor_id != run_id or r.target_id not in {None, operation.account_id}
+                        for r in records
+                    ):
+                        raise ValueError("Managed fixture change ownership mismatch")
+                    for row in records:
+                        session.delete(row)
+                    session.flush()
+                    session.delete(operation)
+                    session.flush()
+                    if target:
+                        session.execute(
+                            delete(CompanyRoleGrant).where(CompanyRoleGrant.account_id == target.id)
+                        )
+                        session.execute(
+                            delete(EmployeeProfile).where(EmployeeProfile.account_id == target.id)
+                        )
+                        session.execute(delete(Account).where(Account.id == target.id))
+                    session.flush()
+                    session.expire_all()
+                    if (
+                        session.get(AccountProvisioning, operation_id)
+                        or target
+                        and session.get(Account, target.id)
+                    ):
+                        raise ValueError("Managed fixture cleanup incomplete")
+                    result["cleaned"] = True
+                print(json.dumps(result))
+                return
             if action == "cleanup":
                 session.execute(
                     delete(CompanyRoleGrant).where(CompanyRoleGrant.account_id == run_id)

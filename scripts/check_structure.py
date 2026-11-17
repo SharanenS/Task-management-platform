@@ -17,6 +17,12 @@ LEGACY_JOBS = (
     "reliability-and-recovery",
 )
 REQUIRED_FILES = (
+    "scripts/email_delivery.py",
+    "scripts/configure-email.py",
+    "compose.accounts.yaml",
+    "scripts/account-management-development.py",
+    "services/people/migrations/versions/0003_account_management.py",
+    "apps/web/src/app/admin/accounts/page.tsx",
     "scripts/initial-admin.py",
     "apps/web/src/app/admin/layout.tsx",
     "services/people/migrations/versions/0002_initial_admin.py",
@@ -57,9 +63,24 @@ def check_repository(root: Path) -> list[str]:
     if errors:
         return errors
 
+    if "python scripts/account-management-development.py up --apply-migration" not in (
+        root / ".github/workflows/ci.yml"
+    ).read_text(encoding="utf-8"):
+        errors.append("S4 account management runtime acceptance is missing")
+
     for name in ("frontend", "gateway", "services/employee", "services/work"):
         if (root / name).exists():
             errors.append(f"Previous source root is outside legacy: {name}")
+
+    ci_source = (root / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    if "python scripts/account-management-development.py up --apply-migration" not in ci_source:
+        errors.append("S4 account management runtime acceptance is missing")
+
+    runner_source = (root / "scripts/run-s1-acceptance.py").read_text(encoding="utf-8")
+    guard = runner_source.find("assert_capture_delivery()")
+    launch = runner_source.find("result = subprocess.run")
+    if guard < 0 or launch < 0 or guard > launch:
+        errors.append("Gmail-safe browser acceptance guard is missing")
 
     app = root / "apps/web"
     package = json.loads((app / "package.json").read_text(encoding="utf-8"))

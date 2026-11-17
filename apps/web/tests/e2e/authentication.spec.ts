@@ -18,6 +18,10 @@ let userId = "";
 let adminId = "";
 const runId = randomUUID();
 const username = `s1-${runId}`;
+const managedUsername = `s4-${runId}`;
+const managedEmail = `${managedUsername}@example.invalid`;
+let managedOperationId = "";
+let recipientCleanupVerified = true;
 const password = randomBytes(32).toString("base64url");
 const disposablePasswords = new Set([password]);
 let reauthenticationProved = false;
@@ -33,6 +37,7 @@ function receipt(status: string, extra: Record<string, unknown> = {}) {
     JSON.stringify(
       {
         runId,
+        managedOperationId,
         realm,
         userId,
         username,
@@ -364,6 +369,118 @@ test.afterEach(async ({ context, page }, info) => {
     await redis.quit();
   }
 });
+async function managedMail() {
+  const response = await fetch(
+    `http://127.0.0.1:8025/api/v1/search?query=${encodeURIComponent(`to:${managedEmail}`)}`,
+  );
+  if (!response.ok) throw new Error("Local mail capture unavailable");
+  const value = await response.json();
+  return (value.messages ?? []) as { ID: string; To: { Address: string }[] }[];
+}
+async function setupLink() {
+  let messages: { ID: string; To: { Address: string }[] }[] = [];
+  await expect
+    .poll(async () => {
+      messages = await managedMail();
+      return messages.length > 0;
+    })
+    .toBe(true);
+  const message = messages[0];
+  expect(message.To.some((to) => to.Address === managedEmail)).toBe(true);
+  const response = await fetch(
+    `http://127.0.0.1:8025/api/v1/message/${message.ID}`,
+  );
+  expect(response.ok).toBe(true);
+  const mail = await response.json();
+  const candidates =
+    String(mail.HTML ?? mail.Text ?? "").match(/https?:\/\/[^\s<>"']+/g) ?? [];
+  const link = candidates
+    .map((value) => value.replaceAll("&amp;", "&"))
+    .find((value) => {
+      try {
+        const u = new URL(value);
+        return (
+          u.origin === providerOrigin &&
+          u.pathname === `/realms/${realm}/login-actions/action-token`
+        );
+      } catch {
+        return false;
+      }
+    });
+  expect(Boolean(link)).toBe(true);
+  return link!;
+}
+async function clearManagedMail() {
+  for (const message of await managedMail()) {
+    expect(message.To.some((to) => to.Address === managedEmail)).toBe(true);
+    expect(
+      (
+        await fetch(`http://127.0.0.1:8025/api/v1/messages`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ IDs: [message.ID] }),
+        })
+      ).ok,
+    ).toBe(true);
+  }
+  expect((await managedMail()).length).toBe(0);
+}
+async function cleanupManaged() {
+  if (!managedOperationId) return;
+  const proof = accountFixture("managed_inspect", managedOperationId);
+  if (!proof.absent) {
+    const matches = await (
+      await admin(`${realm}/users?username=${managedUsername}&exact=true`)
+    ).json();
+    expect(matches.length <= 1).toBe(true);
+    const user = matches[0];
+    if (user) {
+      expect(
+        user.username === managedUsername &&
+          user.email === managedEmail &&
+          user.attributes?.taskspaceProvisioningId?.[0] ===
+            managedOperationId &&
+          (!proof.subject || proof.subject === user.id),
+      ).toBe(true);
+    }
+    expect(accountFixture("managed_cleanup", managedOperationId).cleaned).toBe(
+      true,
+    );
+    if (user) {
+      await admin(`${realm}/users/${user.id}`, { method: "DELETE" });
+      const removed = await fetch(
+        `${providerOrigin}/admin/realms/${realm}/users/${user.id}`,
+        { headers: { Authorization: `Bearer ${bearer}` } },
+      );
+      expect(removed.status).toBe(404);
+      const redis = createClient({
+        url: `redis://:${secrets.AUTH_REDIS_PASSWORD}@127.0.0.1:6381/0`,
+      });
+      redis.on("error", () => {});
+      await redis.connect();
+      try {
+        for await (const keys of redis.scanIterator({
+          MATCH: "taskspace:portals:auth:v1:session:*",
+          COUNT: 100,
+        })) {
+          for (const key of keys) {
+            const raw = await redis.get(key);
+            if (raw && JSON.parse(raw).subject === user.id) {
+              await redis.del(key);
+              expect(await redis.exists(key)).toBe(0);
+            }
+          }
+        }
+      } finally {
+        await redis.quit();
+      }
+    }
+  }
+  await clearManagedMail();
+  expect(accountFixture("managed_inspect", managedOperationId).absent).toBe(
+    true,
+  );
+}
 test.afterAll(async () => {
   let failure: unknown;
   let accountRemoved = false;
@@ -372,6 +489,7 @@ test.afterAll(async () => {
   let grantsRevoked = true;
   try {
     if (userId) {
+      await cleanupManaged();
       await ownedUser();
       accountRemoved = accountFixture("cleanup").cleaned === true;
       expect(accountRemoved).toBe(true);
@@ -412,6 +530,8 @@ test.afterAll(async () => {
         failure ??= new Error("Administrator grant cleanup failed");
       }
     }
+    if (!recipientCleanupVerified)
+      failure ??= new Error("Recipient authentication cleanup failed");
     receipt(
       !failure &&
         accountRemoved &&
@@ -420,7 +540,13 @@ test.afterAll(async () => {
         grantsRevoked
         ? "cleaned"
         : "blocked",
-      { identityRemoved, bootstrapPreserved, grantsRevoked, accountRemoved },
+      {
+        identityRemoved,
+        bootstrapPreserved,
+        grantsRevoked,
+        accountRemoved,
+        recipientCleanupVerified,
+      },
     );
   }
   if (failure) throw failure;
@@ -1011,4 +1137,364 @@ test("S3 administrator workspace, password change and revoked-role denial", asyn
   await expect(
     page.getByRole("heading", { name: "You don’t have access to this page." }),
   ).toBeVisible();
+});
+
+test("S4 account creation, email activation, company access and reset history", async ({
+  page,
+  browser,
+}) => {
+  await ownedUser();
+  accountFixture("role", "ADMIN");
+  await admin(`${realm}/users/${userId}/reset-password`, {
+    method: "PUT",
+    body: JSON.stringify({
+      type: "password",
+      value: password,
+      temporary: false,
+    }),
+  });
+  await login(page);
+  await expect(page).toHaveURL(`${appOrigin}/admin`);
+  await page.goto("/admin/accounts");
+  await expect(
+    page.getByRole("heading", { name: "User accounts", exact: true, level: 1 }),
+  ).toBeVisible();
+  const create = page.locator("form").filter({
+    has: page.getByRole("button", {
+      name: "Create account & send setup email",
+    }),
+  });
+  managedOperationId = await create
+    .locator('input[name="requestId"]')
+    .inputValue();
+  receipt("managed-planned");
+  await create
+    .getByLabel("Full name", { exact: true })
+    .fill("Managed Acceptance");
+  await create.getByLabel("Username", { exact: true }).fill(managedUsername);
+  await create.getByLabel("Email address", { exact: true }).fill(managedEmail);
+  await create.getByRole("button").click();
+  await expect(page.getByRole("status")).toContainText("request completed");
+  const account = page.getByRole("article").filter({
+    has: page.getByRole("heading", {
+      name: "Managed Acceptance",
+      exact: true,
+    }),
+  });
+  await expect(account).toBeVisible();
+  await captureAdmin(page, "accounts");
+  test.info().annotations.push({
+    type: "auth-boundary",
+    description: "s4-email-accepted-and-owned-account-created",
+  });
+  const recipient = await browser.newContext({ baseURL: appOrigin });
+  const member = await recipient.newPage();
+  const recipientSubject = accountFixture(
+    "managed_inspect",
+    managedOperationId,
+  ).subject;
+  let recipientFailure: unknown;
+  const clearRecipientRecords = async () => {
+    const client = createClient({
+      url: `redis://:${secrets.AUTH_REDIS_PASSWORD}@127.0.0.1:6381/0`,
+    });
+    client.on("error", () => {});
+    await client.connect();
+    try {
+      for (const cookie of await recipient.cookies(appOrigin)) {
+        const kind =
+          cookie.name === "taskspace_session"
+            ? "session"
+            : cookie.name === "taskspace_transaction"
+              ? "transaction"
+              : null;
+        if (!kind) continue;
+        const key = storageKey(kind, cookie.value);
+        const raw = await client.get(key);
+        if (raw) {
+          const record = JSON.parse(raw);
+          expect(
+            kind === "session"
+              ? record.subject === recipientSubject
+              : record.createdAt >= testStartedAt &&
+                  record.createdAt <= Date.now() &&
+                  (!record.expectedSubject ||
+                    record.expectedSubject === recipientSubject),
+          ).toBe(true);
+          await client.del(key);
+        }
+        expect(await client.exists(key)).toBe(0);
+      }
+    } finally {
+      await client.quit();
+    }
+    await recipient.clearCookies();
+  };
+  const memberPassword = randomBytes(32).toString("base64url");
+  disposablePasswords.add(memberPassword);
+  try {
+    const link = await setupLink();
+    test.info().annotations.push({
+      type: "auth-boundary",
+      description: "s4-open-email-link",
+    });
+    await member.goto(link);
+    const proceed = member.getByRole("link", { name: /proceed/i });
+    if (await proceed.isVisible()) {
+      const destination = new URL(
+        (await proceed.getAttribute("href"))!,
+        providerOrigin,
+      );
+      expect(destination.origin === providerOrigin).toBe(true);
+      test.info().annotations.push({
+        type: "auth-boundary",
+        description: "s4-confirm-email-actions",
+      });
+      await proceed.click();
+    }
+    test.info().annotations.push({
+      type: "auth-boundary",
+      description: "s4-require-password-form",
+    });
+    await expect(member.locator("#password-new")).toBeVisible();
+    expect(new URL(member.url()).origin === providerOrigin).toBe(true);
+    expect(
+      (await recipient.cookies(appOrigin)).some(
+        (c) => c.name === "taskspace_session",
+      ),
+    ).toBe(false);
+    await member.locator("#password-new").fill(memberPassword);
+    await member.locator("#password-confirm").fill(memberPassword);
+    test.info().annotations.push({
+      type: "auth-boundary",
+      description: "s4-submit-first-password",
+    });
+    await member.getByRole("button", { name: /submit/i }).click();
+    test.info().annotations.push({
+      type: "auth-boundary",
+      description: "s4-verify-email-and-required-actions",
+    });
+    await expect
+      .poll(async () => {
+        const users = await (
+          await admin(`${realm}/users?username=${managedUsername}&exact=true`)
+        ).json();
+        return (
+          users.length === 1 &&
+          users[0].emailVerified &&
+          !users[0].requiredActions.includes("UPDATE_PASSWORD")
+        );
+      })
+      .toBe(true);
+    const signIn = async (credential: string) => {
+      await clearRecipientRecords();
+      await member.goto(`${appOrigin}/sign-in`);
+      await member.getByRole("button", { name: "Continue to sign in" }).click();
+      await expect(member.locator("#username")).toBeVisible();
+      await member.locator("#username").fill(managedUsername);
+      await member.locator("#password").fill(credential);
+      await member.locator("#kc-login").click();
+    };
+    test.info().annotations.push({
+      type: "auth-boundary",
+      description: "s4-sign-in-created-account",
+    });
+    await signIn(memberPassword);
+    await expect(
+      member.getByRole("heading", { name: "You’re securely signed in." }),
+    ).toBeVisible();
+    const recipientCookie = (await recipient.cookies(appOrigin)).find(
+      (c) => c.name === "taskspace_session",
+    );
+    expect(Boolean(recipientCookie)).toBe(true);
+    const recipientStore = createClient({
+      url: `redis://:${secrets.AUTH_REDIS_PASSWORD}@127.0.0.1:6381/0`,
+    });
+    recipientStore.on("error", () => {});
+    await recipientStore.connect();
+    let recipientToken = "";
+    try {
+      const raw = await recipientStore.get(
+        storageKey("session", recipientCookie!.value),
+      );
+      expect(Boolean(raw)).toBe(true);
+      const record = JSON.parse(raw!);
+      expect(
+        record.subject ===
+          accountFixture("managed_inspect", managedOperationId).subject,
+      ).toBe(true);
+      recipientToken = record.accessToken;
+    } finally {
+      await recipientStore.quit();
+    }
+    const recipientViewer = () =>
+      recipient.request.post("http://127.0.0.1:8020/graphql", {
+        headers: {
+          Authorization: `Bearer ${recipientToken}`,
+          "X-Actor-Role": "ADMIN",
+        },
+        data: { query: "{viewer{accountId companyRoles}}" },
+      });
+    test.info().annotations.push({
+      type: "auth-boundary",
+      description: "s4-check-created-account-boundary",
+    });
+    await member.goto(`${appOrigin}/admin/accounts`);
+    await expect(
+      member.getByRole("heading", {
+        name: "You don’t have access to this page.",
+        exact: true,
+      }),
+    ).toBeVisible();
+    const statusForm = account.locator("form").filter({
+      has: page.getByRole("button", {
+        name: "Deactivate account",
+        exact: true,
+      }),
+    });
+    test.info().annotations.push({
+      type: "auth-boundary",
+      description: "s4-deactivate-owned-account",
+    });
+    await expect(statusForm.getByRole("checkbox")).toBeVisible();
+    await statusForm.getByRole("checkbox").check();
+    await statusForm.getByRole("button").click();
+    await expect(page.getByRole("status")).toContainText("request completed");
+    const exact = await (
+      await admin(`${realm}/users?username=${managedUsername}&exact=true`)
+    ).json();
+    expect(exact.length === 1 && exact[0].enabled === false).toBe(true);
+    expect((await recipientViewer()).status()).toBe(403);
+    await member.goto(`${appOrigin}/auth/ready`);
+    await expect(
+      member.getByRole("heading", {
+        name: "Your account isn’t ready.",
+        exact: true,
+      }),
+    ).toBeVisible();
+    const activate = account.locator("form").filter({
+      has: page.getByRole("button", {
+        name: "Activate account",
+        exact: true,
+      }),
+    });
+    test.info().annotations.push({
+      type: "auth-boundary",
+      description: "s4-reactivate-owned-account",
+    });
+    await expect(activate.getByRole("checkbox")).toBeVisible();
+    await activate.getByRole("checkbox").check();
+    await activate.getByRole("button").click();
+    await expect(page.getByRole("status")).toContainText("request completed");
+    const role = account.locator("form").filter({
+      has: page.getByRole("button", { name: "Save role", exact: true }),
+    });
+    test.info().annotations.push({
+      type: "auth-boundary",
+      description: "s4-change-owned-company-role",
+    });
+    await role.getByRole("combobox").selectOption("HR");
+    await role.getByRole("checkbox").check();
+    await role.getByRole("button").click();
+    await expect(page.getByRole("status")).toContainText("request completed");
+    await expect(account.getByRole("combobox")).toHaveValue("HR");
+    await clearManagedMail();
+    const reset = account.locator("form").filter({
+      has: page.getByRole("button", {
+        name: "Send password reset email",
+        exact: true,
+      }),
+    });
+    await reset.getByRole("checkbox").check();
+    await reset.getByRole("button").click();
+    await expect(page.getByRole("status")).toContainText("request completed");
+    const resetLink = await setupLink();
+    await member.goto(resetLink);
+    const resetProceed = member.getByRole("link", { name: /proceed/i });
+    if (await resetProceed.isVisible()) {
+      const destination = new URL(
+        (await resetProceed.getAttribute("href"))!,
+        providerOrigin,
+      );
+      expect(destination.origin === providerOrigin).toBe(true);
+      await resetProceed.click();
+    }
+    await expect(member.locator("#password-new")).toBeVisible();
+    const replacementPassword = randomBytes(32).toString("base64url");
+    disposablePasswords.add(replacementPassword);
+    await member.locator("#password-new").fill(replacementPassword);
+    await member.locator("#password-confirm").fill(replacementPassword);
+    await member.getByRole("button", { name: /submit/i }).click();
+    await expect(member.locator("#password-new")).not.toBeVisible();
+    await signIn(memberPassword);
+    await expect(member.locator("#input-error-username")).toBeVisible();
+    expect(
+      (await recipient.cookies(appOrigin)).some(
+        (c) => c.name === "taskspace_session",
+      ),
+    ).toBe(false);
+    await signIn(replacementPassword);
+    await expect(
+      member.getByRole("heading", { name: "You’re securely signed in." }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", {
+        name: "Recent account changes",
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    test.info().annotations.push({
+      type: "auth-boundary",
+      description:
+        "s4-email-activation-disable-enable-role-reset-audit-complete",
+    });
+  } catch (error) {
+    recipientFailure = error;
+    const directory = resolve("../../.local/auth/failures", runId);
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(
+      resolve(directory, "recipient-boundary.json"),
+      JSON.stringify(
+        {
+          providerOrigin: new URL(member.url()).origin === providerOrigin,
+          applicationOrigin: new URL(member.url()).origin === appOrigin,
+          headings: await member
+            .locator("h1,h2")
+            .allTextContents()
+            .catch(() => []),
+          alerts: await member
+            .locator("#kc-error-message,.instruction,.alert-error")
+            .allTextContents()
+            .catch(() => []),
+          controls: await member
+            .locator("input,button")
+            .evaluateAll((elements) =>
+              elements.map((e) => ({
+                id: e.id,
+                name: e.getAttribute("name"),
+                type: e.getAttribute("type"),
+                label: e.tagName === "BUTTON" ? e.textContent : null,
+              })),
+            ),
+        },
+        null,
+        2,
+      ),
+    );
+    throw error;
+  } finally {
+    try {
+      await clearRecipientRecords();
+    } catch (error) {
+      recipientCleanupVerified = false;
+      if (!recipientFailure) throw error;
+    } finally {
+      await recipient.close();
+    }
+  }
 });

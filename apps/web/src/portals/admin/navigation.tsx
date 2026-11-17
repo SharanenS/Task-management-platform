@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 const items = [
+  { href: "/admin/accounts", label: "User accounts", symbol: "04" },
   { href: "/admin", label: "Overview", symbol: "01" },
   { href: "/admin/profile", label: "Your profile", symbol: "02" },
   { href: "/admin/security", label: "Account security", symbol: "03" },
