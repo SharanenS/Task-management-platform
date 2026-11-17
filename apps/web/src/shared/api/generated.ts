@@ -7,6 +7,33 @@ export type Incremental<T> =
       [P in keyof T]?: P extends " $fragmentName" | "__typename" ? T[P] : never;
     };
 import { TypedDocumentNode as DocumentNode } from "@graphql-typed-document-node/core";
+export type CalendarConfigurationInput = {
+  exceptions: Array<CalendarExceptionInput>;
+  holidays: Array<CalendarHolidayInput>;
+  timezone: string;
+  week: Array<CalendarWeekdayInput>;
+};
+
+export type CalendarExceptionInput = {
+  closes?: string | null | undefined;
+  date: string;
+  label: string;
+  opens?: string | null | undefined;
+  working: boolean;
+};
+
+export type CalendarHolidayInput = {
+  date: string;
+  label: string;
+};
+
+export type CalendarWeekdayInput = {
+  closes?: string | null | undefined;
+  opens?: string | null | undefined;
+  weekday: number;
+  working: boolean;
+};
+
 export type ChangeAccountInput = {
   accountId: string | number;
   action: string;
@@ -38,9 +65,21 @@ export type OrganizationChangeInput = {
   version?: number | null | undefined;
 };
 
+export type PublishCalendarInput = {
+  confirm: boolean;
+  previewId: string | number;
+  requestId: string | number;
+};
+
 export type RecoverAccountInput = {
   operationId: string | number;
   requestId: string | number;
+};
+
+export type WorkingDaysInput = {
+  duration: number;
+  start: string;
+  versionId: string | number;
 };
 
 export type AccountAdministrationQueryVariables = Exact<{
@@ -130,6 +169,146 @@ export type AdminWorkspaceQuery = {
   };
 };
 
+export type CalendarConfigurationFieldsFragment = {
+  timezone: string;
+  week: Array<{
+    weekday: number;
+    working: boolean;
+    opens: string | null;
+    closes: string | null;
+  }>;
+  holidays: Array<{ date: string; label: string }>;
+  exceptions: Array<{
+    date: string;
+    label: string;
+    working: boolean;
+    opens: string | null;
+    closes: string | null;
+  }>;
+};
+
+export type CompanyCalendarQueryVariables = Exact<{ [key: string]: never }>;
+
+export type CompanyCalendarQuery = {
+  companyCalendar: {
+    current: {
+      id: string;
+      number: number;
+      tzdbVersion: string;
+      actorId: string;
+      createdAt: string;
+      config: {
+        timezone: string;
+        week: Array<{
+          weekday: number;
+          working: boolean;
+          opens: string | null;
+          closes: string | null;
+        }>;
+        holidays: Array<{ date: string; label: string }>;
+        exceptions: Array<{
+          date: string;
+          label: string;
+          working: boolean;
+          opens: string | null;
+          closes: string | null;
+        }>;
+      };
+    } | null;
+    history: Array<{
+      id: string;
+      number: number;
+      tzdbVersion: string;
+      actorId: string;
+      createdAt: string;
+    }>;
+  };
+};
+
+export type PreviewCompanyCalendarMutationVariables = Exact<{
+  input: CalendarConfigurationInput;
+}>;
+
+export type PreviewCompanyCalendarMutation = {
+  previewCompanyCalendar: {
+    previewId: string;
+    baseNumber: number;
+    tzdbVersion: string;
+    expiresAt: string;
+    changedSections: Array<string>;
+    config: {
+      timezone: string;
+      week: Array<{
+        weekday: number;
+        working: boolean;
+        opens: string | null;
+        closes: string | null;
+      }>;
+      holidays: Array<{ date: string; label: string }>;
+      exceptions: Array<{
+        date: string;
+        label: string;
+        working: boolean;
+        opens: string | null;
+        closes: string | null;
+      }>;
+    };
+  };
+};
+
+export type PublishCompanyCalendarMutationVariables = Exact<{
+  input: PublishCalendarInput;
+}>;
+
+export type PublishCompanyCalendarMutation = {
+  publishCompanyCalendar: {
+    id: string;
+    number: number;
+    tzdbVersion: string;
+    actorId: string;
+    createdAt: string;
+    config: {
+      timezone: string;
+      week: Array<{
+        weekday: number;
+        working: boolean;
+        opens: string | null;
+        closes: string | null;
+      }>;
+      holidays: Array<{ date: string; label: string }>;
+      exceptions: Array<{
+        date: string;
+        label: string;
+        working: boolean;
+        opens: string | null;
+        closes: string | null;
+      }>;
+    };
+  };
+};
+
+export type CalculateWorkingDaysQueryVariables = Exact<{
+  input: WorkingDaysInput;
+}>;
+
+export type CalculateWorkingDaysQuery = {
+  calculateWorkingDays: {
+    versionId: string;
+    versionNumber: number;
+    tzdbVersion: string;
+    requestedStart: string;
+    effectiveStart: string;
+    adjusted: boolean;
+    duration: number;
+    countedDates: Array<string>;
+    timezone: string;
+    startsAt: string;
+    dueAt: string;
+    dueLocal: string;
+    nextHandoff: string;
+  };
+};
+
 export type OrganizationWorkspaceQueryVariables = Exact<{
   page: number;
   search: string;
@@ -183,6 +362,63 @@ export type ChangeOrganizationMutation = {
   changeOrganization: { entityId: string; state: string };
 };
 
+export const CalendarConfigurationFieldsFragmentDoc = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "CalendarConfigurationFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "CalendarConfiguration" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "timezone" } },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "week" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "weekday" } },
+                { kind: "Field", name: { kind: "Name", value: "working" } },
+                { kind: "Field", name: { kind: "Name", value: "opens" } },
+                { kind: "Field", name: { kind: "Name", value: "closes" } },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "holidays" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "date" } },
+                { kind: "Field", name: { kind: "Name", value: "label" } },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "exceptions" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "date" } },
+                { kind: "Field", name: { kind: "Name", value: "label" } },
+                { kind: "Field", name: { kind: "Name", value: "working" } },
+                { kind: "Field", name: { kind: "Name", value: "opens" } },
+                { kind: "Field", name: { kind: "Name", value: "closes" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<CalendarConfigurationFieldsFragment, unknown>;
 export const AccountAdministrationDocument = {
   kind: "Document",
   definitions: [
@@ -565,6 +801,486 @@ export const AdminWorkspaceDocument = {
     },
   ],
 } as unknown as DocumentNode<AdminWorkspaceQuery, AdminWorkspaceQueryVariables>;
+export const CompanyCalendarDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "CompanyCalendar" },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "companyCalendar" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "current" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "number" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "tzdbVersion" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "actorId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "createdAt" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "config" },
+                        selectionSet: {
+                          kind: "SelectionSet",
+                          selections: [
+                            {
+                              kind: "FragmentSpread",
+                              name: {
+                                kind: "Name",
+                                value: "CalendarConfigurationFields",
+                              },
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "history" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "number" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "tzdbVersion" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "actorId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "createdAt" },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "CalendarConfigurationFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "CalendarConfiguration" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "timezone" } },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "week" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "weekday" } },
+                { kind: "Field", name: { kind: "Name", value: "working" } },
+                { kind: "Field", name: { kind: "Name", value: "opens" } },
+                { kind: "Field", name: { kind: "Name", value: "closes" } },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "holidays" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "date" } },
+                { kind: "Field", name: { kind: "Name", value: "label" } },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "exceptions" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "date" } },
+                { kind: "Field", name: { kind: "Name", value: "label" } },
+                { kind: "Field", name: { kind: "Name", value: "working" } },
+                { kind: "Field", name: { kind: "Name", value: "opens" } },
+                { kind: "Field", name: { kind: "Name", value: "closes" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  CompanyCalendarQuery,
+  CompanyCalendarQueryVariables
+>;
+export const PreviewCompanyCalendarDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "PreviewCompanyCalendar" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "CalendarConfigurationInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "previewCompanyCalendar" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "previewId" } },
+                { kind: "Field", name: { kind: "Name", value: "baseNumber" } },
+                { kind: "Field", name: { kind: "Name", value: "tzdbVersion" } },
+                { kind: "Field", name: { kind: "Name", value: "expiresAt" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "changedSections" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "config" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      {
+                        kind: "FragmentSpread",
+                        name: {
+                          kind: "Name",
+                          value: "CalendarConfigurationFields",
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "CalendarConfigurationFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "CalendarConfiguration" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "timezone" } },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "week" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "weekday" } },
+                { kind: "Field", name: { kind: "Name", value: "working" } },
+                { kind: "Field", name: { kind: "Name", value: "opens" } },
+                { kind: "Field", name: { kind: "Name", value: "closes" } },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "holidays" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "date" } },
+                { kind: "Field", name: { kind: "Name", value: "label" } },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "exceptions" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "date" } },
+                { kind: "Field", name: { kind: "Name", value: "label" } },
+                { kind: "Field", name: { kind: "Name", value: "working" } },
+                { kind: "Field", name: { kind: "Name", value: "opens" } },
+                { kind: "Field", name: { kind: "Name", value: "closes" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  PreviewCompanyCalendarMutation,
+  PreviewCompanyCalendarMutationVariables
+>;
+export const PublishCompanyCalendarDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "PublishCompanyCalendar" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "PublishCalendarInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "publishCompanyCalendar" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "number" } },
+                { kind: "Field", name: { kind: "Name", value: "tzdbVersion" } },
+                { kind: "Field", name: { kind: "Name", value: "actorId" } },
+                { kind: "Field", name: { kind: "Name", value: "createdAt" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "config" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      {
+                        kind: "FragmentSpread",
+                        name: {
+                          kind: "Name",
+                          value: "CalendarConfigurationFields",
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "CalendarConfigurationFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "CalendarConfiguration" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "timezone" } },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "week" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "weekday" } },
+                { kind: "Field", name: { kind: "Name", value: "working" } },
+                { kind: "Field", name: { kind: "Name", value: "opens" } },
+                { kind: "Field", name: { kind: "Name", value: "closes" } },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "holidays" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "date" } },
+                { kind: "Field", name: { kind: "Name", value: "label" } },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "exceptions" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "date" } },
+                { kind: "Field", name: { kind: "Name", value: "label" } },
+                { kind: "Field", name: { kind: "Name", value: "working" } },
+                { kind: "Field", name: { kind: "Name", value: "opens" } },
+                { kind: "Field", name: { kind: "Name", value: "closes" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  PublishCompanyCalendarMutation,
+  PublishCompanyCalendarMutationVariables
+>;
+export const CalculateWorkingDaysDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "CalculateWorkingDays" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "WorkingDaysInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "calculateWorkingDays" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "versionId" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "versionNumber" },
+                },
+                { kind: "Field", name: { kind: "Name", value: "tzdbVersion" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "requestedStart" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "effectiveStart" },
+                },
+                { kind: "Field", name: { kind: "Name", value: "adjusted" } },
+                { kind: "Field", name: { kind: "Name", value: "duration" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "countedDates" },
+                },
+                { kind: "Field", name: { kind: "Name", value: "timezone" } },
+                { kind: "Field", name: { kind: "Name", value: "startsAt" } },
+                { kind: "Field", name: { kind: "Name", value: "dueAt" } },
+                { kind: "Field", name: { kind: "Name", value: "dueLocal" } },
+                { kind: "Field", name: { kind: "Name", value: "nextHandoff" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  CalculateWorkingDaysQuery,
+  CalculateWorkingDaysQueryVariables
+>;
 export const OrganizationWorkspaceDocument = {
   kind: "Document",
   definitions: [

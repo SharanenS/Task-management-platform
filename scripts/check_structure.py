@@ -17,6 +17,13 @@ LEGACY_JOBS = (
     "reliability-and-recovery",
 )
 REQUIRED_FILES = (
+    "services/project-work/project_work/calendar.py",
+    "services/project-work/project_work/app.py",
+    "services/project-work/requirements.lock",
+    "compose.calendar.yaml",
+    "scripts/calendar-development.py",
+    "scripts/run-s6-source-checks.py",
+    "apps/web/src/app/admin/calendar/page.tsx",
     "services/people/migrations/versions/0004_company_structure.py",
     "services/people/people/organization.py",
     "services/gateway/gateway/organization_schema.py",
@@ -81,6 +88,13 @@ def check_repository(root: Path) -> list[str]:
     ci_source = (root / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     if "python scripts/account-management-development.py up --apply-migration" not in ci_source:
         errors.append("S4 account management runtime acceptance is missing")
+
+    for entry in (
+        "python scripts/calendar-development.py up --apply-migration",
+        "python scripts/run-s6-source-checks.py",
+    ):
+        if entry not in ci_source:
+            errors.append("S6 calendar runtime or source acceptance is missing")
 
     runner_source = (root / "scripts/run-s1-acceptance.py").read_text(encoding="utf-8")
     guard = runner_source.find("assert_capture_delivery()")

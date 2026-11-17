@@ -1,0 +1,46 @@
+services:
+  gateway:
+    environment:
+      PROJECT_WORK_URL: http://project-work:8000
+      PROJECT_WORK_SERVICE_KEY: ${PROJECT_WORK_SERVICE_KEY:?Use the calendar wrapper}
+    depends_on:
+      project-work:
+        condition: service_healthy
+  project-work:
+    build:
+      context: ./services/project-work
+      additional_contexts:
+        security: ./packages/security
+    environment:
+      AUTH_ISSUER: http://127.0.0.1:8180/realms/taskspace-portals
+      AUTH_JWKS_URL: http://identity:8080/realms/taskspace-portals/protocol/openid-connect/certs
+      AUTH_ALLOW_LOCAL_HTTP: "true"
+      PEOPLE_URL: http://people:8000
+      PEOPLE_SERVICE_KEY: ${PEOPLE_SERVICE_KEY:?Use the calendar wrapper}
+      PROJECT_WORK_SERVICE_KEY: ${PROJECT_WORK_SERVICE_KEY:?Use the calendar wrapper}
+      PROJECT_WORK_DATABASE_URL: postgresql+psycopg://taskspace_project_work:${PROJECT_WORK_DATABASE_PASSWORD:?Use the calendar wrapper}@project-work-db:5432/taskspace_project_work
+    depends_on:
+      people:
+        condition: service_healthy
+      project-work-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  project-work-db:
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+    environment:
+      POSTGRES_DB: taskspace_project_work
+      POSTGRES_USER: taskspace_project_work
+      POSTGRES_PASSWORD: ${PROJECT_WORK_DATABASE_PASSWORD:?Use the calendar wrapper}
+    volumes:
+      - portal_project_work_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskspace_project_work -d taskspace_project_work"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  portal_project_work_data:

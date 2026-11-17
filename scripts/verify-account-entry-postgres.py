@@ -13,6 +13,7 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 if __name__ == "__main__":
+    module.account.SERVICES.update({"project-work", "project-work-db"})
     module.preflight()
     result = module.compose(
         "exec",

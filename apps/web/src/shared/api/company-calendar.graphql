@@ -1,0 +1,82 @@
+fragment CalendarConfigurationFields on CalendarConfiguration {
+  timezone
+  week {
+    weekday
+    working
+    opens
+    closes
+  }
+  holidays {
+    date
+    label
+  }
+  exceptions {
+    date
+    label
+    working
+    opens
+    closes
+  }
+}
+query CompanyCalendar {
+  companyCalendar {
+    current {
+      id
+      number
+      tzdbVersion
+      actorId
+      createdAt
+      config {
+        ...CalendarConfigurationFields
+      }
+    }
+    history {
+      id
+      number
+      tzdbVersion
+      actorId
+      createdAt
+    }
+  }
+}
+mutation PreviewCompanyCalendar($input: CalendarConfigurationInput!) {
+  previewCompanyCalendar(input: $input) {
+    previewId
+    baseNumber
+    tzdbVersion
+    expiresAt
+    changedSections
+    config {
+      ...CalendarConfigurationFields
+    }
+  }
+}
+mutation PublishCompanyCalendar($input: PublishCalendarInput!) {
+  publishCompanyCalendar(input: $input) {
+    id
+    number
+    tzdbVersion
+    actorId
+    createdAt
+    config {
+      ...CalendarConfigurationFields
+    }
+  }
+}
+query CalculateWorkingDays($input: WorkingDaysInput!) {
+  calculateWorkingDays(input: $input) {
+    versionId
+    versionNumber
+    tzdbVersion
+    requestedStart
+    effectiveStart
+    adjusted
+    duration
+    countedDates
+    timezone
+    startsAt
+    dueAt
+    dueLocal
+    nextHandoff
+  }
+}

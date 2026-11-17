@@ -39,17 +39,17 @@ def main() -> int:
     parser.add_argument("--admin-only", action="store_true")
     parser.add_argument("--accounts-only", action="store_true")
     parser.add_argument("--organization-only", action="store_true")
+    parser.add_argument("--calendar-only", action="store_true")
     args = parser.parse_args()
-    if args.organization_only and (
-        args.recovery or args.accounts_only or args.admin_only or args.account_entry_only
-    ):
-        raise RuntimeError("Organization focus cannot run outages or another focus")
-    if (args.recovery and (args.account_entry_only or args.admin_only)) or (
-        args.account_entry_only and args.admin_only
-    ):
-        raise RuntimeError("Account entry focus cannot run outages")
-    if args.accounts_only and (args.admin_only or args.account_entry_only or args.recovery):
-        raise RuntimeError("Account management focus cannot run outages or another focus")
+    focuses = [
+        args.account_entry_only,
+        args.admin_only,
+        args.accounts_only,
+        args.organization_only,
+        args.calendar_only,
+    ]
+    if sum(focuses) > 1 or (args.recovery and any(focuses)):
+        raise RuntimeError("Acceptance focus cannot run outages or another focus")
     receipt_dir = ROOT / ".local/auth/runs"
     prior_receipts = set(receipt_dir.glob("*.json"))
     before = inventory()
@@ -72,19 +72,28 @@ def main() -> int:
         "people-db",
         "mailbox",
     }
+    calendar_services = {"project-work", "project-work-db"}
+    actual_names = {x["Config"]["Labels"].get("com.docker.compose.service") for x in owned}
+    if actual_names & calendar_services:
+        expected_services |= calendar_services
+    if args.calendar_only and not calendar_services <= actual_names:
+        raise RuntimeError("Calendar services are required")
+    expected_count = len(expected_services)
     service_names = [x["Config"]["Labels"].get("com.docker.compose.service") for x in owned]
     if (
-        len(owned) != 8
+        len(owned) != expected_count
         or set(service_names) != expected_services
         or any(
             not x["State"]["Running"] or x["State"].get("Health", {}).get("Status") != "healthy"
             for x in owned
         )
     ):
-        raise RuntimeError("Eight healthy isolated account-management services are required")
+        raise RuntimeError(f"{expected_count} healthy isolated portal services are required")
     from email_delivery import assert_capture_delivery
 
-    if not (args.admin_only or args.account_entry_only or args.organization_only):
+    if not (
+        args.admin_only or args.account_entry_only or args.organization_only or args.calendar_only
+    ):
         assert_capture_delivery()
     env = os.environ.copy()
     if args.recovery:
@@ -106,6 +115,7 @@ def main() -> int:
                 *(["--grep", "S3 administrator workspace"] if args.admin_only else []),
                 *(["--grep", "S4 account creation"] if args.accounts_only else []),
                 *(["--grep", "S5 company structure"] if args.organization_only else []),
+                *(["--grep", "S6 versioned working calendar"] if args.calendar_only else []),
             ],
             cwd=ROOT / "apps/web",
             env=env,
@@ -127,7 +137,7 @@ def main() -> int:
         while True:
             after = inventory()
             own_after = [x for x in after if x["Id"] in {v["Id"] for v in owned}]
-            if len(own_after) == 8 and all(
+            if len(own_after) == expected_count and all(
                 x["State"]["Running"] and x["State"].get("Health", {}).get("Status") == "healthy"
                 for x in own_after
             ):
@@ -137,7 +147,10 @@ def main() -> int:
             time.sleep(1)
         if {x["Id"]: health(x) for x in after if x["Id"] in legacy} != legacy:
             raise RuntimeError("Legacy service state changed during acceptance")
-        print("Eight new services healthy; legacy service IDs and health unchanged.", flush=True)
+        print(
+            f"{expected_count} portal services healthy; legacy service IDs and health unchanged.",
+            flush=True,
+        )
     if not args.recovery:
         created_receipts = set(receipt_dir.glob("*.json")) - prior_receipts
         if not created_receipts or (code == 0 and len(created_receipts) != 1):
@@ -152,6 +165,7 @@ def main() -> int:
                     "grantsRevoked",
                     "accountRemoved",
                     "organizationCleanupVerified",
+                    "calendarCleanupVerified",
                 )
             ):
                 raise RuntimeError(
@@ -169,8 +183,9 @@ def main() -> int:
             or args.admin_only
             or args.accounts_only
             or args.organization_only
+            or args.calendar_only
         )
-        else (2 if args.recovery else 9)
+        else (2 if args.recovery else 10)
     )
     if (
         code
@@ -183,7 +198,9 @@ def main() -> int:
     destination = ROOT / "test-results/reports/s1"
     destination.mkdir(parents=True, exist_ok=True)
     scope = (
-        "organization"
+        "calendar"
+        if args.calendar_only
+        else "organization"
         if args.organization_only
         else "accounts"
         if args.accounts_only

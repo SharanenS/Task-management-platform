@@ -1,0 +1,56 @@
+.calendar-fields {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.calendar-fields > label {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 30rem;
+}
+.calendar-fields input:not([type="checkbox"]) {
+  min-height: 2.75rem;
+  padding: 0.6rem;
+  border: 1px solid #b8c6d6;
+  border-radius: 0.5rem;
+  max-width: 100%;
+  background: #fff;
+  color: #16243c;
+}
+.calendar-weekday,
+.calendar-date {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #d9e1ec;
+}
+.calendar-weekday > label:first-child {
+  flex: 1 1 12rem;
+}
+.calendar-weekday > label:not(:first-child),
+.calendar-date > label {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.calendar-fields button {
+  margin: 1rem 0.5rem 0 0;
+  padding: 0.7rem 1rem;
+  min-height: 2.75rem;
+  border: 1px solid #367f98;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+.calendar-fields button:disabled {
+  opacity: 0.6;
+}
+@media (max-width: 480px) {
+  .calendar-date > label {
+    flex: 1 1 100%;
+  }
+  .calendar-weekday > label:first-child {
+    flex-basis: 100%;
+  }
+}
