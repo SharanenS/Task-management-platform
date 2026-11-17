@@ -1,10 +1,80 @@
+type AccountAdministration {
+  accounts: [ManagedAccount!]!
+  operations: [ProvisioningOperation!]!
+  history: [AccountHistory!]!
+  hasMore: Boolean!
+}
+
+type AccountCommandResult {
+  operationId: ID!
+  state: String!
+}
+
+type AccountHistory {
+  id: ID!
+  actorId: ID!
+  targetId: ID
+  action: String!
+  state: String!
+  before: String!
+  after: String!
+  createdAt: String!
+}
+
 type AdminWorkspace {
   viewer: Viewer!
+}
+
+input ChangeAccountInput {
+  requestId: ID!
+  accountId: ID!
+  version: Int!
+  action: String!
+  role: String = null
+}
+
+input CreateAccountInput {
+  requestId: ID!
+  username: String!
+  email: String!
+  displayName: String!
+  role: String!
+}
+
+type ManagedAccount {
+  id: ID!
+  displayName: String!
+  username: String!
+  email: String!
+  active: Boolean!
+  profileActive: Boolean!
+  role: String!
+  version: Int!
+}
+
+type Mutation {
+  createAccount(input: CreateAccountInput!): AccountCommandResult!
+  changeAccount(input: ChangeAccountInput!): AccountCommandResult!
+  recoverAccount(input: RecoverAccountInput!): AccountCommandResult!
+}
+
+type ProvisioningOperation {
+  id: ID!
+  username: String!
+  email: String!
+  state: String!
+  failureCode: String
 }
 
 type Query {
   viewer: Viewer!
   adminWorkspace: AdminWorkspace!
+  accountAdministration(page: Int! = 0): AccountAdministration!
+}
+
+input RecoverAccountInput {
+  requestId: ID!
+  operationId: ID!
 }
 
 type Viewer {

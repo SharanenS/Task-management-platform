@@ -1,0 +1,50 @@
+query AccountAdministration($page: Int!) {
+  accountAdministration(page: $page) {
+    accounts {
+      id
+      displayName
+      username
+      email
+      active
+      profileActive
+      role
+      version
+    }
+    operations {
+      id
+      username
+      email
+      state
+      failureCode
+    }
+    history {
+      id
+      actorId
+      targetId
+      action
+      state
+      before
+      after
+      createdAt
+    }
+    hasMore
+  }
+}
+mutation CreateAccount($input: CreateAccountInput!) {
+  createAccount(input: $input) {
+    operationId
+    state
+  }
+}
+mutation ChangeAccount($input: ChangeAccountInput!) {
+  changeAccount(input: $input) {
+    operationId
+    state
+  }
+}
+mutation RecoverAccount($input: RecoverAccountInput!) {
+  recoverAccount(input: $input) {
+    operationId
+    state
+  }
+}

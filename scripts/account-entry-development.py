@@ -136,9 +136,10 @@ def configure_audience():
         if len(clients) != 1 or clients[0]["clientId"] != "taskspace-portals-web":
             raise IdentityConfigurationError("client_ownership_mismatch")
         client = clients[0]
-        if client.get("redirectUris") != ["http://127.0.0.1:3020/auth/callback"] or not client.get(
-            "publicClient"
-        ):
+        if client.get("redirectUris") not in (
+            ["http://127.0.0.1:3020/auth/callback"],
+            ["http://127.0.0.1:3020/auth/callback", "http://127.0.0.1:3020/sign-in"],
+        ) or not client.get("publicClient"):
             raise IdentityConfigurationError("client_configuration_mismatch")
         path = "clients/" + client["id"] + "/protocol-mappers/models"
         desired = json.loads(

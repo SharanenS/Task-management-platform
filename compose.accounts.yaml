@@ -1,0 +1,22 @@
+# Local development email capture only. No SMTP relay or external delivery.
+services:
+  people:
+    environment:
+      IDENTITY_ADMIN_CLIENT_SECRET: ${IDENTITY_ADMIN_CLIENT_SECRET:?Use the account-management wrapper}
+      ACCOUNT_WEB_ORIGIN: http://127.0.0.1:3020
+  mailbox:
+    image: axllent/mailpit:v1.29.2@sha256:030f06031ce5c60913ac9363da1ab0d4be6fd2a78147dd0e1ca0fcac665d6b34
+    ports:
+      - "127.0.0.1:8025:8025"
+    environment:
+      MP_MAX_MESSAGES: "0"
+      MP_SMTP_DISABLE_RDNS: "true"
+      MP_BLOCK_REMOTE_CSS_AND_FONTS: "true"
+      MP_HIDE_DELETE_ALL_BUTTON: "true"
+      MP_DISABLE_VERSION_CHECK: "true"
+      MP_QUIET: "true"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20

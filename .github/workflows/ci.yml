@@ -448,7 +448,7 @@ jobs:
         working-directory: apps/web
         run: npx playwright install --with-deps chromium
       - name: Start isolated authentication stack
-        run: python scripts/account-entry-development.py up --apply-migration
+        run: python scripts/account-management-development.py up --apply-migration
       - name: Verify PostgreSQL account constraints and scoped rollback
         run: python scripts/verify-account-entry-postgres.py
       - name: Verify desktop authentication

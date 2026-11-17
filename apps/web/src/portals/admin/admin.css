@@ -479,3 +479,80 @@
     transition: none;
   }
 }
+
+.accounts-panel {
+  background: #fff;
+  border: 1px solid #dce5ee;
+  border-radius: 18px;
+  padding: 24px;
+  margin: 20px 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.accounts-panel h2,
+.accounts-panel h3 {
+  margin: 0 0 12px;
+}
+.accounts-panel p {
+  color: #53677d;
+  line-height: 1.65;
+}
+.accounts-create,
+.accounts-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 20px;
+}
+.accounts-panel label {
+  display: grid;
+  gap: 8px;
+  color: #253b52;
+  font-size: 14px;
+}
+.accounts-panel input:not([type="checkbox"]),
+.accounts-panel select {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+  border: 1px solid #b8c8d9;
+  border-radius: 8px;
+  padding: 10px;
+  background: white;
+  color: #142b42;
+}
+.accounts-panel .accounts-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+.accounts-panel button {
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid #54768e;
+  background: #eef6fa;
+  color: #113c54;
+  cursor: pointer;
+}
+.accounts-panel button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.accounts-notice {
+  background: #e5f3f6;
+  border-left: 4px solid #087f98;
+  padding: 16px;
+  line-height: 1.7;
+}
+.accounts-operation {
+  border-top: 1px solid #dce5ee;
+  padding: 18px 0;
+}
+.accounts-operation span {
+  margin-left: 16px;
+}
+.accounts-panel details {
+  padding: 14px 0;
+  border-top: 1px solid #dce5ee;
+}

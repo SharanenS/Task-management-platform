@@ -7,35 +7,86 @@ export type Incremental<T> =
       [P in keyof T]?: P extends " $fragmentName" | "__typename" ? T[P] : never;
     };
 import { TypedDocumentNode as DocumentNode } from "@graphql-typed-document-node/core";
-export type Maybe<T> = T | null;
-export type InputMaybe<T> = Maybe<T>;
-/** All built-in and custom scalars, mapped to their actual values */
-export type Scalars = {
-  ID: { input: string; output: string };
-  String: { input: string; output: string };
-  Boolean: { input: boolean; output: boolean };
-  Int: { input: number; output: number };
-  Float: { input: number; output: number };
+export type ChangeAccountInput = {
+  accountId: string | number;
+  action: string;
+  requestId: string | number;
+  role?: string | null | undefined;
+  version: number;
 };
 
-export type AdminWorkspace = {
-  __typename?: "AdminWorkspace";
-  viewer: Viewer;
+export type CreateAccountInput = {
+  displayName: string;
+  email: string;
+  requestId: string | number;
+  role: string;
+  username: string;
 };
 
-export type Query = {
-  __typename?: "Query";
-  adminWorkspace: AdminWorkspace;
-  viewer: Viewer;
+export type RecoverAccountInput = {
+  operationId: string | number;
+  requestId: string | number;
 };
 
-export type Viewer = {
-  __typename?: "Viewer";
-  accountId: Scalars["ID"]["output"];
-  companyRoles: Array<Scalars["String"]["output"]>;
-  displayName: Scalars["String"]["output"];
-  employeeId: Scalars["ID"]["output"];
-  permissions: Array<Scalars["String"]["output"]>;
+export type AccountAdministrationQueryVariables = Exact<{
+  page: number;
+}>;
+
+export type AccountAdministrationQuery = {
+  accountAdministration: {
+    hasMore: boolean;
+    accounts: Array<{
+      id: string;
+      displayName: string;
+      username: string;
+      email: string;
+      active: boolean;
+      profileActive: boolean;
+      role: string;
+      version: number;
+    }>;
+    operations: Array<{
+      id: string;
+      username: string;
+      email: string;
+      state: string;
+      failureCode: string | null;
+    }>;
+    history: Array<{
+      id: string;
+      actorId: string;
+      targetId: string | null;
+      action: string;
+      state: string;
+      before: string;
+      after: string;
+      createdAt: string;
+    }>;
+  };
+};
+
+export type CreateAccountMutationVariables = Exact<{
+  input: CreateAccountInput;
+}>;
+
+export type CreateAccountMutation = {
+  createAccount: { operationId: string; state: string };
+};
+
+export type ChangeAccountMutationVariables = Exact<{
+  input: ChangeAccountInput;
+}>;
+
+export type ChangeAccountMutation = {
+  changeAccount: { operationId: string; state: string };
+};
+
+export type RecoverAccountMutationVariables = Exact<{
+  input: RecoverAccountInput;
+}>;
+
+export type RecoverAccountMutation = {
+  recoverAccount: { operationId: string; state: string };
 };
 
 export type AccountEntryQueryVariables = Exact<{ [key: string]: never }>;
@@ -64,6 +115,303 @@ export type AdminWorkspaceQuery = {
   };
 };
 
+export const AccountAdministrationDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "AccountAdministration" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "page" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "Int" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "accountAdministration" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "page" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "page" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "accounts" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "displayName" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "username" },
+                      },
+                      { kind: "Field", name: { kind: "Name", value: "email" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "active" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "profileActive" },
+                      },
+                      { kind: "Field", name: { kind: "Name", value: "role" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "version" },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "operations" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "username" },
+                      },
+                      { kind: "Field", name: { kind: "Name", value: "email" } },
+                      { kind: "Field", name: { kind: "Name", value: "state" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "failureCode" },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "history" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "actorId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "targetId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "action" },
+                      },
+                      { kind: "Field", name: { kind: "Name", value: "state" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "before" },
+                      },
+                      { kind: "Field", name: { kind: "Name", value: "after" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "createdAt" },
+                      },
+                    ],
+                  },
+                },
+                { kind: "Field", name: { kind: "Name", value: "hasMore" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  AccountAdministrationQuery,
+  AccountAdministrationQueryVariables
+>;
+export const CreateAccountDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "CreateAccount" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "CreateAccountInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "createAccount" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "operationId" } },
+                { kind: "Field", name: { kind: "Name", value: "state" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  CreateAccountMutation,
+  CreateAccountMutationVariables
+>;
+export const ChangeAccountDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "ChangeAccount" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "ChangeAccountInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "changeAccount" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "operationId" } },
+                { kind: "Field", name: { kind: "Name", value: "state" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  ChangeAccountMutation,
+  ChangeAccountMutationVariables
+>;
+export const RecoverAccountDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "RecoverAccount" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "RecoverAccountInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "recoverAccount" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "operationId" } },
+                { kind: "Field", name: { kind: "Name", value: "state" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  RecoverAccountMutation,
+  RecoverAccountMutationVariables
+>;
 export const AccountEntryDocument = {
   kind: "Document",
   definitions: [

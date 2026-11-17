@@ -11,9 +11,11 @@ from taskspace_security.settings import SecuritySettings
 from taskspace_security.tokens import TokenVerifier
 
 from .access import AccessDenied, resolve_actor
+from .identity_admin import IdentityAdministration
+from .management import AccountManagement, ManagementError
 
 
-def create_app(settings=None, sessions=None, verifier=None):
+def create_app(settings=None, sessions=None, verifier=None, provider=None):
     settings = settings or SecuritySettings.from_environment()
     if sessions is None:
         engine = create_engine(
@@ -24,6 +26,7 @@ def create_app(settings=None, sessions=None, verifier=None):
         settings.issuer, settings.jwks_url, settings.audience, settings.client_id
     )
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    management = AccountManagement(sessions, provider or (lambda: IdentityAdministration(settings)))
 
     @app.get("/health/live")
     def live():
@@ -38,7 +41,7 @@ def create_app(settings=None, sessions=None, verifier=None):
         except Exception:
             raise HTTPException(503, "Service unavailable") from None
 
-    def current_actor(request: Request):
+    def current_identity(request: Request):
         service_key = request.headers.get("x-service-key", "")
         if not service_key.isascii() or not compare_digest(service_key, settings.service_key):
             raise HTTPException(401, "Authentication required")
@@ -46,9 +49,12 @@ def create_app(settings=None, sessions=None, verifier=None):
         if not authorization.startswith("Bearer "):
             raise HTTPException(401, "Authentication required")
         try:
-            identity = verifier.verify(authorization[7:])
+            return verifier.verify(authorization[7:])
         except Exception:
             raise HTTPException(401, "Authentication required") from None
+
+    def current_actor(request: Request):
+        identity = current_identity(request)
         try:
             with sessions() as session:
                 value = resolve_actor(session, identity)
@@ -68,6 +74,39 @@ def create_app(settings=None, sessions=None, verifier=None):
         if actor.company_roles != ("ADMIN",) or "admin:workspace:read" not in actor.permissions:
             raise HTTPException(403, "Access denied")
         return asdict(actor)
+
+    @app.get("/internal/admin/accounts")
+    def accounts(request: Request, page: int = 0):
+        try:
+            return management.list(current_identity(request), page)
+        except AccessDenied:
+            raise HTTPException(403, "Access denied") from None
+        except ManagementError as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
+    @app.post("/internal/admin/accounts/{command}")
+    def account_command(command: str, value: dict, request: Request):
+        identity = current_identity(request)
+        try:
+            if command == "create":
+                return management.create(identity, value)
+            if command == "recover":
+                return management.recover(identity, value)
+            if command == "change":
+                return management.change(identity, value)
+            raise HTTPException(404, "Not found")
+        except AccessDenied:
+            raise HTTPException(403, "Access denied") from None
+        except ManagementError as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
 
     @app.middleware("http")
     async def private_responses(request, call_next):
