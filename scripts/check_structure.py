@@ -17,6 +17,12 @@ LEGACY_JOBS = (
     "reliability-and-recovery",
 )
 REQUIRED_FILES = (
+    "services/people/migrations/versions/0004_company_structure.py",
+    "services/people/people/organization.py",
+    "services/gateway/gateway/organization_schema.py",
+    "apps/web/src/app/admin/employees/page.tsx",
+    "apps/web/src/app/admin/organization/page.tsx",
+    "tests/account_entry/postgres_organization_check.py",
     "scripts/email_delivery.py",
     "scripts/configure-email.py",
     "compose.accounts.yaml",

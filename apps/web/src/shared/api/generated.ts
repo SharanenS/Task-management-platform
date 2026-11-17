@@ -18,9 +18,24 @@ export type ChangeAccountInput = {
 export type CreateAccountInput = {
   displayName: string;
   email: string;
+  employeeId?: string | number | null | undefined;
   requestId: string | number;
   role: string;
   username: string;
+};
+
+export type OrganizationChangeInput = {
+  accountId?: string | number | null | undefined;
+  action: string;
+  active?: boolean | null | undefined;
+  departmentId?: string | number | null | undefined;
+  entityId?: string | number | null | undefined;
+  jobTitleId?: string | number | null | undefined;
+  kind?: string | null | undefined;
+  managerId?: string | number | null | undefined;
+  name?: string | null | undefined;
+  requestId: string | number;
+  version?: number | null | undefined;
 };
 
 export type RecoverAccountInput = {
@@ -113,6 +128,59 @@ export type AdminWorkspaceQuery = {
       permissions: Array<string>;
     };
   };
+};
+
+export type OrganizationWorkspaceQueryVariables = Exact<{
+  page: number;
+  search: string;
+}>;
+
+export type OrganizationWorkspaceQuery = {
+  organizationWorkspace: {
+    hasMore: boolean;
+    departments: Array<{
+      id: string;
+      name: string;
+      active: boolean;
+      version: number;
+    }>;
+    jobTitles: Array<{
+      id: string;
+      name: string;
+      active: boolean;
+      version: number;
+    }>;
+    employees: Array<{
+      id: string;
+      displayName: string;
+      active: boolean;
+      version: number;
+      accountId: string | null;
+      companyRole: string;
+      departmentId: string | null;
+      jobTitleId: string | null;
+      managerId: string | null;
+    }>;
+    managerOptions: Array<{ id: string; displayName: string }>;
+    unlinkedEmployees: Array<{ id: string; displayName: string }>;
+    availableAccounts: Array<{ id: string; companyRole: string }>;
+    history: Array<{
+      id: string;
+      action: string;
+      entityKind: string;
+      entityName: string;
+      actorName: string;
+      createdAt: string;
+    }>;
+  };
+};
+
+export type ChangeOrganizationMutationVariables = Exact<{
+  input: OrganizationChangeInput;
+}>;
+
+export type ChangeOrganizationMutation = {
+  changeOrganization: { entityId: string; state: string };
 };
 
 export const AccountAdministrationDocument = {
@@ -497,3 +565,280 @@ export const AdminWorkspaceDocument = {
     },
   ],
 } as unknown as DocumentNode<AdminWorkspaceQuery, AdminWorkspaceQueryVariables>;
+export const OrganizationWorkspaceDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "OrganizationWorkspace" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "page" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "Int" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "search" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "String" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "organizationWorkspace" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "page" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "page" },
+                },
+              },
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "search" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "search" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "departments" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      { kind: "Field", name: { kind: "Name", value: "name" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "active" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "version" },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "jobTitles" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      { kind: "Field", name: { kind: "Name", value: "name" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "active" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "version" },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "employees" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "displayName" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "active" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "version" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "accountId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "companyRole" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "departmentId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "jobTitleId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "managerId" },
+                      },
+                    ],
+                  },
+                },
+                { kind: "Field", name: { kind: "Name", value: "hasMore" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "managerOptions" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "displayName" },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "unlinkedEmployees" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "displayName" },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "availableAccounts" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "companyRole" },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "history" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "action" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "entityKind" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "entityName" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "actorName" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "createdAt" },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  OrganizationWorkspaceQuery,
+  OrganizationWorkspaceQueryVariables
+>;
+export const ChangeOrganizationDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "ChangeOrganization" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "OrganizationChangeInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "changeOrganization" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "entityId" } },
+                { kind: "Field", name: { kind: "Name", value: "state" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  ChangeOrganizationMutation,
+  ChangeOrganizationMutationVariables
+>;

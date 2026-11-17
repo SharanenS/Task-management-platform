@@ -197,6 +197,7 @@ def ensure_initial_administrator(session, provider, issuer, username, password, 
     account = Account(id=account_id, issuer=issuer, subject=operation.subject, active=True)
     account.profile = EmployeeProfile(
         id=str(uuid5(UUID(operation.operation_id), "profile")),
+        issuer=issuer,
         display_name="Company Administrator",
         active=True,
     )

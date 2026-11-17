@@ -14,7 +14,10 @@ from people.models import (
     AccountAudit,
     AccountProvisioning,
     CompanyRoleGrant,
+    Department,
     EmployeeProfile,
+    JobTitle,
+    OrganizationAudit,
 )
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import Session
@@ -31,6 +34,9 @@ def main():
     action = value["action"]
     if action not in {
         "create",
+        "organization_inspect",
+        "organization_cleanup",
+        "organization_account",
         "managed_inspect",
         "managed_cleanup",
         "cleanup",
@@ -52,7 +58,7 @@ def main():
                 raise ValueError("Fixture would overwrite an existing account")
             account = Account(id=run_id, issuer=ISSUER, subject=subject, active=True)
             account.profile = EmployeeProfile(
-                id=profile_id, display_name="Acceptance Account", active=True
+                id=profile_id, issuer=ISSUER, display_name="Acceptance Account", active=True
             )
             account.grants = [CompanyRoleGrant(role="EMPLOYEE")]
             session.add(account)
@@ -79,6 +85,118 @@ def main():
                 or any(g.role not in {"ADMIN", "MANAGER", "EMPLOYEE", "HR"} for g in account.grants)
             ):
                 raise ValueError("Fixture account ownership mismatch")
+            if action.startswith("organization_"):
+                secondary_id = str(uuid5(UUID(run_id), "organization-account"))
+                if action == "organization_account":
+                    secondary_subject = str(UUID(value["value"]))
+                    if session.get(Account, secondary_id) or session.scalar(
+                        select(Account).where(
+                            Account.issuer == ISSUER, Account.subject == secondary_subject
+                        )
+                    ):
+                        raise ValueError("Secondary fixture already exists")
+                    secondary = Account(
+                        id=secondary_id, issuer=ISSUER, subject=secondary_subject, active=True
+                    )
+                    secondary.grants = [CompanyRoleGrant(role="EMPLOYEE")]
+                    session.add(secondary)
+                    print(json.dumps({"accountId": secondary_id}))
+                    return
+                records = session.scalars(
+                    select(OrganizationAudit).where(OrganizationAudit.actor_id == run_id)
+                ).all()
+                ids = {r.entity_id for r in records}
+                groups = {Department: [], JobTitle: [], EmployeeProfile: []}
+                for model in groups:
+                    groups[model] = session.scalars(select(model).where(model.id.in_(ids))).all()
+                    for row in groups[model]:
+                        name = row.display_name if model is EmployeeProfile else row.name
+                        if row.issuer != ISSUER or run_id not in name:
+                            raise ValueError("Organization resource ownership mismatch")
+                employees = groups[EmployeeProfile]
+                employee_ids = {r.id for r in employees}
+                if any(
+                    r.account_id not in {None, secondary_id}
+                    or r.manager_id not in {None, *employee_ids}
+                    for r in employees
+                ):
+                    raise ValueError("Organization association ownership mismatch")
+                if session.scalar(
+                    select(OrganizationAudit.id).where(
+                        OrganizationAudit.entity_id.in_(ids), OrganizationAudit.actor_id != run_id
+                    )
+                ):
+                    raise ValueError("Another actor modified a test resource")
+                secondary = session.get(Account, secondary_id)
+                if secondary and (
+                    secondary.issuer != ISSUER
+                    or len(secondary.grants) != 1
+                    or secondary.grants[0].role != "EMPLOYEE"
+                    or secondary.profile
+                    and secondary.profile.id not in employee_ids
+                ):
+                    raise ValueError("Secondary account ownership mismatch")
+                result = {
+                    "employees": [
+                        {
+                            "id": r.id,
+                            "name": r.display_name,
+                            "accountId": r.account_id,
+                            "version": r.version,
+                        }
+                        for r in employees
+                    ],
+                    "accountId": secondary_id,
+                    "subject": secondary.subject if secondary else None,
+                    "auditCount": len(records),
+                }
+                if action == "organization_cleanup":
+                    for model, column in (
+                        (Department, EmployeeProfile.department_id),
+                        (JobTitle, EmployeeProfile.job_title_id),
+                        (EmployeeProfile, EmployeeProfile.manager_id),
+                    ):
+                        targets = [r.id for r in groups[model]]
+                        if session.scalar(
+                            select(EmployeeProfile.id).where(
+                                column.in_(targets), EmployeeProfile.id.not_in(employee_ids)
+                            )
+                        ):
+                            raise ValueError("A non-owned employee references a test resource")
+                    for r in employees:
+                        r.manager_id = None
+                    session.flush()
+                    for r in records:
+                        session.delete(r)
+                    for r in employees:
+                        session.delete(r)
+                    session.flush()
+                    for model in (Department, JobTitle):
+                        for r in groups[model]:
+                            session.delete(r)
+                    if secondary:
+                        session.execute(
+                            delete(CompanyRoleGrant).where(
+                                CompanyRoleGrant.account_id == secondary_id
+                            )
+                        )
+                        session.execute(delete(Account).where(Account.id == secondary_id))
+                    session.flush()
+                    session.expire_all()
+                    if (
+                        any(
+                            session.scalar(select(model.id).where(model.id.in_(ids)))
+                            for model in groups
+                        )
+                        or session.get(Account, secondary_id)
+                        or session.scalar(
+                            select(OrganizationAudit.id).where(OrganizationAudit.actor_id == run_id)
+                        )
+                    ):
+                        raise ValueError("Organization cleanup incomplete")
+                    result["cleaned"] = True
+                print(json.dumps(result))
+                return
             if action in {"managed_inspect", "managed_cleanup"}:
                 operation_id = str(UUID(value["value"]))
                 operation = session.get(AccountProvisioning, operation_id)
@@ -174,6 +292,7 @@ def main():
                 session.add(
                     EmployeeProfile(
                         id=profile_id,
+                        issuer=ISSUER,
                         account_id=run_id,
                         display_name="Acceptance Account",
                         active=True,

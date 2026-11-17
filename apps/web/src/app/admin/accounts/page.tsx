@@ -1,8 +1,12 @@
 import Link from "next/link";
+import { EmployeeAssociation } from "@/portals/admin/employee-association";
 import { randomUUID } from "node:crypto";
 import { requireAdministrator } from "@/portals/admin/server";
 import { administrationRequest } from "@/shared/api/account-administration";
-import { AccountAdministrationDocument } from "@/shared/api/generated";
+import {
+  AccountAdministrationDocument,
+  OrganizationWorkspaceDocument,
+} from "@/shared/api/generated";
 import { AccountDenied } from "@/shared/api/account-entry";
 import { redirect } from "next/navigation";
 const roles = ["EMPLOYEE", "MANAGER", "ADMIN", "HR"];
@@ -31,7 +35,11 @@ function Confirmation() {
 export default async function Accounts({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; notice?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    notice?: string;
+    employeeId?: string;
+  }>;
 }) {
   const { actor, session } = await requireAdministrator();
   const params = await searchParams;
@@ -39,12 +47,19 @@ export default async function Accounts({
   const page =
     Number.isInteger(number) && number >= 0 && number <= 10000 ? number : 0;
   let data;
+  let employees;
   try {
     data = (
       await administrationRequest(session, AccountAdministrationDocument, {
         page,
       })
     ).accountAdministration;
+    employees = (
+      await administrationRequest(session, OrganizationWorkspaceDocument, {
+        page: 0,
+        search: "",
+      })
+    ).organizationWorkspace.unlinkedEmployees;
   } catch (error) {
     if (error instanceof AccountDenied) redirect("/access-denied");
     return (
@@ -83,15 +98,10 @@ export default async function Accounts({
         >
           <Hidden name="intent" value="create" />
           <Hidden name="requestId" value={randomUUID()} />
-          <label>
-            Full name
-            <input
-              name="displayName"
-              required
-              maxLength={150}
-              autoComplete="off"
-            />
-          </label>
+          <EmployeeAssociation
+            employees={employees}
+            initialId={params.employeeId}
+          />
           <label>
             Username
             <input

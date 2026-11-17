@@ -25,6 +25,10 @@ let recipientCleanupVerified = true;
 const password = randomBytes(32).toString("base64url");
 const disposablePasswords = new Set([password]);
 let reauthenticationProved = false;
+let organizationSubject = "";
+let organizationCleanupVerified = true;
+let organizationCreatedEarliest = 0;
+let organizationCreatedLatest = 0;
 let createdEarliest = 0;
 let createdLatest = 0;
 const administratorGrants: string[] = [];
@@ -46,6 +50,10 @@ function receipt(status: string, extra: Record<string, unknown> = {}) {
         createdLatest,
         status,
         reauthenticationProved,
+        organizationSubject,
+        organizationCreatedEarliest,
+        organizationCreatedLatest,
+        organizationCleanupVerified,
         ...extra,
       },
       null,
@@ -489,6 +497,7 @@ test.afterAll(async () => {
   let grantsRevoked = true;
   try {
     if (userId) {
+      await cleanupOrganization();
       await cleanupManaged();
       await ownedUser();
       accountRemoved = accountFixture("cleanup").cleaned === true;
@@ -530,6 +539,8 @@ test.afterAll(async () => {
         failure ??= new Error("Administrator grant cleanup failed");
       }
     }
+    if (!organizationCleanupVerified)
+      failure ??= new Error("Organization cleanup failed");
     if (!recipientCleanupVerified)
       failure ??= new Error("Recipient authentication cleanup failed");
     receipt(
@@ -1012,10 +1023,19 @@ test("S3 administrator workspace, password change and revoked-role denial", asyn
   await expect(
     page.getByRole("navigation", { name: "Administration" }),
   ).toBeVisible();
+  const navigation = page.getByRole("navigation", { name: "Administration" });
+  for (const [name, href] of [
+    ["Employees", "/admin/employees"],
+    ["Company structure", "/admin/organization"],
+  ] as const) {
+    const link = navigation.getByRole("link", { name, exact: true });
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute("href", href);
+  }
   expect(
     await page
       .getByRole("link", {
-        name: /Projects|Employees|Workflows|Reports|Design system/,
+        name: /Projects|Workflows|Reports|Design system/,
       })
       .count(),
   ).toBe(0);
@@ -1496,5 +1516,307 @@ test("S4 account creation, email activation, company access and reset history", 
     } finally {
       await recipient.close();
     }
+  }
+});
+
+async function ownedOrganizationIdentity() {
+  const user = await (
+    await admin(`${realm}/users/${organizationSubject}`)
+  ).json();
+  expect(
+    user.id === organizationSubject &&
+      user.username === `s5-${runId}` &&
+      user.email === `s5-${runId}@example.invalid` &&
+      user.attributes?.taskspaceAcceptanceRun?.[0] === runId &&
+      user.createdTimestamp >= organizationCreatedEarliest - 1000 &&
+      user.createdTimestamp <= organizationCreatedLatest + 1000,
+  ).toBe(true);
+  return user;
+}
+async function cleanupOrganization() {
+  if (organizationCleanupVerified) return;
+  if (organizationSubject) await ownedOrganizationIdentity();
+  expect(accountFixture("organization_cleanup").cleaned).toBe(true);
+  if (organizationSubject) {
+    await admin(`${realm}/users/${organizationSubject}`, { method: "DELETE" });
+    const response = await fetch(
+      `${providerOrigin}/admin/realms/${realm}/users/${organizationSubject}`,
+      { headers: { Authorization: `Bearer ${bearer}` } },
+    );
+    expect(response.status).toBe(404);
+  }
+  const check = accountFixture("organization_inspect");
+  expect(
+    check.employees.length === 0 &&
+      check.auditCount === 0 &&
+      check.subject === null,
+  ).toBe(true);
+  organizationCleanupVerified = true;
+  receipt("organization-cleaned");
+}
+
+test("S5 company structure, directory-first reporting and verified account association", async ({
+  page,
+  context,
+}) => {
+  page.setDefaultTimeout(5000);
+  let boundary = "administrator entry";
+  organizationCleanupVerified = false;
+  receipt("organization-started");
+  try {
+    accountFixture("role", "ADMIN");
+    await login(page);
+    await page.goto("/admin/organization");
+    await expect(
+      page.getByRole("heading", { name: "Company structure", exact: true }),
+    ).toBeVisible();
+    boundary = "department creation";
+    const department = `Department ${runId}`;
+    const title = `Title ${runId}`;
+    await page.getByLabel("Department name", { exact: true }).fill(department);
+    await page
+      .getByRole("button", { name: "Add department", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toContainText("saved");
+    boundary = "job title creation";
+    await page.getByLabel("Job title name", { exact: true }).fill(title);
+    await page
+      .getByRole("button", { name: "Add job title", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toContainText("saved");
+    boundary = "directory-first employee creation";
+    await page.goto("/admin/employees");
+    const create = page.locator("form").filter({
+      has: page.getByRole("button", { name: "Add employee", exact: true }),
+    });
+    const leader = `Leader ${runId}`;
+    const contributor = `Contributor ${runId}`;
+    boundary = "leader name entry";
+    await create.getByLabel("Full name", { exact: true }).fill(leader);
+    boundary = "leader department selection";
+    await create
+      .getByLabel("Department", { exact: true })
+      .selectOption({ label: department });
+    boundary = "leader title selection";
+    await create
+      .getByLabel("Job title", { exact: true })
+      .selectOption({ label: title });
+    boundary = "employee create submit";
+    await create
+      .getByRole("button", { name: "Add employee", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toContainText("saved");
+    await create.getByLabel("Full name", { exact: true }).fill(contributor);
+    await create
+      .getByLabel("Reports to", { exact: true })
+      .selectOption({ label: leader });
+    boundary = "employee create submit";
+    await create
+      .getByRole("button", { name: "Add employee", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toContainText("saved");
+    const owned = accountFixture("organization_inspect");
+    expect(
+      owned.employees.length === 2 &&
+        owned.employees.every(
+          (e: { accountId: string | null }) => e.accountId === null,
+        ),
+    ).toBe(true);
+    const leaderId = owned.employees.find(
+      (e: { name: string }) => e.name === leader,
+    ).id;
+    const contributorId = owned.employees.find(
+      (e: { name: string }) => e.name === contributor,
+    ).id;
+    boundary = "reporting cycle rejection";
+    const leaderRow = page
+      .locator("details")
+      .filter({ has: page.locator("summary").filter({ hasText: leader }) });
+    await leaderRow.locator("summary").click();
+    await leaderRow
+      .getByLabel("Reports to", { exact: true })
+      .selectOption(contributorId);
+    await leaderRow
+      .getByRole("button", { name: "Save employee", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toContainText("rejected");
+    boundary = "verified identity creation";
+    organizationCreatedEarliest = Date.now();
+    const response = await admin(`${realm}/users`, {
+      method: "POST",
+      body: JSON.stringify({
+        username: `s5-${runId}`,
+        email: `s5-${runId}@example.invalid`,
+        enabled: true,
+        attributes: { taskspaceAcceptanceRun: [runId] },
+      }),
+    });
+    organizationCreatedLatest = Date.now();
+    const location = response.headers.get("location");
+    organizationSubject = location?.split("/").pop() ?? "";
+    expect(/^[0-9a-f-]{36}$/.test(organizationSubject)).toBe(true);
+    receipt("organization-identity-created");
+    await ownedOrganizationIdentity();
+    const secondary = accountFixture(
+      "organization_account",
+      organizationSubject,
+    );
+    boundary = "disabled identity rejection";
+    await ownedOrganizationIdentity();
+    await admin(`${realm}/users/${organizationSubject}`, {
+      method: "PUT",
+      body: JSON.stringify({ enabled: false }),
+    });
+    expect((await ownedOrganizationIdentity()).enabled).toBe(false);
+    const rejectedLink = await context.request.post(
+      "http://127.0.0.1:8020/graphql",
+      {
+        headers: { Authorization: `Bearer ${await ownAccessToken(context)}` },
+        data: {
+          query:
+            "mutation($input: OrganizationChangeInput!) { changeOrganization(input:$input) { state } }",
+          variables: {
+            input: {
+              requestId: randomUUID(),
+              action: "ACCOUNT_LINK",
+              entityId: contributorId,
+              version: 1,
+              accountId: secondary.accountId,
+            },
+          },
+        },
+      },
+    );
+    const rejection = await rejectedLink.json();
+    expect(rejection.errors?.[0]?.extensions?.code).toBe(
+      "ACCOUNT_CHANGE_REJECTED",
+    );
+    expect(rejection.errors?.[0]?.message).toBe("identity_not_active");
+    expect(
+      accountFixture("organization_inspect").employees.find(
+        (e: { id: string }) => e.id === contributorId,
+      ).accountId === null,
+    ).toBe(true);
+    await admin(`${realm}/users/${organizationSubject}`, {
+      method: "PUT",
+      body: JSON.stringify({ enabled: true }),
+    });
+    expect((await ownedOrganizationIdentity()).enabled).toBe(true);
+    boundary = "existing employee account-entry selection";
+    await page.goto(
+      `/admin/accounts?employeeId=${encodeURIComponent(leaderId)}`,
+    );
+    await expect(
+      page.getByLabel("Employee record", { exact: true }),
+    ).toHaveValue(leaderId);
+    await expect(page.getByLabel("Full name", { exact: true })).toHaveValue(
+      leader,
+    );
+    await expect(page.getByLabel("Full name", { exact: true })).toHaveAttribute(
+      "readonly",
+      "",
+    );
+    boundary = "employee account association";
+    await page.goto("/admin/employees");
+    const row = page.locator("details").filter({
+      has: page.locator("summary").filter({ hasText: contributor }),
+    });
+    await row.locator("summary").click();
+    const link = row.locator("form").filter({
+      has: page.getByRole("button", { name: "Link account", exact: true }),
+    });
+    await link
+      .getByLabel("Existing account", { exact: true })
+      .selectOption(secondary.accountId);
+    await link.getByLabel("I confirm this change").check();
+    await link
+      .getByRole("button", { name: "Link account", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toContainText("saved");
+    const linked = accountFixture("organization_inspect");
+    expect(
+      linked.employees.find((e: { id: string }) => e.id === contributorId)
+        .accountId === secondary.accountId,
+    ).toBe(true);
+    expect(
+      linked.employees.find((e: { id: string }) => e.id === leaderId)
+        .accountId === null,
+    ).toBe(true);
+    boundary = "employment changes preserve company role";
+    await page
+      .getByLabel("Search employees", { exact: true })
+      .fill(contributor);
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    const edited = page.locator("details").filter({
+      has: page.locator("summary").filter({ hasText: contributor }),
+    });
+    await edited.locator("summary").click();
+    await edited
+      .getByLabel("Job title", { exact: true })
+      .selectOption({ label: title });
+    await edited
+      .getByRole("button", { name: "Save employee", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toContainText("saved");
+    await page
+      .getByLabel("Search employees", { exact: true })
+      .fill(contributor);
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(
+      page.locator("summary").filter({ hasText: contributor }),
+    ).toContainText("EMPLOYEE account");
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    boundary = "direct non-administrator authorization";
+    const access = await ownAccessToken(context);
+    for (const role of ["EMPLOYEE", "MANAGER", "HR"]) {
+      accountFixture("role", role);
+      const denied = await context.request.post(
+        "http://127.0.0.1:8020/graphql",
+        {
+          headers: {
+            Authorization: `Bearer ${access}`,
+            "X-Actor-Role": "ADMIN",
+          },
+          data: { query: "{ organizationWorkspace { employees { id } } }" },
+        },
+      );
+      expect((await denied.json()).errors[0].extensions.code).toBe("FORBIDDEN");
+      await page.goto("/admin/employees");
+      await expect(page).toHaveURL(new URL("/access-denied", appOrigin).href);
+    }
+    boundary = "owned resource cleanup";
+    await cleanupOrganization();
+  } catch (error) {
+    let message =
+      error instanceof Error ? error.message : "Unknown test boundary failure";
+    for (const value of [...disposablePasswords, ...Object.values(secrets)])
+      message = message.split(value).join("[private]");
+    message = message
+      .replace(/https?:\/\/[^\s<>]+/g, "[address omitted]")
+      .slice(0, 2000);
+    const diagnostic = {
+      stage: boundary,
+      message,
+      project: test.info().project.name,
+      status: "failed",
+      origin:
+        new URL(page.url()).origin === appOrigin
+          ? "application"
+          : new URL(page.url()).origin === providerOrigin
+            ? "identity-provider"
+            : "other",
+    };
+    mkdirSync(resolve("../../test-results/reports/s5"), { recursive: true });
+    writeFileSync(
+      resolve(`../../test-results/reports/s5/${runId}.json`),
+      JSON.stringify(diagnostic, null, 2),
+    );
+    throw new Error(`S5 boundary failed: ${boundary}`);
+  } finally {
+    accountFixture("role", "EMPLOYEE");
   }
 });

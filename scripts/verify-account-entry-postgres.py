@@ -45,3 +45,20 @@ if __name__ == "__main__":
         )
         sys.exit(1)
     print("Account concurrency, last-administrator preservation and owned probe cleanup verified.")
+
+    organization = module.compose(
+        "exec",
+        "-T",
+        "people",
+        "python",
+        "-c",
+        (ROOT / "tests/account_entry/postgres_organization_check.py").read_text(encoding="utf-8"),
+        capture=True,
+    )
+    if organization.returncode:
+        print(
+            "Reporting concurrency or owned cleanup failed; private details omitted.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    print("Reporting-cycle concurrency, unchanged roles and exact probe cleanup verified.")

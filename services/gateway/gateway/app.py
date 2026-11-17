@@ -15,6 +15,8 @@ from strawberry.types import Info
 from taskspace_security.settings import SecuritySettings
 from taskspace_security.tokens import TokenVerifier
 
+from .organization_schema import OrganizationMutation, OrganizationQuery
+
 
 @strawberry.type
 class Viewer:
@@ -84,6 +86,7 @@ class CreateAccountInput:
     email: str
     display_name: str
     role: str
+    employee_id: strawberry.ID | None = None
 
 
 @strawberry.input
@@ -102,15 +105,16 @@ class RecoverAccountInput:
 
 
 class ActorContext(BaseContext):
-    def __init__(self, viewer, load_admin_workspace, administer):
+    def __init__(self, viewer, load_admin_workspace, administer, organization):
         super().__init__()
         self.viewer = viewer
         self.load_admin_workspace = load_admin_workspace
         self.administer = administer
+        self.organization = organization
 
 
 @strawberry.type
-class Query:
+class Query(OrganizationQuery):
     @strawberry.field
     def viewer(self, info: Info[ActorContext, None]) -> Viewer:
         return info.context.viewer
@@ -143,7 +147,7 @@ class Query:
 
 
 @strawberry.type
-class Mutation:
+class Mutation(OrganizationMutation):
     @strawberry.mutation
     async def create_account(
         self, info: Info[ActorContext, None], input: CreateAccountInput
@@ -264,7 +268,7 @@ def create_app(settings=None, verifier=None, transport=None):
                 raise HTTPException(403, "Access denied")
             return current
 
-        async def administer(command, value):
+        async def administer(command, value, domain="accounts"):
             if viewer.company_roles != ["ADMIN"]:
                 raise GraphQLError("Access denied", extensions={"code": "FORBIDDEN"})
             try:
@@ -277,13 +281,16 @@ def create_app(settings=None, verifier=None, transport=None):
                     }
                     if command == "list":
                         response = await client.get(
-                            people_url.rstrip("/") + "/internal/admin/accounts",
+                            people_url.rstrip("/") + "/internal/admin/" + domain,
                             params=value,
                             headers=headers,
                         )
                     else:
                         response = await client.post(
-                            people_url.rstrip("/") + "/internal/admin/accounts/" + command,
+                            people_url.rstrip("/")
+                            + "/internal/admin/"
+                            + domain
+                            + ("/" + command if domain == "accounts" else ""),
                             json=value,
                             headers=headers,
                         )
@@ -304,6 +311,23 @@ def create_app(settings=None, verifier=None, transport=None):
                         "last_administrator_required",
                         "inactive_profile",
                         "provisioning_incomplete",
+                        "invalid_employee_association",
+                        "employee_provisioning_pending",
+                        "invalid_name",
+                        "employee_not_found",
+                        "inactive_or_invalid_structure",
+                        "reporting_cycle",
+                        "inactive_manager",
+                        "invalid_structure_kind",
+                        "structure_not_found",
+                        "duplicate_structure_name",
+                        "stale_structure",
+                        "invalid_active_status",
+                        "structure_in_use",
+                        "stale_employee",
+                        "invalid_account_association",
+                        "employee_already_linked",
+                        "identity_not_active",
                     }
                     detail = response.json().get("detail")
                     raise GraphQLError(
@@ -319,7 +343,10 @@ def create_app(settings=None, verifier=None, transport=None):
                     "Service unavailable", extensions={"code": "SERVICE_UNAVAILABLE"}
                 ) from None
 
-        return ActorContext(viewer, load_admin_workspace, administer)
+        async def organization(command, value):
+            return await administer(command, value, "organization")
+
+        return ActorContext(viewer, load_admin_workspace, administer, organization)
 
     app.include_router(
         GraphQLRouter(

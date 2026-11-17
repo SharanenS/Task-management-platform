@@ -4,12 +4,14 @@ Taskspace is being rebuilt as a portal-oriented corporate project and employee
 management platform using Next.js, React, TypeScript, Python, FastAPI, Strawberry
 GraphQL, PostgreSQL, Keycloak, Redis, RabbitMQ and Celery where required.
 
-S0 source isolation through S3 administrator access are merged. S4 adds account
-management, email activation/reset initiation and provisioning recovery. Local
-acceptance passes; the owner has now requested Gmail setup during S4 using
-dailygotasks@gmail.com. Gmail authentication/configuration passed; real recipient
-delivery verification, owner review and remote CI remain.
-See [S4 verification](docs/s4-verification.md) for exact evidence and limits.
+S0 through S4 are merged. S5 adds shared departments, job titles, reporting
+relationships and optional employee/account associations. Employees may exist
+before a login account; titles and reporting changes never grant company roles.
+S5 migration and local PostgreSQL/desktop/tablet/mobile acceptance are verified;
+the owner reported a successful website review; source review and remote CI remain pending.
+See [S5 verification](docs/s5-verification.md) for current evidence and limits.
+Gmail uses dailygotasks@gmail.com; the owner reported activation receipt and
+first-login success. Real Gmail reset-link checks remain on the pre-final checklist.
 
 ## Source layout
 
