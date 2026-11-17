@@ -30,7 +30,13 @@ def resolve_actor(session: Session, identity: Identity) -> Actor:
         .where(Account.issuer == identity.issuer, Account.subject == identity.subject)
         .options(selectinload(Account.profile), selectinload(Account.grants))
     )
-    if not account or not account.active or not account.profile or not account.profile.active:
+    if (
+        not account
+        or not account.active
+        or not account.profile
+        or not account.profile.active
+        or account.profile.issuer != identity.issuer
+    ):
         raise AccessDenied()
     roles = tuple(sorted(g.role for g in account.grants))
     if len(roles) != 1 or not set(roles).issubset(COMPANY_ROLES):

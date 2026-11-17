@@ -1,0 +1,54 @@
+query OrganizationWorkspace($page: Int!, $search: String!) {
+  organizationWorkspace(page: $page, search: $search) {
+    departments {
+      id
+      name
+      active
+      version
+    }
+    jobTitles {
+      id
+      name
+      active
+      version
+    }
+    employees {
+      id
+      displayName
+      active
+      version
+      accountId
+      companyRole
+      departmentId
+      jobTitleId
+      managerId
+    }
+    hasMore
+    managerOptions {
+      id
+      displayName
+    }
+    unlinkedEmployees {
+      id
+      displayName
+    }
+    availableAccounts {
+      id
+      companyRole
+    }
+    history {
+      id
+      action
+      entityKind
+      entityName
+      actorName
+      createdAt
+    }
+  }
+}
+mutation ChangeOrganization($input: OrganizationChangeInput!) {
+  changeOrganization(input: $input) {
+    entityId
+    state
+  }
+}

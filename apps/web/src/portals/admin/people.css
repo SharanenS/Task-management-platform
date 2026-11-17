@@ -1,0 +1,93 @@
+.people-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+.people-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: end;
+  margin: 1rem 0;
+}
+.people-form > label {
+  display: grid;
+  gap: 0.5rem;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.people-form input:not([type="checkbox"]),
+.people-form select,
+.people-search input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.65rem;
+  border: 1px solid #b8c6d6;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #16243c;
+}
+.people-form button,
+.people-search button {
+  min-height: 2.75rem;
+  padding: 0.65rem 1rem;
+  border: 1px solid #367f98;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+.people-record {
+  border-top: 1px solid #d9e1ec;
+  padding: 1rem 0;
+  overflow-wrap: anywhere;
+}
+.people-record summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 2rem;
+}
+.people-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: end;
+  margin: 1rem 0;
+}
+.people-search label {
+  display: grid;
+  gap: 0.5rem;
+}
+.people-history {
+  padding-left: 1.25rem;
+}
+.people-history li {
+  padding: 0.65rem 0;
+  overflow-wrap: anywhere;
+}
+.people-history span {
+  display: block;
+  font-size: 0.85rem;
+  color: #52647d;
+}
+.accounts-panel nav {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.people-form .accounts-confirm {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+}
+@media (max-width: 900px) {
+  .people-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 480px) {
+  .people-form > label {
+    flex-basis: 100%;
+  }
+  .people-form button {
+    width: 100%;
+  }
+}

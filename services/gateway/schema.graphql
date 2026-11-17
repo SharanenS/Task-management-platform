@@ -25,6 +25,11 @@ type AdminWorkspace {
   viewer: Viewer!
 }
 
+type AvailableAccount {
+  id: ID!
+  companyRole: String!
+}
+
 input ChangeAccountInput {
   requestId: ID!
   accountId: ID!
@@ -39,6 +44,12 @@ input CreateAccountInput {
   email: String!
   displayName: String!
   role: String!
+  employeeId: ID = null
+}
+
+type EmployeeChoice {
+  id: ID!
+  displayName: String!
 }
 
 type ManagedAccount {
@@ -52,10 +63,69 @@ type ManagedAccount {
   version: Int!
 }
 
+type ManagedEmployee {
+  id: ID!
+  displayName: String!
+  active: Boolean!
+  version: Int!
+  accountId: ID
+  companyRole: String!
+  departmentId: ID
+  jobTitleId: ID
+  managerId: ID
+}
+
 type Mutation {
+  changeOrganization(input: OrganizationChangeInput!): OrganizationChangeResult!
   createAccount(input: CreateAccountInput!): AccountCommandResult!
   changeAccount(input: ChangeAccountInput!): AccountCommandResult!
   recoverAccount(input: RecoverAccountInput!): AccountCommandResult!
+}
+
+input OrganizationChangeInput {
+  requestId: ID!
+  action: String!
+  entityId: ID = null
+  kind: String = null
+  name: String = null
+  version: Int = null
+  active: Boolean = null
+  departmentId: ID = null
+  jobTitleId: ID = null
+  managerId: ID = null
+  accountId: ID = null
+}
+
+type OrganizationChangeResult {
+  entityId: ID!
+  state: String!
+}
+
+type OrganizationHistory {
+  id: ID!
+  action: String!
+  entityKind: String!
+  entityName: String!
+  actorName: String!
+  createdAt: String!
+}
+
+type OrganizationUnit {
+  id: ID!
+  name: String!
+  active: Boolean!
+  version: Int!
+}
+
+type OrganizationWorkspace {
+  departments: [OrganizationUnit!]!
+  jobTitles: [OrganizationUnit!]!
+  employees: [ManagedEmployee!]!
+  hasMore: Boolean!
+  managerOptions: [EmployeeChoice!]!
+  unlinkedEmployees: [EmployeeChoice!]!
+  availableAccounts: [AvailableAccount!]!
+  history: [OrganizationHistory!]!
 }
 
 type ProvisioningOperation {
@@ -67,6 +137,7 @@ type ProvisioningOperation {
 }
 
 type Query {
+  organizationWorkspace(page: Int! = 0, search: String! = ""): OrganizationWorkspace!
   viewer: Viewer!
   adminWorkspace: AdminWorkspace!
   accountAdministration(page: Int! = 0): AccountAdministration!

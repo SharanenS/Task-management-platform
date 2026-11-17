@@ -27,7 +27,10 @@ def main():
             for i in range(2):
                 account = Account(id=accounts[i], issuer=issuer, subject=subjects[i], active=True)
                 account.profile = EmployeeProfile(
-                    id=profiles[i], display_name="Owned concurrency probe", active=True
+                    id=profiles[i],
+                    issuer=issuer,
+                    display_name="Owned concurrency probe",
+                    active=True,
                 )
                 account.grants = [CompanyRoleGrant(role="ADMIN")]
                 s.add(account)

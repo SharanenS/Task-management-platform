@@ -22,7 +22,7 @@ def main():
     for suite in suites:
         for key in totals:
             totals[key] += int(suite.get(key, "0"))
-    if totals["tests"] < 98 or any(totals[key] for key in ("failures", "errors", "skipped")):
+    if totals["tests"] < 115 or any(totals[key] for key in ("failures", "errors", "skipped")):
         raise RuntimeError("S2 source verification scope was incomplete")
     print(f"S2 backend source report verified: {totals['tests']} passed, zero skips.")
     return 0

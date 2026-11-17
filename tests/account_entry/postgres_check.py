@@ -32,6 +32,7 @@ def main():
             connection.execute(
                 insert(EmployeeProfile).values(
                     id=profile_id,
+                    issuer="https://integration.invalid",
                     account_id=account_id,
                     display_name="Scoped integration probe",
                     active=True,

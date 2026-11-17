@@ -38,7 +38,12 @@ def main() -> int:
     parser.add_argument("--account-entry-only", action="store_true")
     parser.add_argument("--admin-only", action="store_true")
     parser.add_argument("--accounts-only", action="store_true")
+    parser.add_argument("--organization-only", action="store_true")
     args = parser.parse_args()
+    if args.organization_only and (
+        args.recovery or args.accounts_only or args.admin_only or args.account_entry_only
+    ):
+        raise RuntimeError("Organization focus cannot run outages or another focus")
     if (args.recovery and (args.account_entry_only or args.admin_only)) or (
         args.account_entry_only and args.admin_only
     ):
@@ -79,7 +84,7 @@ def main() -> int:
         raise RuntimeError("Eight healthy isolated account-management services are required")
     from email_delivery import assert_capture_delivery
 
-    if not (args.admin_only or args.account_entry_only):
+    if not (args.admin_only or args.account_entry_only or args.organization_only):
         assert_capture_delivery()
     env = os.environ.copy()
     if args.recovery:
@@ -100,6 +105,7 @@ def main() -> int:
                 *(["--grep", "S2 current account status"] if args.account_entry_only else []),
                 *(["--grep", "S3 administrator workspace"] if args.admin_only else []),
                 *(["--grep", "S4 account creation"] if args.accounts_only else []),
+                *(["--grep", "S5 company structure"] if args.organization_only else []),
             ],
             cwd=ROOT / "apps/web",
             env=env,
@@ -145,6 +151,7 @@ def main() -> int:
                     "bootstrapPreserved",
                     "grantsRevoked",
                     "accountRemoved",
+                    "organizationCleanupVerified",
                 )
             ):
                 raise RuntimeError(
@@ -157,8 +164,13 @@ def main() -> int:
     report = json.loads((ROOT / "apps/web/test-results/s1-acceptance.json").read_text())
     expected = (
         1
-        if (args.account_entry_only or args.admin_only or args.accounts_only)
-        else (2 if args.recovery else 8)
+        if (
+            args.account_entry_only
+            or args.admin_only
+            or args.accounts_only
+            or args.organization_only
+        )
+        else (2 if args.recovery else 9)
     )
     if (
         code
@@ -171,7 +183,9 @@ def main() -> int:
     destination = ROOT / "test-results/reports/s1"
     destination.mkdir(parents=True, exist_ok=True)
     scope = (
-        "accounts"
+        "organization"
+        if args.organization_only
+        else "accounts"
         if args.accounts_only
         else "admin"
         if args.admin_only

@@ -40,12 +40,31 @@ class Account(Base):
 class EmployeeProfile(Base):
     __tablename__ = "employee_profiles"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    account_id: Mapped[str] = mapped_column(
-        ForeignKey("accounts.id", ondelete="RESTRICT"), unique=True
+    __table_args__ = (
+        CheckConstraint(
+            "manager_id IS NULL OR manager_id <> id", name="ck_employee_not_self_manager"
+        ),
     )
+    issuer: Mapped[str] = mapped_column(String(512))
+    account_id: Mapped[str | None] = mapped_column(
+        ForeignKey("accounts.id", ondelete="RESTRICT"), unique=True, nullable=True
+    )
+    department_id: Mapped[str | None] = mapped_column(
+        ForeignKey("departments.id", name="fk_employee_department", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    job_title_id: Mapped[str | None] = mapped_column(
+        ForeignKey("job_titles.id", name="fk_employee_job_title", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    manager_id: Mapped[str | None] = mapped_column(
+        ForeignKey("employee_profiles.id", name="fk_employee_manager", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     display_name: Mapped[str] = mapped_column(String(150))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
-    account: Mapped[Account] = relationship(back_populates="profile")
+    account: Mapped[Account | None] = relationship(back_populates="profile")
 
 
 class CompanyRoleGrant(Base):
@@ -80,6 +99,11 @@ class InitialAdminProvisioning(Base):
 
 class AccountProvisioning(Base):
     __tablename__ = "account_provisioning"
+    employee_id: Mapped[str | None] = mapped_column(
+        ForeignKey("employee_profiles.id", name="fk_provisioning_employee", ondelete="RESTRICT"),
+        unique=True,
+        nullable=True,
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     username: Mapped[str] = mapped_column(String(100), unique=True)
     email: Mapped[str] = mapped_column(String(254), unique=True)
@@ -110,6 +134,45 @@ class AccountAudit(Base):
     )
     action: Mapped[str] = mapped_column(String(32))
     state: Mapped[str] = mapped_column(String(32))
+    before: Mapped[str] = mapped_column(Text)
+    after: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+
+class Department(Base):
+    __tablename__ = "departments"
+    __table_args__ = (UniqueConstraint("issuer", "normalized_name", name="uq_department_name"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    issuer: Mapped[str] = mapped_column(String(512))
+    name: Mapped[str] = mapped_column(String(100))
+    normalized_name: Mapped[str] = mapped_column(String(200))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+
+
+class JobTitle(Base):
+    __tablename__ = "job_titles"
+    __table_args__ = (UniqueConstraint("issuer", "normalized_name", name="uq_job_title_name"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    issuer: Mapped[str] = mapped_column(String(512))
+    name: Mapped[str] = mapped_column(String(100))
+    normalized_name: Mapped[str] = mapped_column(String(200))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+
+
+class OrganizationAudit(Base):
+    __tablename__ = "organization_audit"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    issuer: Mapped[str] = mapped_column(String(512))
+    request_id: Mapped[str] = mapped_column(String(36), unique=True)
+    actor_id: Mapped[str] = mapped_column(ForeignKey("accounts.id", ondelete="RESTRICT"))
+    entity_id: Mapped[str] = mapped_column(String(36))
+    entity_kind: Mapped[str] = mapped_column(String(20))
+    action: Mapped[str] = mapped_column(String(32))
+    intent_hash: Mapped[str] = mapped_column(String(64))
     before: Mapped[str] = mapped_column(Text)
     after: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(

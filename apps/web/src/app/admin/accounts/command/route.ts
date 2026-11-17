@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
             username: field("username"),
             email: field("email"),
             displayName: field("displayName"),
+            employeeId: field("employeeId") || null,
             role: field("role"),
           },
         },

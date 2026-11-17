@@ -32,7 +32,9 @@ def provision(
 ):
     account = Account(issuer=ISSUER, subject=subject or str(uuid4()), active=active)
     if profile:
-        account.profile = EmployeeProfile(display_name="Test Account", active=profile_active)
+        account.profile = EmployeeProfile(
+            issuer=ISSUER, display_name="Test Account", active=profile_active
+        )
     if role:
         account.grants = [CompanyRoleGrant(role=role)]
     session.add(account)

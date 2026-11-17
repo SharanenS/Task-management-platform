@@ -13,6 +13,7 @@ from taskspace_security.tokens import TokenVerifier
 from .access import AccessDenied, resolve_actor
 from .identity_admin import IdentityAdministration
 from .management import AccountManagement, ManagementError
+from .organization import OrganizationManagement
 
 
 def create_app(settings=None, sessions=None, verifier=None, provider=None):
@@ -27,6 +28,10 @@ def create_app(settings=None, sessions=None, verifier=None, provider=None):
     )
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     management = AccountManagement(sessions, provider or (lambda: IdentityAdministration(settings)))
+
+    organization = OrganizationManagement(
+        sessions, provider or (lambda: IdentityAdministration(settings))
+    )
 
     @app.get("/health/live")
     def live():
@@ -105,6 +110,30 @@ def create_app(settings=None, sessions=None, verifier=None, provider=None):
             raise HTTPException(error.status, error.code) from None
         except HTTPException:
             raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
+    @app.get("/internal/admin/organization")
+    def organization_workspace(request: Request, page: int = 0, search: str = ""):
+        identity = current_identity(request)
+        try:
+            return organization.workspace(identity, page, search)
+        except AccessDenied:
+            raise HTTPException(403, "Access denied") from None
+        except ManagementError as error:
+            raise HTTPException(error.status, error.code) from None
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
+    @app.post("/internal/admin/organization")
+    def organization_change(value: dict, request: Request):
+        identity = current_identity(request)
+        try:
+            return organization.change(identity, value)
+        except AccessDenied:
+            raise HTTPException(403, "Access denied") from None
+        except ManagementError as error:
+            raise HTTPException(error.status, error.code) from None
         except Exception:
             raise HTTPException(503, "Service unavailable") from None
 

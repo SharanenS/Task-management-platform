@@ -195,6 +195,7 @@ class AccountManagement:
         email = str(value.get("email", "")).strip().casefold()
         name = str(value.get("display_name", "")).strip()
         role = value.get("role")
+        employee_id = identifier(value["employee_id"]) if value.get("employee_id") else None
         if (
             not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,99}", username)
             or not re.fullmatch(r"[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+", email)
@@ -213,7 +214,15 @@ class AccountManagement:
                     operation.display_name,
                     operation.role,
                     operation.issuer,
-                ) != (username, email, name, role, identity.issuer):
+                    operation.employee_id,
+                ) != (
+                    username,
+                    email,
+                    operation.display_name if employee_id else name,
+                    role,
+                    identity.issuer,
+                    employee_id,
+                ):
                     raise ManagementError("request_conflict")
                 # A repeated create is read-only. Recovery is a separate explicit command.
                 return {"operation_id": operation.id, "state": operation.state}
@@ -226,7 +235,24 @@ class AccountManagement:
                 )
             ):
                 raise ManagementError("account_already_requested")
+            if employee_id:
+                employee = s.get(EmployeeProfile, employee_id)
+                if (
+                    not employee
+                    or employee.issuer != identity.issuer
+                    or not employee.active
+                    or employee.account_id is not None
+                ):
+                    raise ManagementError("invalid_employee_association")
+                if s.scalar(
+                    select(AccountProvisioning.id).where(
+                        AccountProvisioning.employee_id == employee_id
+                    )
+                ):
+                    raise ManagementError("employee_provisioning_pending")
+                name = employee.display_name
             operation = AccountProvisioning(
+                employee_id=employee_id,
                 id=operation_id,
                 username=username,
                 email=email,
@@ -252,6 +278,16 @@ class AccountManagement:
 
     def _provision(self, s, actor, operation):
         try:
+            employee = (
+                s.get(EmployeeProfile, operation.employee_id) if operation.employee_id else None
+            )
+            if operation.employee_id and (
+                not employee
+                or employee.issuer != operation.issuer
+                or not employee.active
+                or employee.account_id not in {None, operation.account_id}
+            ):
+                raise ManagementError("invalid_employee_association")
             with self.provider() as provider:
                 if not operation.subject:
                     matches = provider.find(operation.username, operation.email)
@@ -288,11 +324,17 @@ class AccountManagement:
                         subject=operation.subject,
                         active=False,
                     )
-                    account.profile = EmployeeProfile(
-                        id=str(uuid5(UUID(operation.id), "profile")),
-                        display_name=operation.display_name,
-                        active=True,
-                    )
+                    s.add(account)
+                    if employee:
+                        account.profile = employee
+                        employee.version += 1
+                    else:
+                        account.profile = EmployeeProfile(
+                            id=str(uuid5(UUID(operation.id), "profile")),
+                            issuer=operation.issuer,
+                            display_name=operation.display_name,
+                            active=True,
+                        )
                     account.grants = [CompanyRoleGrant(role=operation.role)]
                     s.add(account)
                     s.flush()

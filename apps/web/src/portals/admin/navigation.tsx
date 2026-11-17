@@ -2,6 +2,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 const items = [
+  { href: "/admin/organization", label: "Company structure", symbol: "05" },
+  { href: "/admin/employees", label: "Employees", symbol: "06" },
   { href: "/admin/accounts", label: "User accounts", symbol: "04" },
   { href: "/admin", label: "Overview", symbol: "01" },
   { href: "/admin/profile", label: "Your profile", symbol: "02" },
