@@ -3,6 +3,7 @@
 import logging
 import os
 from urllib.parse import urlsplit
+from uuid import UUID
 
 import httpx
 import strawberry
@@ -17,6 +18,7 @@ from taskspace_security.tokens import TokenVerifier
 
 from .calendar_schema import CalendarMutation, CalendarQuery
 from .organization_schema import OrganizationMutation, OrganizationQuery
+from .project_schema import ProjectMutation, ProjectQuery
 
 
 @strawberry.type
@@ -106,17 +108,18 @@ class RecoverAccountInput:
 
 
 class ActorContext(BaseContext):
-    def __init__(self, viewer, load_admin_workspace, administer, organization, calendar):
+    def __init__(self, viewer, load_admin_workspace, administer, organization, calendar, projects):
         super().__init__()
         self.viewer = viewer
         self.load_admin_workspace = load_admin_workspace
         self.administer = administer
         self.organization = organization
         self.calendar = calendar
+        self.projects = projects
 
 
 @strawberry.type
-class Query(OrganizationQuery, CalendarQuery):
+class Query(OrganizationQuery, CalendarQuery, ProjectQuery):
     @strawberry.field
     def viewer(self, info: Info[ActorContext, None]) -> Viewer:
         return info.context.viewer
@@ -149,7 +152,7 @@ class Query(OrganizationQuery, CalendarQuery):
 
 
 @strawberry.type
-class Mutation(OrganizationMutation, CalendarMutation):
+class Mutation(OrganizationMutation, CalendarMutation, ProjectMutation):
     @strawberry.mutation
     async def create_account(
         self, info: Info[ActorContext, None], input: CreateAccountInput
@@ -436,7 +439,98 @@ def create_app(settings=None, verifier=None, transport=None):
                     "Service unavailable", extensions={"code": "SERVICE_UNAVAILABLE"}
                 ) from None
 
-        return ActorContext(viewer, load_admin_workspace, administer, organization, calendar)
+        async def projects(command, value):
+            if viewer.company_roles not in [["ADMIN"], ["MANAGER"]]:
+                raise GraphQLError("Access denied", extensions={"code": "FORBIDDEN"})
+            origin = os.environ.get("PROJECT_WORK_URL", "http://project-work:8000")
+            boundary = urlsplit(origin)
+            local = os.environ.get("AUTH_ALLOW_LOCAL_HTTP") == "true"
+            if (
+                boundary.username
+                or boundary.password
+                or boundary.query
+                or boundary.fragment
+                or boundary.path not in {"", "/"}
+                or not boundary.netloc
+                or (
+                    boundary.scheme != "https"
+                    and not (local and origin == "http://project-work:8000")
+                )
+            ):
+                raise GraphQLError(
+                    "Service unavailable", extensions={"code": "SERVICE_UNAVAILABLE"}
+                )
+            try:
+                key = os.environ["PROJECT_WORK_SERVICE_KEY"]
+                if len(key) < 43:
+                    raise ValueError()
+                path = origin.rstrip("/") + "/internal/projects"
+                async with httpx.AsyncClient(
+                    timeout=20, transport=transport, follow_redirects=False
+                ) as client:
+                    headers = {"Authorization": authorization, "X-Service-Key": key}
+                    if command == "list":
+                        response = await client.get(path, params=value, headers=headers)
+                    elif command == "detail":
+                        try:
+                            project_id = str(UUID(value["id"]))
+                        except (ValueError, TypeError, AttributeError):
+                            raise GraphQLError(
+                                "Project unavailable",
+                                extensions={
+                                    "code": "PROJECT_REJECTED",
+                                    "reason": "project_not_found",
+                                },
+                            ) from None
+                        response = await client.get(path + "/" + project_id, headers=headers)
+                    else:
+                        response = await client.post(
+                            path + "/" + command, json=value, headers=headers
+                        )
+                if response.status_code in {401, 403}:
+                    raise GraphQLError("Access denied", extensions={"code": "FORBIDDEN"})
+                if response.status_code in {400, 404, 409, 422}:
+                    reasons = {
+                        "project_not_found",
+                        "invalid_project_details",
+                        "invalid_identifier",
+                        "invalid_page",
+                        "company_calendar_required",
+                        "unsupported_timezone_version",
+                        "invalid_date",
+                        "invalid_working_hours",
+                        "ambiguous_or_nonexistent_time",
+                        "non_working_deadline",
+                        "invalid_project_deadline",
+                        "confirmation_required",
+                        "preview_not_owned",
+                        "preview_expired",
+                        "stale_project_calendar",
+                        "preview_already_used",
+                        "request_conflict",
+                    }
+                    reason = response.json().get("detail")
+                    raise GraphQLError(
+                        "Project request rejected",
+                        extensions={
+                            "code": "PROJECT_REJECTED",
+                            "reason": reason
+                            if isinstance(reason, str) and reason in reasons
+                            else "project_rejected",
+                        },
+                    )
+                response.raise_for_status()
+                return response.json()
+            except GraphQLError:
+                raise
+            except Exception:
+                raise GraphQLError(
+                    "Service unavailable", extensions={"code": "SERVICE_UNAVAILABLE"}
+                ) from None
+
+        return ActorContext(
+            viewer, load_admin_workspace, administer, organization, calendar, projects
+        )
 
     app.include_router(
         GraphQLRouter(

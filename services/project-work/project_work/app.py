@@ -12,6 +12,7 @@ from taskspace_security.settings import SecuritySettings
 from taskspace_security.tokens import TokenVerifier
 
 from .calendar import CalendarError
+from .projects import ProjectActor, ProjectError, ProjectService
 from .service import CalendarService, identifier
 
 
@@ -50,9 +51,10 @@ def create_app(
         settings.issuer, settings.jwks_url, settings.audience, settings.client_id
     )
     service = CalendarService(sessions)
+    projects = ProjectService(sessions)
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
-    def authority(request):
+    def authority(request, project_access=False):
         key = request.headers.get("x-service-key", "")
         authorization = request.headers.get("authorization", "")
         if (
@@ -74,7 +76,8 @@ def create_app(
                     timeout=5, transport=people_transport, follow_redirects=False
                 ) as client:
                     response = client.get(
-                        people_url.rstrip("/") + "/internal/admin/workspace",
+                        people_url.rstrip("/")
+                        + ("/internal/actor" if project_access else "/internal/admin/workspace"),
                         headers={
                             "Authorization": authorization,
                             "X-Service-Key": settings.service_key,
@@ -84,6 +87,23 @@ def create_app(
                     raise HTTPException(403, "Access denied")
                 response.raise_for_status()
                 actor = response.json()
+                if project_access:
+                    role = actor.get("company_roles")
+                    if role not in [["ADMIN"], ["MANAGER"]]:
+                        raise HTTPException(403, "Access denied")
+                    expected = (
+                        ["account:self:read", "admin:workspace:read"]
+                        if role == ["ADMIN"]
+                        else ["account:self:read"]
+                    )
+                    if actor.get("permissions") != expected:
+                        raise HTTPException(403, "Access denied")
+                    name = actor.get("display_name")
+                    if not isinstance(name, str) or not 1 <= len(name) <= 150:
+                        raise ValueError("Invalid actor")
+                    return ProjectActor(
+                        identity.issuer, identifier(actor["account_id"]), role[0], name
+                    )
                 if actor["company_roles"] != ["ADMIN"] or actor["permissions"] != [
                     "account:self:read",
                     "admin:workspace:read",
@@ -127,6 +147,45 @@ def create_app(
         except Exception:
             raise HTTPException(503, "Service unavailable") from None
 
+    @app.get("/internal/projects")
+    def project_workspace(request: Request, page: int = 0, search: str = ""):
+        try:
+            return projects.workspace(authority(request, True), page, search)
+        except ProjectError as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
+    @app.get("/internal/projects/{project_id}")
+    def project_detail(project_id: str, request: Request):
+        try:
+            return projects.detail(authority(request, True), project_id)
+        except ProjectError as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
+    @app.post("/internal/projects/{command}")
+    def project_command(command: str, value: dict, request: Request):
+        try:
+            actor = authority(request, True)
+            actor()
+            if command == "preview":
+                return projects.preview(actor, value)
+            if command == "create":
+                return projects.create(actor, value)
+            raise HTTPException(404, "Not found")
+        except ProjectError as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
     @app.get("/health/live")
     def live():
         return {"status": "up"}
@@ -136,6 +195,7 @@ def create_app(
         try:
             with sessions() as s:
                 s.execute(text("SELECT 1 FROM calendar_versions LIMIT 1"))
+                s.execute(text("SELECT 1 FROM projects LIMIT 1"))
             return {"status": "up"}
         except Exception:
             raise HTTPException(503, "Service unavailable") from None

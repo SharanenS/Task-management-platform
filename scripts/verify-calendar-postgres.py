@@ -28,3 +28,20 @@ if __name__ == "__main__":
         )
         sys.exit(1)
     print("Calendar PostgreSQL schema, publication race, replay and owned cleanup verified.")
+
+    projects = module.compose(
+        "exec",
+        "-T",
+        "project-work",
+        "python",
+        "-c",
+        (ROOT / "tests/projects/postgres_check.py").read_text(encoding="utf-8"),
+        capture=True,
+    )
+    if projects.returncode:
+        print(
+            "Project PostgreSQL race or cleanup verification failed; private diagnostics omitted.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    print("Project schema, commitment/publication races, replay and owned cleanup verified.")

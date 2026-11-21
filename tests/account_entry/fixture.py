@@ -34,6 +34,10 @@ def main():
     action = value["action"]
     if action not in {
         "create",
+        "inspect",
+        "project_other_create",
+        "project_other_inspect",
+        "project_other_cleanup",
         "organization_inspect",
         "organization_cleanup",
         "organization_account",
@@ -64,13 +68,13 @@ def main():
             session.add(account)
         else:
             if account is None:
-                if action != "cleanup":
+                if action not in {"cleanup", "inspect"}:
                     raise ValueError("Owned fixture account is absent")
                 if session.get(EmployeeProfile, profile_id) or session.scalar(
                     select(CompanyRoleGrant).where(CompanyRoleGrant.account_id == run_id)
                 ):
                     raise ValueError("Fixture cleanup is incomplete")
-                print(json.dumps({"cleaned": True}))
+                print(json.dumps({"cleaned": action == "cleanup", "absent": True}))
                 return
             if (
                 account.issuer != ISSUER
@@ -85,6 +89,61 @@ def main():
                 or any(g.role not in {"ADMIN", "MANAGER", "EMPLOYEE", "HR"} for g in account.grants)
             ):
                 raise ValueError("Fixture account ownership mismatch")
+            if action == "inspect":
+                print(json.dumps({"absent": False}))
+                return
+            if action.startswith("project_other_"):
+                other_id = str(uuid5(UUID(run_id), "project-account"))
+                other_profile = str(uuid5(UUID(run_id), "project-profile"))
+                other = session.get(Account, other_id)
+                if action == "project_other_create":
+                    other_subject = str(UUID(value["value"]))
+                    if other or session.scalar(
+                        select(Account).where(
+                            Account.issuer == ISSUER, Account.subject == other_subject
+                        )
+                    ):
+                        raise ValueError("Secondary project fixture already exists")
+                    other = Account(id=other_id, issuer=ISSUER, subject=other_subject, active=True)
+                    other.profile = EmployeeProfile(
+                        id=other_profile,
+                        issuer=ISSUER,
+                        display_name="Project acceptance manager",
+                        active=True,
+                    )
+                    other.grants = [CompanyRoleGrant(role="MANAGER")]
+                    session.add(other)
+                    session.flush()
+                if other and (
+                    other.issuer != ISSUER
+                    or other.profile.id != other_profile
+                    or other.profile.display_name != "Project acceptance manager"
+                    or len(other.grants) != 1
+                    or other.grants[0].role != "MANAGER"
+                ):
+                    raise ValueError("Secondary project fixture ownership mismatch")
+                result = {"accountId": other_id, "subject": other.subject if other else None}
+                if action == "project_other_cleanup":
+                    if other:
+                        session.execute(
+                            delete(CompanyRoleGrant).where(CompanyRoleGrant.account_id == other_id)
+                        )
+                        session.execute(
+                            delete(EmployeeProfile).where(
+                                EmployeeProfile.id == other_profile,
+                                EmployeeProfile.account_id == other_id,
+                            )
+                        )
+                        session.execute(delete(Account).where(Account.id == other_id))
+                        session.flush()
+                        session.expire_all()
+                    if session.get(Account, other_id) or session.get(
+                        EmployeeProfile, other_profile
+                    ):
+                        raise ValueError("Secondary cleanup incomplete")
+                    result["cleaned"] = True
+                print(json.dumps(result))
+                return
             if action.startswith("organization_"):
                 secondary_id = str(uuid5(UUID(run_id), "organization-account"))
                 if action == "organization_account":

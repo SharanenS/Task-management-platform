@@ -100,7 +100,8 @@ export function CalendarEditor({ workspace }: { workspace: Workspace }) {
       {!workspace.current && (
         <p className="accounts-notice">
           No company calendar has been configured. Enter the actual company
-          values; no workweek, hours, timezone or holidays are assumed.
+          values. The first calendar uses this device’s local time
+          automatically.
         </p>
       )}
       {message && (
@@ -118,7 +119,14 @@ export function CalendarEditor({ workspace }: { workspace: Workspace }) {
           onSubmit={(event) => {
             event.preventDefault();
             void action(async () => {
-              const result = await command("preview", config);
+              const timezone =
+                config.timezone ||
+                Intl.DateTimeFormat().resolvedOptions().timeZone;
+              if (!timezone)
+                throw new Error(
+                  "Your device’s local time could not be detected. Check its date and time settings, then reload.",
+                );
+              const result = await command("preview", { ...config, timezone });
               setPreview(result);
               setPublicationRequestId(crypto.randomUUID());
               setConfirmed(false);
@@ -126,22 +134,9 @@ export function CalendarEditor({ workspace }: { workspace: Workspace }) {
           }}
         >
           <fieldset disabled={pending} className="calendar-fields">
-            <label>
-              Company timezone
-              <input
-                name="timezone"
-                required
-                maxLength={100}
-                value={config.timezone}
-                onChange={(e) =>
-                  update({ ...config, timezone: e.target.value })
-                }
-                aria-describedby="timezone-help"
-              />
-            </label>
-            <p id="timezone-help">
-              Enter an IANA timezone, for example Europe/London. This is an
-              example, not a company default.
+            <p>
+              Enter your company’s local working hours. Existing calendar time
+              settings are retained when you publish a new version.
             </p>
             <h3>Weekly working hours</h3>
             <p>
@@ -436,8 +431,7 @@ export function CalendarEditor({ workspace }: { workspace: Workspace }) {
             here.
           </p>
           <p>
-            Timezone: {preview.config.timezone}. Timezone rules:{" "}
-            {preview.tzdbVersion}. Working days:{" "}
+            Company local time: {preview.config.timezone}. Working days:{" "}
             {preview.config.week
               .filter((r) => r.working)
               .map((r) => `${weekdays[r.weekday - 1]} ${r.opens}–${r.closes}`)

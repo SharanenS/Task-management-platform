@@ -59,7 +59,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     if (error instanceof CalendarChangeRejected) {
       const messages: Record<string, string> = {
-        invalid_timezone: "Enter a valid IANA company timezone.",
+        invalid_timezone:
+          "Your device’s local time could not be used. Check its date and time settings, then reload the calendar.",
         invalid_week: "Configure each of the seven weekdays once.",
         invalid_working_hours:
           "Opening time must be before closing time on the same day.",

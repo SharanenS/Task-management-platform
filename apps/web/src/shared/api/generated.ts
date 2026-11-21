@@ -51,6 +51,12 @@ export type CreateAccountInput = {
   username: string;
 };
 
+export type CreateProjectInput = {
+  confirm: boolean;
+  previewId: string | number;
+  requestId: string | number;
+};
+
 export type OrganizationChangeInput = {
   accountId?: string | number | null | undefined;
   action: string;
@@ -63,6 +69,12 @@ export type OrganizationChangeInput = {
   name?: string | null | undefined;
   requestId: string | number;
   version?: number | null | undefined;
+};
+
+export type ProjectPreviewInput = {
+  deadlineDate: string;
+  name: string;
+  objectives: string;
 };
 
 export type PublishCalendarInput = {
@@ -362,6 +374,130 @@ export type ChangeOrganizationMutation = {
   changeOrganization: { entityId: string; state: string };
 };
 
+export type ProjectFieldsFragment = {
+  id: string;
+  name: string;
+  objectives: string;
+  creatorId: string;
+  creatorName: string;
+  ownerId: string;
+  ownerName: string;
+  deadlineDate: string;
+  approvedDeadline: string;
+  deadlineLocal: string;
+  calendarVersionId: string;
+  calendarNumber: number;
+  timezone: string;
+  tzdbVersion: string;
+  createdAt: string;
+  version: number;
+};
+
+export type ProjectWorkspaceQueryVariables = Exact<{
+  page: number;
+  search: string;
+}>;
+
+export type ProjectWorkspaceQuery = {
+  projectWorkspace: {
+    hasMore: boolean;
+    projects: Array<{
+      id: string;
+      name: string;
+      objectives: string;
+      creatorId: string;
+      creatorName: string;
+      ownerId: string;
+      ownerName: string;
+      deadlineDate: string;
+      approvedDeadline: string;
+      deadlineLocal: string;
+      calendarVersionId: string;
+      calendarNumber: number;
+      timezone: string;
+      tzdbVersion: string;
+      createdAt: string;
+      version: number;
+    }>;
+    calendar: {
+      id: string;
+      number: number;
+      timezone: string;
+      tzdbVersion: string;
+    } | null;
+  };
+};
+
+export type ProjectDetailQueryVariables = Exact<{
+  id: string | number;
+}>;
+
+export type ProjectDetailQuery = {
+  project: {
+    id: string;
+    name: string;
+    objectives: string;
+    creatorId: string;
+    creatorName: string;
+    ownerId: string;
+    ownerName: string;
+    deadlineDate: string;
+    approvedDeadline: string;
+    deadlineLocal: string;
+    calendarVersionId: string;
+    calendarNumber: number;
+    timezone: string;
+    tzdbVersion: string;
+    createdAt: string;
+    version: number;
+  };
+};
+
+export type PreviewProjectMutationVariables = Exact<{
+  input: ProjectPreviewInput;
+}>;
+
+export type PreviewProjectMutation = {
+  previewProject: {
+    previewId: string;
+    name: string;
+    objectives: string;
+    deadlineDate: string;
+    approvedDeadline: string;
+    deadlineLocal: string;
+    calendarNumber: number;
+    timezone: string;
+    tzdbVersion: string;
+    expiresAt: string;
+    pastDeadline: boolean;
+  };
+};
+
+export type CreateProjectMutationVariables = Exact<{
+  input: CreateProjectInput;
+}>;
+
+export type CreateProjectMutation = {
+  createProject: {
+    id: string;
+    name: string;
+    objectives: string;
+    creatorId: string;
+    creatorName: string;
+    ownerId: string;
+    ownerName: string;
+    deadlineDate: string;
+    approvedDeadline: string;
+    deadlineLocal: string;
+    calendarVersionId: string;
+    calendarNumber: number;
+    timezone: string;
+    tzdbVersion: string;
+    createdAt: string;
+    version: number;
+  };
+};
+
 export const CalendarConfigurationFieldsFragmentDoc = {
   kind: "Document",
   definitions: [
@@ -419,6 +555,40 @@ export const CalendarConfigurationFieldsFragmentDoc = {
     },
   ],
 } as unknown as DocumentNode<CalendarConfigurationFieldsFragment, unknown>;
+export const ProjectFieldsFragmentDoc = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "ProjectFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "ProjectRecord" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "id" } },
+          { kind: "Field", name: { kind: "Name", value: "name" } },
+          { kind: "Field", name: { kind: "Name", value: "objectives" } },
+          { kind: "Field", name: { kind: "Name", value: "creatorId" } },
+          { kind: "Field", name: { kind: "Name", value: "creatorName" } },
+          { kind: "Field", name: { kind: "Name", value: "ownerId" } },
+          { kind: "Field", name: { kind: "Name", value: "ownerName" } },
+          { kind: "Field", name: { kind: "Name", value: "deadlineDate" } },
+          { kind: "Field", name: { kind: "Name", value: "approvedDeadline" } },
+          { kind: "Field", name: { kind: "Name", value: "deadlineLocal" } },
+          { kind: "Field", name: { kind: "Name", value: "calendarVersionId" } },
+          { kind: "Field", name: { kind: "Name", value: "calendarNumber" } },
+          { kind: "Field", name: { kind: "Name", value: "timezone" } },
+          { kind: "Field", name: { kind: "Name", value: "tzdbVersion" } },
+          { kind: "Field", name: { kind: "Name", value: "createdAt" } },
+          { kind: "Field", name: { kind: "Name", value: "version" } },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<ProjectFieldsFragment, unknown>;
 export const AccountAdministrationDocument = {
   kind: "Document",
   definitions: [
@@ -1557,4 +1727,380 @@ export const ChangeOrganizationDocument = {
 } as unknown as DocumentNode<
   ChangeOrganizationMutation,
   ChangeOrganizationMutationVariables
+>;
+export const ProjectWorkspaceDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "ProjectWorkspace" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "page" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "Int" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "search" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "String" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "projectWorkspace" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "page" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "page" },
+                },
+              },
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "search" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "search" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "projects" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      {
+                        kind: "FragmentSpread",
+                        name: { kind: "Name", value: "ProjectFields" },
+                      },
+                    ],
+                  },
+                },
+                { kind: "Field", name: { kind: "Name", value: "hasMore" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "calendar" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "number" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "timezone" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "tzdbVersion" },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "ProjectFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "ProjectRecord" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "id" } },
+          { kind: "Field", name: { kind: "Name", value: "name" } },
+          { kind: "Field", name: { kind: "Name", value: "objectives" } },
+          { kind: "Field", name: { kind: "Name", value: "creatorId" } },
+          { kind: "Field", name: { kind: "Name", value: "creatorName" } },
+          { kind: "Field", name: { kind: "Name", value: "ownerId" } },
+          { kind: "Field", name: { kind: "Name", value: "ownerName" } },
+          { kind: "Field", name: { kind: "Name", value: "deadlineDate" } },
+          { kind: "Field", name: { kind: "Name", value: "approvedDeadline" } },
+          { kind: "Field", name: { kind: "Name", value: "deadlineLocal" } },
+          { kind: "Field", name: { kind: "Name", value: "calendarVersionId" } },
+          { kind: "Field", name: { kind: "Name", value: "calendarNumber" } },
+          { kind: "Field", name: { kind: "Name", value: "timezone" } },
+          { kind: "Field", name: { kind: "Name", value: "tzdbVersion" } },
+          { kind: "Field", name: { kind: "Name", value: "createdAt" } },
+          { kind: "Field", name: { kind: "Name", value: "version" } },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  ProjectWorkspaceQuery,
+  ProjectWorkspaceQueryVariables
+>;
+export const ProjectDetailDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "ProjectDetail" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "project" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "FragmentSpread",
+                  name: { kind: "Name", value: "ProjectFields" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "ProjectFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "ProjectRecord" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "id" } },
+          { kind: "Field", name: { kind: "Name", value: "name" } },
+          { kind: "Field", name: { kind: "Name", value: "objectives" } },
+          { kind: "Field", name: { kind: "Name", value: "creatorId" } },
+          { kind: "Field", name: { kind: "Name", value: "creatorName" } },
+          { kind: "Field", name: { kind: "Name", value: "ownerId" } },
+          { kind: "Field", name: { kind: "Name", value: "ownerName" } },
+          { kind: "Field", name: { kind: "Name", value: "deadlineDate" } },
+          { kind: "Field", name: { kind: "Name", value: "approvedDeadline" } },
+          { kind: "Field", name: { kind: "Name", value: "deadlineLocal" } },
+          { kind: "Field", name: { kind: "Name", value: "calendarVersionId" } },
+          { kind: "Field", name: { kind: "Name", value: "calendarNumber" } },
+          { kind: "Field", name: { kind: "Name", value: "timezone" } },
+          { kind: "Field", name: { kind: "Name", value: "tzdbVersion" } },
+          { kind: "Field", name: { kind: "Name", value: "createdAt" } },
+          { kind: "Field", name: { kind: "Name", value: "version" } },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<ProjectDetailQuery, ProjectDetailQueryVariables>;
+export const PreviewProjectDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "PreviewProject" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "ProjectPreviewInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "previewProject" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "previewId" } },
+                { kind: "Field", name: { kind: "Name", value: "name" } },
+                { kind: "Field", name: { kind: "Name", value: "objectives" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "deadlineDate" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "approvedDeadline" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "deadlineLocal" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "calendarNumber" },
+                },
+                { kind: "Field", name: { kind: "Name", value: "timezone" } },
+                { kind: "Field", name: { kind: "Name", value: "tzdbVersion" } },
+                { kind: "Field", name: { kind: "Name", value: "expiresAt" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "pastDeadline" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  PreviewProjectMutation,
+  PreviewProjectMutationVariables
+>;
+export const CreateProjectDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "CreateProject" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "CreateProjectInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "createProject" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "FragmentSpread",
+                  name: { kind: "Name", value: "ProjectFields" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "ProjectFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "ProjectRecord" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "id" } },
+          { kind: "Field", name: { kind: "Name", value: "name" } },
+          { kind: "Field", name: { kind: "Name", value: "objectives" } },
+          { kind: "Field", name: { kind: "Name", value: "creatorId" } },
+          { kind: "Field", name: { kind: "Name", value: "creatorName" } },
+          { kind: "Field", name: { kind: "Name", value: "ownerId" } },
+          { kind: "Field", name: { kind: "Name", value: "ownerName" } },
+          { kind: "Field", name: { kind: "Name", value: "deadlineDate" } },
+          { kind: "Field", name: { kind: "Name", value: "approvedDeadline" } },
+          { kind: "Field", name: { kind: "Name", value: "deadlineLocal" } },
+          { kind: "Field", name: { kind: "Name", value: "calendarVersionId" } },
+          { kind: "Field", name: { kind: "Name", value: "calendarNumber" } },
+          { kind: "Field", name: { kind: "Name", value: "timezone" } },
+          { kind: "Field", name: { kind: "Name", value: "tzdbVersion" } },
+          { kind: "Field", name: { kind: "Name", value: "createdAt" } },
+          { kind: "Field", name: { kind: "Name", value: "version" } },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  CreateProjectMutation,
+  CreateProjectMutationVariables
 >;

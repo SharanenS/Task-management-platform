@@ -41,7 +41,7 @@ def resolve_actor(session: Session, identity: Identity) -> Actor:
     roles = tuple(sorted(g.role for g in account.grants))
     if len(roles) != 1 or not set(roles).issubset(COMPANY_ROLES):
         raise AccessDenied()
-    # Company roles grant no project membership, leadership or business authority.
+    # Company roles do not grant unrelated-project membership or task authority.
     permissions = ("account:self:read",)
     if roles == ("ADMIN",):
         permissions += ("admin:workspace:read",)

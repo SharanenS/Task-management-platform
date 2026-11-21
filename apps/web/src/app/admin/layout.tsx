@@ -4,6 +4,7 @@ import { AdminShell } from "@/portals/admin/shell";
 import "@/portals/admin/admin.css";
 import "@/portals/admin/people.css";
 import "@/portals/admin/calendar.css";
+import "@/project-workspace/project.css";
 export const dynamic = "force-dynamic";
 export default async function AdminLayout({
   children,

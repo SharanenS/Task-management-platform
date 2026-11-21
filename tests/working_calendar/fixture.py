@@ -38,7 +38,11 @@ def main():
         )
         result = {
             "currentNumber": current.number if current else 0,
-            "versions": [{"id": r.id, "number": r.number} for r in versions],
+            "currentTimezone": json.loads(current.config)["timezone"] if current else None,
+            "versions": [
+                {"id": r.id, "number": r.number, "timezone": json.loads(r.config)["timezone"]}
+                for r in versions
+            ],
             "previews": len(previews),
         }
         if value["action"] == "cleanup":

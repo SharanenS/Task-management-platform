@@ -1,0 +1,135 @@
+.project-panel {
+  background: #fff;
+  border: 1px solid #d9e1ec;
+  border-radius: 0.85rem;
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+  min-width: 0;
+}
+.project-intro {
+  max-width: 48rem;
+  line-height: 1.8;
+  color: #53677f;
+}
+.project-eyebrow {
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  color: #397f96;
+  font-weight: 650;
+}
+.project-action,
+.project-panel button {
+  display: inline-block;
+  padding: 0.7rem 1rem;
+  border: 1px solid #3186a0;
+  border-radius: 0.5rem;
+  background: #183953;
+  color: #fff;
+  text-decoration: none;
+  min-height: 2.75rem;
+}
+.project-panel button:disabled {
+  opacity: 0.6;
+}
+.project-list {
+  list-style: none;
+  padding: 0;
+}
+.project-list li {
+  padding: 1rem 0;
+  border-top: 1px solid #dce4ed;
+  overflow-wrap: anywhere;
+}
+.project-list h2,
+.project-panel h2 {
+  font-size: 1.25rem;
+  font-weight: 650;
+  margin: 0.5rem 0;
+}
+.project-list p {
+  line-height: 1.8;
+}
+.project-search {
+  display: flex;
+  gap: 1rem;
+  align-items: end;
+  flex-wrap: wrap;
+}
+.project-search label,
+.project-create label {
+  display: grid;
+  gap: 0.5rem;
+}
+.project-search input,
+.project-create input:not([type="checkbox"]),
+.project-create textarea {
+  padding: 0.7rem;
+  border: 1px solid #afc1d3;
+  border-radius: 0.5rem;
+  max-width: 100%;
+  min-width: 0;
+  color: #17243b;
+  background: #fff;
+}
+.project-create {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 55rem;
+}
+.project-create fieldset {
+  display: grid;
+  gap: 1.25rem;
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.project-create textarea {
+  min-height: 9rem;
+}
+.project-create label.project-confirm {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.project-snapshot {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin: 1.5rem 0;
+}
+.project-snapshot dt {
+  font-size: 0.8rem;
+  color: #53677f;
+}
+.project-snapshot dd {
+  margin: 0.4rem 0;
+  overflow-wrap: anywhere;
+}
+.project-objectives {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.9;
+}
+.project-pages {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.project-notice {
+  padding: 1rem;
+  background: #e8f2fa;
+  border: 1px solid #c2dbe9;
+  border-radius: 0.6rem;
+  margin: 1rem 0;
+}
+@media (max-width: 600px) {
+  .project-snapshot {
+    grid-template-columns: 1fr;
+  }
+  .project-panel {
+    padding: 1rem;
+  }
+  .project-search input {
+    width: 100%;
+  }
+}

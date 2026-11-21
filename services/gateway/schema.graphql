@@ -132,6 +132,12 @@ input CreateAccountInput {
   employeeId: ID = null
 }
 
+input CreateProjectInput {
+  requestId: ID!
+  previewId: ID!
+  confirm: Boolean!
+}
+
 type EmployeeChoice {
   id: ID!
   displayName: String!
@@ -164,6 +170,8 @@ type Mutation {
   changeOrganization(input: OrganizationChangeInput!): OrganizationChangeResult!
   previewCompanyCalendar(input: CalendarConfigurationInput!): CompanyCalendarPreview!
   publishCompanyCalendar(input: PublishCalendarInput!): CompanyCalendarVersion!
+  previewProject(input: ProjectPreviewInput!): ProjectCreationPreview!
+  createProject(input: CreateProjectInput!): ProjectRecord!
   createAccount(input: CreateAccountInput!): AccountCommandResult!
   changeAccount(input: ChangeAccountInput!): AccountCommandResult!
   recoverAccount(input: RecoverAccountInput!): AccountCommandResult!
@@ -215,6 +223,58 @@ type OrganizationWorkspace {
   history: [OrganizationHistory!]!
 }
 
+type ProjectCalendarReference {
+  id: ID!
+  number: Int!
+  timezone: String!
+  tzdbVersion: String!
+}
+
+type ProjectCreationPreview {
+  previewId: ID!
+  name: String!
+  objectives: String!
+  deadlineDate: String!
+  approvedDeadline: String!
+  deadlineLocal: String!
+  calendarNumber: Int!
+  timezone: String!
+  tzdbVersion: String!
+  expiresAt: String!
+  pastDeadline: Boolean!
+}
+
+input ProjectPreviewInput {
+  name: String!
+  objectives: String!
+  deadlineDate: String!
+}
+
+type ProjectRecord {
+  id: ID!
+  name: String!
+  objectives: String!
+  creatorId: ID!
+  creatorName: String!
+  ownerId: ID!
+  ownerName: String!
+  deadlineDate: String!
+  approvedDeadline: String!
+  deadlineLocal: String!
+  calendarVersionId: ID!
+  calendarNumber: Int!
+  timezone: String!
+  tzdbVersion: String!
+  createdAt: String!
+  version: Int!
+}
+
+type ProjectWorkspace {
+  projects: [ProjectRecord!]!
+  hasMore: Boolean!
+  calendar: ProjectCalendarReference
+}
+
 type ProvisioningOperation {
   id: ID!
   username: String!
@@ -233,6 +293,8 @@ type Query {
   organizationWorkspace(page: Int! = 0, search: String! = ""): OrganizationWorkspace!
   companyCalendar: CompanyCalendarWorkspace!
   calculateWorkingDays(input: WorkingDaysInput!): WorkingDaysResult!
+  projectWorkspace(page: Int! = 0, search: String! = ""): ProjectWorkspace!
+  project(id: ID!): ProjectRecord!
   viewer: Viewer!
   adminWorkspace: AdminWorkspace!
   accountAdministration(page: Int! = 0): AccountAdministration!

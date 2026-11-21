@@ -2,7 +2,7 @@ FROM python:3.13.5-slim
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 COPY requirements.lock ./
-RUN pip install --no-cache-dir -r requirements.lock
+RUN pip install --no-cache-dir --resume-retries 3 -r requirements.lock
 COPY --from=security taskspace_security ./taskspace_security
 COPY . .
 RUN useradd --system --uid 10001 service

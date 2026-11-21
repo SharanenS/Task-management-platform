@@ -28,21 +28,26 @@ def boundary(monkeypatch):
 
     def people(request):
         role["calls"] += 1
-        assert request.url == httpx.URL("http://people:8000/internal/admin/workspace")
+        assert request.url.path in {"/internal/actor", "/internal/admin/workspace"}
+        assert request.url.host == "people"
         assert (
             request.headers["authorization"] == "Bearer valid"
             and request.headers["x-service-key"] == settings.service_key
         )
         if not role["available"]:
             return httpx.Response(503)
-        if role["value"] != "ADMIN":
+        if request.url.path == "/internal/admin/workspace" and role["value"] != "ADMIN":
             return httpx.Response(403)
         return httpx.Response(
             200,
             json={
-                "account_id": account_id,
-                "company_roles": ["ADMIN"],
-                "permissions": ["account:self:read", "admin:workspace:read"],
+                "account_id": role.get("account_id", account_id),
+                "employee_id": role.get("account_id", account_id),
+                "display_name": "Source actor",
+                "company_roles": [role["value"]],
+                "permissions": ["account:self:read", "admin:workspace:read"]
+                if role["value"] == "ADMIN"
+                else ["account:self:read"],
             },
         )
 

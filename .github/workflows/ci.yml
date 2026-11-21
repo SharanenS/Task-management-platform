@@ -449,7 +449,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Start isolated authentication stack
         run: python scripts/account-management-development.py up --apply-migration
-      - name: Start isolated company calendar
+      - name: Start isolated project-work runtime
         run: python scripts/calendar-development.py up --apply-migration
       - name: Verify PostgreSQL calendar concurrency and scoped cleanup
         run: python scripts/verify-calendar-postgres.py
@@ -484,12 +484,13 @@ jobs:
         run: python -m pip install -r services/gateway/requirements.lock -r services/people/requirements.lock -r services/project-work/requirements.lock -r tests/account_entry/requirements.lock pip-audit==2.10.1
       - name: Verify backend lint and formatting
         run: |
-          python -m ruff check services packages/security tests/account_entry tests/working_calendar --select E,F,I --line-length 100
-          python -m ruff format --check services packages/security tests/account_entry tests/working_calendar --line-length 100
+          python -m ruff check services packages/security tests/account_entry tests/working_calendar tests/projects --select E,F,I --line-length 100
+          python -m ruff format --check services packages/security tests/account_entry tests/working_calendar tests/projects --line-length 100
       - name: Verify account authorization, schema and migration source
         run: |
           python scripts/run-s2-source-checks.py
           python scripts/run-s6-source-checks.py
+          python scripts/run-s7-source-checks.py
       - name: Audit new service dependency locks
         run: |
           pip-audit --no-deps --disable-pip -r services/gateway/requirements.lock

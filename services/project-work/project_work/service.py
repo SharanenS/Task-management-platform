@@ -5,10 +5,11 @@ import json
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 
 from .calendar import TZDB_VERSION, CalendarError, calculate, normalize
 from .models import CalendarPreview, CalendarVersion
+from .transactions import lock_company
 
 
 def identifier(value):
@@ -47,11 +48,7 @@ class CalendarService:
         )
 
     def _lock(self, s, issuer):
-        if s.get_bind().dialect.name == "postgresql":
-            key = int.from_bytes(
-                hashlib.sha256(("calendar:" + issuer).encode()).digest()[:8], signed=True
-            )
-            s.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
+        lock_company(s, issuer)
 
     def workspace(self, authority):
         with self.sessions() as s:
