@@ -40,6 +40,7 @@ def main() -> int:
     parser.add_argument("--accounts-only", action="store_true")
     parser.add_argument("--organization-only", action="store_true")
     parser.add_argument("--calendar-only", action="store_true")
+    parser.add_argument("--projects-only", action="store_true")
     args = parser.parse_args()
     focuses = [
         args.account_entry_only,
@@ -47,6 +48,7 @@ def main() -> int:
         args.accounts_only,
         args.organization_only,
         args.calendar_only,
+        args.projects_only,
     ]
     if sum(focuses) > 1 or (args.recovery and any(focuses)):
         raise RuntimeError("Acceptance focus cannot run outages or another focus")
@@ -76,7 +78,7 @@ def main() -> int:
     actual_names = {x["Config"]["Labels"].get("com.docker.compose.service") for x in owned}
     if actual_names & calendar_services:
         expected_services |= calendar_services
-    if args.calendar_only and not calendar_services <= actual_names:
+    if (args.calendar_only or args.projects_only) and not calendar_services <= actual_names:
         raise RuntimeError("Calendar services are required")
     expected_count = len(expected_services)
     service_names = [x["Config"]["Labels"].get("com.docker.compose.service") for x in owned]
@@ -92,7 +94,11 @@ def main() -> int:
     from email_delivery import assert_capture_delivery
 
     if not (
-        args.admin_only or args.account_entry_only or args.organization_only or args.calendar_only
+        args.admin_only
+        or args.account_entry_only
+        or args.organization_only
+        or args.calendar_only
+        or args.projects_only
     ):
         assert_capture_delivery()
     env = os.environ.copy()
@@ -100,14 +106,24 @@ def main() -> int:
         if args.project != "desktop":
             raise RuntimeError("Recovery runs are desktop-only")
         env["S1_RECOVERY"] = "1"
-    spec = "tests/e2e/recovery.spec.ts" if args.recovery else "tests/e2e/authentication.spec.ts"
+    specs = (
+        ["tests/e2e/recovery.spec.ts"]
+        if args.recovery
+        else (
+            ["tests/e2e/manager-projects.spec.ts"]
+            if args.projects_only
+            else ["tests/e2e/authentication.spec.ts"]
+        )
+    )
+    if not args.recovery and not any(focuses):
+        specs.append("tests/e2e/manager-projects.spec.ts")
     try:
         result = subprocess.run(
             [
                 "node",
                 "node_modules/@playwright/test/cli.js",
                 "test",
-                spec,
+                *specs,
                 "--project=" + args.project,
                 "--workers=1",
                 "--retries=0",
@@ -153,7 +169,9 @@ def main() -> int:
         )
     if not args.recovery:
         created_receipts = set(receipt_dir.glob("*.json")) - prior_receipts
-        if not created_receipts or (code == 0 and len(created_receipts) != 1):
+        if not created_receipts or (
+            code == 0 and len(created_receipts) != (1 if any(focuses) else 2)
+        ):
             raise RuntimeError("Acceptance identity creation scope was incomplete")
         for path in created_receipts:
             receipt = json.loads(path.read_text(encoding="utf-8"))
@@ -166,6 +184,7 @@ def main() -> int:
                     "accountRemoved",
                     "organizationCleanupVerified",
                     "calendarCleanupVerified",
+                    "projectsCleanupVerified",
                 )
             ):
                 raise RuntimeError(
@@ -184,8 +203,9 @@ def main() -> int:
             or args.accounts_only
             or args.organization_only
             or args.calendar_only
+            or args.projects_only
         )
-        else (2 if args.recovery else 10)
+        else (2 if args.recovery else 11)
     )
     if (
         code
@@ -198,7 +218,9 @@ def main() -> int:
     destination = ROOT / "test-results/reports/s1"
     destination.mkdir(parents=True, exist_ok=True)
     scope = (
-        "calendar"
+        "projects"
+        if args.projects_only
+        else "calendar"
         if args.calendar_only
         else "organization"
         if args.organization_only

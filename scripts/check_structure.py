@@ -17,6 +17,13 @@ LEGACY_JOBS = (
     "reliability-and-recovery",
 )
 REQUIRED_FILES = (
+    "services/project-work/project_work/projects.py",
+    "services/project-work/migrations/versions/0002_manager_projects.py",
+    "services/gateway/gateway/project_schema.py",
+    "apps/web/src/app/manager/layout.tsx",
+    "apps/web/src/app/admin/projects/page.tsx",
+    "apps/web/tests/e2e/manager-projects.spec.ts",
+    "scripts/run-s7-source-checks.py",
     "services/project-work/project_work/calendar.py",
     "services/project-work/project_work/app.py",
     "services/project-work/requirements.lock",
@@ -96,7 +103,12 @@ def check_repository(root: Path) -> list[str]:
         if entry not in ci_source:
             errors.append("S6 calendar runtime or source acceptance is missing")
 
+    if "python scripts/run-s7-source-checks.py" not in ci_source:
+        errors.append("S7 project source acceptance is missing")
+
     runner_source = (root / "scripts/run-s1-acceptance.py").read_text(encoding="utf-8")
+    if 'specs.append("tests/e2e/manager-projects.spec.ts")' not in runner_source:
+        errors.append("S7 project browser acceptance is missing from full lifecycle")
     guard = runner_source.find("assert_capture_delivery()")
     launch = runner_source.find("result = subprocess.run")
     if guard < 0 or launch < 0 or guard > launch:

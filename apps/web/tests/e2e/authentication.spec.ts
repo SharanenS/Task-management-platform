@@ -56,6 +56,7 @@ function receipt(status: string, extra: Record<string, unknown> = {}) {
         organizationCreatedLatest,
         organizationCleanupVerified,
         calendarCleanupVerified,
+        projectsCleanupVerified: true,
         ...extra,
       },
       null,
@@ -1033,6 +1034,7 @@ test("S3 administrator workspace, password change and revoked-role denial", asyn
     ["Employees", "/admin/employees"],
     ["Company structure", "/admin/organization"],
     ["Working calendar", "/admin/calendar"],
+    ["Projects", "/admin/projects"],
   ] as const) {
     const link = navigation.getByRole("link", { name, exact: true });
     await expect(link).toBeVisible();
@@ -1041,7 +1043,7 @@ test("S3 administrator workspace, password change and revoked-role denial", asyn
   expect(
     await page
       .getByRole("link", {
-        name: /Projects|Workflows|Reports|Design system/,
+        name: /Workflows|Reports|Design system/,
       })
       .count(),
   ).toBe(0);
@@ -1882,6 +1884,38 @@ async function cleanupCalendar() {
   receipt("calendar-cleaned");
 }
 
+function expectedCalendarDeadline(date: string, timezone: string) {
+  const wallTime = Date.parse(`${date}T17:00:00Z`);
+  let instant = wallTime;
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+  for (let i = 0; i < 3; i++) {
+    const parts = Object.fromEntries(
+      formatter.formatToParts(instant).map((p) => [p.type, p.value]),
+    );
+    const shown = Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+      Number(parts.second),
+    );
+    instant += wallTime - shown;
+  }
+  const minutes = (wallTime - instant) / 60000;
+  const offset = `${minutes >= 0 ? "+" : "-"}${String(Math.floor(Math.abs(minutes) / 60)).padStart(2, "0")}:${String(Math.abs(minutes) % 60).padStart(2, "0")}`;
+  return `${date}T17:00:00${offset}`;
+}
+
 test("S6 versioned working calendar, approved counting and administrator-only publication", async ({
   page,
   context,
@@ -1892,12 +1926,15 @@ test("S6 versioned working calendar, approved counting and administrator-only pu
   try {
     accountFixture("role", "ADMIN");
     await login(page);
-    const baselineNumber = calendarFixture("inspect").currentNumber;
+    const calendarBaseline = calendarFixture("inspect");
+    const baselineNumber = calendarBaseline.currentNumber;
     await page.goto("/admin/calendar");
     await expect(
       page.getByRole("heading", { name: "Working calendar", exact: true }),
     ).toBeVisible();
-    await page.getByLabel("Company timezone", { exact: true }).fill("Etc/UTC");
+    await expect(
+      page.getByLabel("Company timezone", { exact: true }),
+    ).toHaveCount(0);
     for (const day of [
       "Monday",
       "Tuesday",
@@ -1957,6 +1994,13 @@ test("S6 versioned working calendar, approved counting and administrator-only pu
       }),
     ).toBeVisible();
     const first = calendarFixture("inspect").versions[0];
+    const savedTimezone = first.timezone as string;
+    const expectedTimezone =
+      calendarBaseline.currentTimezone ??
+      (await page.evaluate(
+        () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+      ));
+    expect(savedTimezone).toBe(expectedTimezone);
     boundary = "approved working-day calculation";
     await page.getByLabel("Planned start", { exact: true }).fill("2026-11-20");
     await page.getByLabel("Working days", { exact: true }).fill("3");
@@ -1964,9 +2008,24 @@ test("S6 versioned working calendar, approved counting and administrator-only pu
       .getByRole("button", { name: "Calculate dates", exact: true })
       .click();
     await expect(page.getByRole("status")).toContainText(
-      "2026-11-24T17:00:00+00:00",
+      expectedCalendarDeadline("2026-11-24", savedTimezone),
     );
     boundary = "new version preserves old calculation";
+    const otherDeviceZone =
+      savedTimezone === "Pacific/Auckland" ? "Etc/UTC" : "Pacific/Auckland";
+    await page.addInitScript((timeZone) => {
+      const original = Intl.DateTimeFormat.prototype.resolvedOptions;
+      Intl.DateTimeFormat.prototype.resolvedOptions = function () {
+        return { ...original.call(this), timeZone };
+      };
+    }, otherDeviceZone);
+    await page.reload();
+    expect(
+      await page.evaluate(
+        () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+      ),
+    ).toBe(otherDeviceZone);
+    expect(otherDeviceZone).not.toBe(savedTimezone);
     await page
       .getByRole("button", { name: "Add holiday", exact: true })
       .click();
@@ -1999,7 +2058,7 @@ test("S6 versioned working calendar, approved counting and administrator-only pu
       .getByRole("button", { name: "Calculate dates", exact: true })
       .click();
     await expect(page.getByRole("status")).toContainText(
-      "2026-11-25T17:00:00+00:00",
+      expectedCalendarDeadline("2026-11-25", savedTimezone),
     );
     await page
       .getByLabel("Calendar version", { exact: true })
@@ -2008,11 +2067,16 @@ test("S6 versioned working calendar, approved counting and administrator-only pu
       .getByRole("button", { name: "Calculate dates", exact: true })
       .click();
     await expect(page.getByRole("status")).toContainText(
-      "2026-11-24T17:00:00+00:00",
+      expectedCalendarDeadline("2026-11-24", savedTimezone),
     );
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    expect(
+      calendarFixture("inspect").versions.every(
+        (row: { timezone: string }) => row.timezone === savedTimezone,
       ),
     ).toBe(true);
     boundary = "calendar authorization and request origin";

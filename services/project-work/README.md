@@ -27,3 +27,26 @@ email-free acceptance focus `python scripts/run-s1-acceptance.py --project deskt
 Production must supply HTTPS service/provider origins and private credentials.
 Development service/database endpoints are private Compose addresses; no new
 business or database host port is exposed. The normal web origin remains port3020.
+
+
+## S7 projects
+
+Projects and their initial deadline previews are owned here, alongside the calendar.
+Migration 0002_manager_projects adds two tables without changing published calendars.
+Both ADMIN and MANAGER may create; the creator becomes initial owner. Administrator
+oversight is company-scoped. Manager list/search/detail access uses current owner,
+not historical creator. Membership and transfer endpoints are not introduced in S7.
+
+Project previews pin the latest calendar's working-date closing boundary and expire.
+Calendar publication and project commitment use the same company transaction lock.
+A later calendar publication makes an uncommitted project preview stale, while
+already committed deadline snapshots remain unchanged. Creation requests are
+idempotent and cannot reuse a preview to create duplicate projects. Current people
+account/role authority is independently checked on every operation and after waiting
+for the lock; neither a browser role nor an owner identifier establishes authority.
+
+The existing runtime wrapper applies the latest work-domain migration. The PostgreSQL
+verification now checks project commitment/calendar races too. Source entrypoint:
+`python scripts/run-s7-source-checks.py`. Browser focus:
+`python scripts/run-s1-acceptance.py --project desktop --projects-only`.
+The project journey creates and removes only marked test resources and sends no mail.

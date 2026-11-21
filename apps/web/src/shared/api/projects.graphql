@@ -1,0 +1,57 @@
+fragment ProjectFields on ProjectRecord {
+  id
+  name
+  objectives
+  creatorId
+  creatorName
+  ownerId
+  ownerName
+  deadlineDate
+  approvedDeadline
+  deadlineLocal
+  calendarVersionId
+  calendarNumber
+  timezone
+  tzdbVersion
+  createdAt
+  version
+}
+query ProjectWorkspace($page: Int!, $search: String!) {
+  projectWorkspace(page: $page, search: $search) {
+    projects {
+      ...ProjectFields
+    }
+    hasMore
+    calendar {
+      id
+      number
+      timezone
+      tzdbVersion
+    }
+  }
+}
+query ProjectDetail($id: ID!) {
+  project(id: $id) {
+    ...ProjectFields
+  }
+}
+mutation PreviewProject($input: ProjectPreviewInput!) {
+  previewProject(input: $input) {
+    previewId
+    name
+    objectives
+    deadlineDate
+    approvedDeadline
+    deadlineLocal
+    calendarNumber
+    timezone
+    tzdbVersion
+    expiresAt
+    pastDeadline
+  }
+}
+mutation CreateProject($input: CreateProjectInput!) {
+  createProject(input: $input) {
+    ...ProjectFields
+  }
+}

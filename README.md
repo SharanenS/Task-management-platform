@@ -4,13 +4,13 @@ Taskspace is being rebuilt as a portal-oriented corporate project and employee
 management platform using Next.js, React, TypeScript, Python, FastAPI, Strawberry
 GraphQL, PostgreSQL, Keycloak, Redis, RabbitMQ and Celery where required.
 
-S0 through S5 are merged. S6 introduces the versioned company working calendar
-in the project-work service. Counting rules were approved on 17 November 2026;
-source, migration, PostgreSQL concurrency and desktop/tablet/mobile acceptance
-are locally verified. The owner confirmed the working calendar works; source
-review and remote CI remain pending. See [S6 verification](docs/s6-verification.md)
-and [approved calendar rules](docs/s6-calendar-rules.md).
-Gmail remains configured as dailygotasks@gmail.com; no S6 test sends real email.
+S0 through S6 are merged. S7 adds the manager portal, owned-project listing and
+confirmed project creation with a pinned initial deadline. The approved local
+migration, PostgreSQL checks and desktop/tablet/mobile acceptance passed. Owner
+review and remote CI remain pending. See [S7 verification](docs/s7-verification.md)
+and [project contract](docs/s7-project-contract.md).
+Gmail remains configured as dailygotasks@gmail.com; project acceptance sends no email.
+The calendar form detects local time automatically; see [calendar entry](docs/calendar-local-time.md).
 
 ## Source layout
 
@@ -18,7 +18,7 @@ Gmail remains configured as dailygotasks@gmail.com; no S6 test sends real email.
 | --- | --- |
 | apps/web | Independent authentication interface and server-side session boundary |
 | services/gateway | Public GraphQL account-entry API and verified identity orchestration |
-| services/project-work | Versioned company calendar and approved working-day calculations; future work-domain owner |
+| services/project-work | Versioned company calendar, working-day calculations and owned project commitments |
 | services/people | Authoritative accounts, employee associations and company-role grants |
 | packages/security | Shared provider JWT validation; no business data ownership |
 | legacy/frontend | Accepted baseline frontend used by historical verification |
