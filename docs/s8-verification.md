@@ -45,7 +45,7 @@ s8-membership-contract.md for authority, privacy, concurrency and scope decision
 | Retained desktop S6 calendar journey | 1/1 passed, zero skips; cleaned receipt verified |
 | Final preservation/health/cleanup | Passed: all original rows, credentials, SMTP and mounts unchanged; all 36 services healthy; all five cleanup receipts verified |
 | New CI runtime/full-lifecycle integration | Integrated after approval; source/structure guards passed, remote execution pending |
-| Remote CI | Not run for these unstaged changes |
+| Remote CI | Supplied S8 run: 13/14 desktop cases passed; obsolete protected-entry expectation failed. Corrected focused check passed locally; new CI run pending |
 
 The source tests exercise one account leading/contributing in different projects,
 unrelated/cross-company denial, stale role rejection, inactive target rejection,
@@ -160,3 +160,32 @@ The S8 implementation and approved local acceptance are verified. Owner website/
 source review and remote CI after manual Git steps remain pending; no remote green
 result or merge is claimed. No S9 work has started. The original plan is unchanged;
 all edits remain unstaged and read-only Git checks confirm the index is unchanged.
+
+## Protected-entry CI correction — 23 November 2026
+
+The supplied PR #32 log records 13/14 desktop cases passed, zero skipped. The
+failure at authentication.spec.ts:599 was the old expectation that /projects was
+an unavailable route. S8 intentionally introduced this protected contextual route;
+an unauthenticated request now redirects to /sign-in. All three S8 cases and the
+remaining authentication/project/calendar cases passed in the supplied run. The
+quality gate correctly failed because the authentication job did not fully pass;
+tablet/mobile CI steps were not reached.
+
+The existing test now checks exact sign-in redirects and the sign-in heading for
+/projects and a nested project-membership route, and verifies that neither creates
+an application session cookie. Existing no-old-interface, canonical-origin,
+responsive-width and expired-entry assertions are retained. No product code,
+authorization rule, cleanup rule, timeout, retry count or CI gate was weakened.
+
+Focused lint, formatting and type checks passed. The exact corrected test body was run in a credential-free,
+ignored temporary harness using the existing desktop/tablet/mobile settings,
+one worker, zero retries and the unchanged timeout: 3/3 executed passes, zero
+skips. The passing sanitized report is
+test-results/reports/s8/protected-entry-correction.json.
+No credentials were loaded, no identities/accounts were created, and no service,
+SMTP, database, existing data or environment file was modified by this check.
+The complete credentialed 14-case suite was not rerun locally against live Gmail;
+remote CI must run on the new correction commit before merge.
+
+The original plan is unchanged. The two correction files remain unstaged for
+owner review; Git history and index were not changed.

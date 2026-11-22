@@ -572,6 +572,7 @@ test.afterAll(async () => {
 
 test("protected entry and responsive sign-in expose no old interface", async ({
   page,
+  context,
 }) => {
   await page.goto("http://localhost:3020/");
   expect(new URL(page.url()).origin).toBe(appOrigin);
@@ -591,12 +592,24 @@ test("protected entry and responsive sign-in expose no old interface", async ({
       .getByRole("link", { name: /Projects|Employees|Design system|Dashboard/ })
       .count(),
   ).toBe(0);
-  await page.goto("/projects");
-  await expect(
-    page.getByRole("heading", {
-      name: "This page isn’t available.",
-    }),
-  ).toBeVisible();
+  for (const path of [
+    "/projects",
+    "/projects/00000000-0000-4000-8000-000000000008/members",
+  ]) {
+    await page.goto(path);
+    await expect(page).toHaveURL(new URL("/sign-in", appOrigin).href);
+    await expect(
+      page.getByRole("heading", {
+        name: "Make room for your best work.",
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect(
+      (await context.cookies(appOrigin)).some((cookie) =>
+        cookie.name.includes("taskspace_session"),
+      ),
+    ).toBe(false);
+  }
 });
 test("invalid sign-in is rejected before any authenticated application session", async ({
   page,
