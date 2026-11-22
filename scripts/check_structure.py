@@ -17,6 +17,12 @@ LEGACY_JOBS = (
     "reliability-and-recovery",
 )
 REQUIRED_FILES = (
+    "services/project-work/project_work/memberships.py",
+    "services/project-work/migrations/versions/0003_project_membership.py",
+    "services/people/people/project_directory.py",
+    "apps/web/tests/e2e/project-membership.spec.ts",
+    "scripts/run-s8-source-checks.py",
+    "scripts/membership-development.py",
     "services/project-work/project_work/projects.py",
     "services/project-work/migrations/versions/0002_manager_projects.py",
     "services/gateway/gateway/project_schema.py",
@@ -106,7 +112,17 @@ def check_repository(root: Path) -> list[str]:
     if "python scripts/run-s7-source-checks.py" not in ci_source:
         errors.append("S7 project source acceptance is missing")
 
+    for entry in (
+        "python scripts/run-s8-source-checks.py",
+        "python scripts/membership-development.py up --apply-migration",
+        "python scripts/verify-membership-postgres.py",
+    ):
+        if entry not in ci_source:
+            errors.append("S8 membership source/runtime acceptance is missing")
+
     runner_source = (root / "scripts/run-s1-acceptance.py").read_text(encoding="utf-8")
+    if 'specs.append("tests/e2e/project-membership.spec.ts")' not in runner_source:
+        errors.append("S8 membership browser acceptance is missing from full lifecycle")
     if 'specs.append("tests/e2e/manager-projects.spec.ts")' not in runner_source:
         errors.append("S7 project browser acceptance is missing from full lifecycle")
     guard = runner_source.find("assert_capture_delivery()")

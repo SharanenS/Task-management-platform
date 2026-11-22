@@ -133,3 +133,63 @@
     width: 100%;
   }
 }
+
+.project-create select {
+  padding: 0.7rem;
+  border: 1px solid #afc1d3;
+  border-radius: 0.5rem;
+  background: white;
+  color: #17243b;
+  max-width: 100%;
+  min-width: 0;
+}
+.project-context-shell {
+  min-height: 100vh;
+  background: #f3f6fa;
+  color: #17243b;
+}
+.project-context-shell > header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1.25rem 2rem;
+  background: white;
+  border-bottom: 1px solid #d9e1ec;
+}
+.project-context-shell > main {
+  max-width: 75rem;
+  margin: auto;
+  padding: 2rem;
+  min-width: 0;
+}
+.project-context-shell h1 {
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .project-context-shell > main {
+    padding: 1rem;
+  }
+}
+
+.project-context-shell > header > span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.project-skip {
+  position: absolute;
+  top: -5rem;
+  left: 1rem;
+  background: white;
+  color: #17243b;
+  padding: 0.75rem;
+  z-index: 20;
+}
+.project-skip:focus {
+  top: 1rem;
+}
+.project-title {
+  overflow-wrap: anywhere;
+}

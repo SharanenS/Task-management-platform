@@ -38,6 +38,8 @@ def main():
         "project_other_create",
         "project_other_inspect",
         "project_other_cleanup",
+        "project_other_role",
+        "project_other_active",
         "organization_inspect",
         "organization_cleanup",
         "organization_account",
@@ -119,9 +121,17 @@ def main():
                     or other.profile.id != other_profile
                     or other.profile.display_name != "Project acceptance manager"
                     or len(other.grants) != 1
-                    or other.grants[0].role != "MANAGER"
+                    or other.grants[0].role not in {"MANAGER", "EMPLOYEE", "HR"}
                 ):
                     raise ValueError("Secondary project fixture ownership mismatch")
+                if action == "project_other_role":
+                    if not other or value["value"] not in {"MANAGER", "EMPLOYEE", "HR"}:
+                        raise ValueError("Invalid secondary role")
+                    other.grants[0].role = value["value"]
+                if action == "project_other_active":
+                    if not other or value["value"] not in {"true", "false"}:
+                        raise ValueError("Invalid secondary active state")
+                    other.active = value["value"] == "true"
                 result = {"accountId": other_id, "subject": other.subject if other else None}
                 if action == "project_other_cleanup":
                     if other:

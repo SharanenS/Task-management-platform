@@ -14,6 +14,7 @@ from .access import AccessDenied, resolve_actor
 from .identity_admin import IdentityAdministration
 from .management import AccountManagement, ManagementError
 from .organization import OrganizationManagement
+from .project_directory import ProjectDirectory
 
 
 def create_app(settings=None, sessions=None, verifier=None, provider=None):
@@ -72,6 +73,23 @@ def create_app(settings=None, sessions=None, verifier=None, provider=None):
     @app.get("/internal/actor")
     def actor(request: Request):
         return asdict(current_actor(request))
+
+    @app.get("/internal/project-candidates")
+    def project_candidates(
+        request: Request, page: int = 0, search: str = "", account_id: str | None = None
+    ):
+        try:
+            return ProjectDirectory(sessions).lookup(
+                current_identity(request), account_id, page, search
+            )
+        except AccessDenied:
+            raise HTTPException(403, "Access denied") from None
+        except (ValueError, TypeError):
+            raise HTTPException(400, "Invalid candidate request") from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Authority unavailable") from None
 
     @app.get("/internal/admin/workspace")
     def admin_workspace(request: Request):

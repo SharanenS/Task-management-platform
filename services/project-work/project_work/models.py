@@ -3,7 +3,18 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from .calendar import TZDB_VERSION
@@ -102,6 +113,52 @@ class Project(Base):
     timezone: Mapped[str] = mapped_column(String(100))
     tzdb_version: Mapped[str] = mapped_column(String(30))
     version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+
+class ProjectMember(Base):
+    __tablename__ = "project_members"
+    __table_args__ = (
+        UniqueConstraint("project_id", "account_id", name="uq_project_member_account"),
+        CheckConstraint(
+            "responsibility IN ('CONTRIBUTOR', 'LEADER')", name="ck_project_responsibility"
+        ),
+        Index(
+            "uq_project_active_leader",
+            "project_id",
+            unique=True,
+            postgresql_where=text("active AND responsibility = 'LEADER'"),
+            sqlite_where=text("active AND responsibility = 'LEADER'"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    issuer: Mapped[str] = mapped_column(String(512))
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="RESTRICT"))
+    account_id: Mapped[str] = mapped_column(String(36))
+    display_name: Mapped[str] = mapped_column(String(150))
+    responsibility: Mapped[str] = mapped_column(String(20))
+    duties: Mapped[str] = mapped_column(Text)
+    active: Mapped[bool] = mapped_column(Boolean)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+
+class ProjectMembershipChange(Base):
+    __tablename__ = "project_membership_changes"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    issuer: Mapped[str] = mapped_column(String(512))
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="RESTRICT"))
+    request_id: Mapped[str] = mapped_column(String(36), unique=True)
+    request_hash: Mapped[str] = mapped_column(String(64))
+    actor_id: Mapped[str] = mapped_column(String(36))
+    target_id: Mapped[str] = mapped_column(String(36))
+    action: Mapped[str] = mapped_column(String(20))
+    before: Mapped[str] = mapped_column(Text)
+    after: Mapped[str] = mapped_column(Text)
+    project_version: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )

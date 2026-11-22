@@ -12,6 +12,7 @@ from taskspace_security.settings import SecuritySettings
 from taskspace_security.tokens import TokenVerifier
 
 from .calendar import CalendarError
+from .memberships import MembershipService
 from .projects import ProjectActor, ProjectError, ProjectService
 from .service import CalendarService, identifier
 
@@ -52,6 +53,7 @@ def create_app(
     )
     service = CalendarService(sessions)
     projects = ProjectService(sessions)
+    memberships = MembershipService(sessions)
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
     def authority(request, project_access=False):
@@ -89,7 +91,7 @@ def create_app(
                 actor = response.json()
                 if project_access:
                     role = actor.get("company_roles")
-                    if role not in [["ADMIN"], ["MANAGER"]]:
+                    if role not in [["ADMIN"], ["MANAGER"], ["EMPLOYEE"]]:
                         raise HTTPException(403, "Access denied")
                     expected = (
                         ["account:self:read", "admin:workspace:read"]
@@ -186,6 +188,72 @@ def create_app(
         except Exception:
             raise HTTPException(503, "Service unavailable") from None
 
+    def directory(request, **params):
+        # Reached only after project ownership authorization in MembershipService.
+        try:
+            with httpx.Client(
+                timeout=5, transport=people_transport, follow_redirects=False
+            ) as client:
+                response = client.get(
+                    people_url.rstrip("/") + "/internal/project-candidates",
+                    params=params,
+                    headers={
+                        "Authorization": request.headers.get("authorization", ""),
+                        "X-Service-Key": settings.service_key,
+                    },
+                )
+            if response.status_code in {401, 403}:
+                raise HTTPException(403, "Access denied")
+            response.raise_for_status()
+            return response.json()
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Authority unavailable") from None
+
+    @app.get("/internal/project-memberships/{project_id}")
+    def membership_workspace(project_id: str, request: Request):
+        try:
+            return memberships.workspace(authority(request, True), project_id)
+        except ProjectError as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
+    @app.get("/internal/project-memberships/{project_id}/candidates")
+    def membership_candidates(project_id: str, request: Request, page: int = 0, search: str = ""):
+        try:
+            return memberships.candidates(
+                authority(request, True),
+                project_id,
+                lambda p, q: directory(request, page=p, search=q),
+                page,
+                search,
+            )
+        except ProjectError as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
+    @app.post("/internal/project-memberships/change")
+    def membership_change(value: dict, request: Request):
+        try:
+            return memberships.change(
+                authority(request, True),
+                lambda account_id: directory(request, account_id=account_id),
+                value,
+            )
+        except ProjectError as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
     @app.get("/health/live")
     def live():
         return {"status": "up"}
@@ -196,6 +264,7 @@ def create_app(
             with sessions() as s:
                 s.execute(text("SELECT 1 FROM calendar_versions LIMIT 1"))
                 s.execute(text("SELECT 1 FROM projects LIMIT 1"))
+                s.execute(text("SELECT 1 FROM project_membership_changes LIMIT 1"))
             return {"status": "up"}
         except Exception:
             raise HTTPException(503, "Service unavailable") from None

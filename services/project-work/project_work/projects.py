@@ -7,8 +7,15 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 
-from .calendar import TZDB_VERSION, CalendarError, day, local_boundary, normalize, working_hours
-from .models import CalendarVersion, Project, ProjectPreview
+from .calendar import (
+    TZDB_VERSION,
+    CalendarError,
+    day,
+    local_boundary,
+    normalize,
+    working_hours,
+)
+from .models import CalendarVersion, Project, ProjectMember, ProjectPreview
 from .transactions import lock_company
 
 
@@ -87,13 +94,43 @@ class ProjectService:
         self.sessions = sessions
         self.now = now or (lambda: datetime.now(UTC))
 
+    def _reader(self, authority):
+        actor = authority()
+        if actor.role in {"ADMIN", "MANAGER"}:
+            return actor
+        if actor.role == "EMPLOYEE":
+            with self.sessions() as s:
+                if s.scalar(
+                    select(ProjectMember.id)
+                    .where(
+                        ProjectMember.issuer == actor.issuer,
+                        ProjectMember.account_id == actor.account_id,
+                        ProjectMember.active.is_(True),
+                    )
+                    .limit(1)
+                ):
+                    return actor
+        raise ProjectError("project_access_denied", 403)
+
     def _visible(self, actor):
         return (Project.issuer == actor.issuer) & (
-            True if actor.role == "ADMIN" else Project.owner_id == actor.account_id
+            True
+            if actor.role == "ADMIN"
+            else (
+                Project.owner_id == actor.account_id
+                if actor.role == "MANAGER"
+                else Project.id.in_(
+                    select(ProjectMember.project_id).where(
+                        ProjectMember.issuer == actor.issuer,
+                        ProjectMember.account_id == actor.account_id,
+                        ProjectMember.active.is_(True),
+                    )
+                )
+            )
         )
 
     def workspace(self, authority, page=0, search=""):
-        actor = authorize(authority)
+        actor = self._reader(authority)
         if (
             type(page) is not int
             or not 0 <= page <= 10000
@@ -122,12 +159,12 @@ class ProjectService:
                     "timezone": json.loads(calendar.config)["timezone"],
                     "tzdb_version": calendar.tzdb_version,
                 }
-                if calendar
+                if calendar and actor.role in {"ADMIN", "MANAGER"}
                 else None,
             }
 
     def detail(self, authority, project_id):
-        actor = authorize(authority)
+        actor = self._reader(authority)
         with self.sessions() as s:
             row = s.scalar(
                 select(Project).where(Project.id == identifier(project_id), self._visible(actor))

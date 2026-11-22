@@ -42,6 +42,17 @@ export type ChangeAccountInput = {
   version: number;
 };
 
+export type ChangeProjectMembershipInput = {
+  accountId: string | number;
+  action: string;
+  confirm: boolean;
+  duties?: string;
+  projectId: string | number;
+  requestId: string | number;
+  responsibility?: string;
+  version: number;
+};
+
 export type CreateAccountInput = {
   displayName: string;
   email: string;
@@ -372,6 +383,75 @@ export type ChangeOrganizationMutationVariables = Exact<{
 
 export type ChangeOrganizationMutation = {
   changeOrganization: { entityId: string; state: string };
+};
+
+export type ProjectMembershipQueryVariables = Exact<{
+  id: string | number;
+}>;
+
+export type ProjectMembershipQuery = {
+  projectMembership: {
+    canManage: boolean;
+    responsibility: string;
+    project: {
+      id: string;
+      name: string;
+      objectives: string;
+      ownerName: string;
+      creatorName: string;
+      deadlineLocal: string;
+      timezone: string;
+      version: number;
+    };
+    members: Array<{
+      id: string;
+      accountId: string | null;
+      displayName: string;
+      responsibility: string;
+      duties: string | null;
+      active: boolean;
+    }>;
+    history: Array<{
+      id: string;
+      actorId: string;
+      targetId: string;
+      action: string;
+      before: string;
+      after: string;
+      projectVersion: number;
+      createdAt: string;
+    }>;
+  };
+};
+
+export type ProjectCandidatesQueryVariables = Exact<{
+  id: string | number;
+  page: number;
+  search: string;
+}>;
+
+export type ProjectCandidatesQuery = {
+  projectCandidates: {
+    hasMore: boolean;
+    candidates: Array<{
+      accountId: string;
+      displayName: string;
+      role: string;
+      active: boolean;
+    }>;
+  };
+};
+
+export type ChangeProjectMembershipMutationVariables = Exact<{
+  input: ChangeProjectMembershipInput;
+}>;
+
+export type ChangeProjectMembershipMutation = {
+  changeProjectMembership: {
+    projectId: string;
+    version: number;
+    changeId: string;
+  };
 };
 
 export type ProjectFieldsFragment = {
@@ -1727,6 +1807,322 @@ export const ChangeOrganizationDocument = {
 } as unknown as DocumentNode<
   ChangeOrganizationMutation,
   ChangeOrganizationMutationVariables
+>;
+export const ProjectMembershipDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "ProjectMembership" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "projectMembership" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "project" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      { kind: "Field", name: { kind: "Name", value: "name" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "objectives" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "ownerName" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "creatorName" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "deadlineLocal" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "timezone" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "version" },
+                      },
+                    ],
+                  },
+                },
+                { kind: "Field", name: { kind: "Name", value: "canManage" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "responsibility" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "members" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "accountId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "displayName" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "responsibility" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "duties" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "active" },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "history" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "actorId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "targetId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "action" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "before" },
+                      },
+                      { kind: "Field", name: { kind: "Name", value: "after" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "projectVersion" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "createdAt" },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  ProjectMembershipQuery,
+  ProjectMembershipQueryVariables
+>;
+export const ProjectCandidatesDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "ProjectCandidates" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "page" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "Int" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "search" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "String" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "projectCandidates" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "page" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "page" },
+                },
+              },
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "search" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "search" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "candidates" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "accountId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "displayName" },
+                      },
+                      { kind: "Field", name: { kind: "Name", value: "role" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "active" },
+                      },
+                    ],
+                  },
+                },
+                { kind: "Field", name: { kind: "Name", value: "hasMore" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  ProjectCandidatesQuery,
+  ProjectCandidatesQueryVariables
+>;
+export const ChangeProjectMembershipDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "ChangeProjectMembership" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "ChangeProjectMembershipInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "changeProjectMembership" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "projectId" } },
+                { kind: "Field", name: { kind: "Name", value: "version" } },
+                { kind: "Field", name: { kind: "Name", value: "changeId" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  ChangeProjectMembershipMutation,
+  ChangeProjectMembershipMutationVariables
 >;
 export const ProjectWorkspaceDocument = {
   kind: "Document",

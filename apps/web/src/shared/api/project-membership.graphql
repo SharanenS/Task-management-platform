@@ -1,0 +1,54 @@
+query ProjectMembership($id: ID!) {
+  projectMembership(id: $id) {
+    project {
+      id
+      name
+      objectives
+      ownerName
+      creatorName
+      deadlineLocal
+      timezone
+      version
+    }
+    canManage
+    responsibility
+    members {
+      id
+      accountId
+      displayName
+      responsibility
+      duties
+      active
+    }
+    history {
+      id
+      actorId
+      targetId
+      action
+      before
+      after
+      projectVersion
+      createdAt
+    }
+  }
+}
+
+query ProjectCandidates($id: ID!, $page: Int!, $search: String!) {
+  projectCandidates(id: $id, page: $page, search: $search) {
+    candidates {
+      accountId
+      displayName
+      role
+      active
+    }
+    hasMore
+  }
+}
+
+mutation ChangeProjectMembership($input: ChangeProjectMembershipInput!) {
+  changeProjectMembership(input: $input) {
+    projectId
+    version
+    changeId
+  }
+}
