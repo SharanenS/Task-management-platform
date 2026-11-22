@@ -23,25 +23,6 @@ test.afterEach(async ({ context }) => {
     otherContext = undefined;
   }
 });
-function workingDate(config: {
-  week: { weekday: number; working: boolean }[];
-  holidays: { date: string }[];
-  exceptions: { date: string; working: boolean }[];
-}) {
-  const date = new Date("2030-01-07T00:00:00Z");
-  for (let i = 0; i < 3660; i++) {
-    const iso = date.toISOString().slice(0, 10);
-    const exception = config.exceptions.find((r) => r.date === iso);
-    const weekday = date.getUTCDay() || 7;
-    const working = exception
-      ? exception.working
-      : !config.holidays.some((r) => r.date === iso) &&
-        config.week.find((r) => r.weekday === weekday)?.working;
-    if (working) return iso;
-    date.setUTCDate(date.getUTCDate() + 1);
-  }
-  throw new Error("No eligible deadline in the tested calendar window");
-}
 
 test("S7 manager project creation, current-owner isolation and administrator oversight", async ({
   page,
@@ -54,49 +35,7 @@ test("S7 manager project creation, current-owner isolation and administrator ove
     await expect(
       page.getByRole("heading", { name: "Administration", exact: true }),
     ).toBeVisible();
-    let workspace = await run.graphql(
-      context,
-      "{companyCalendar{current{id config{timezone week{weekday working opens closes} holidays{date label} exceptions{date label working opens closes}}}}}",
-    );
-    expect(workspace.errors).toBeUndefined();
-    if (!workspace.data.companyCalendar.current) {
-      const config = {
-        timezone: "Etc/UTC",
-        week: Array.from({ length: 7 }, (_, i) => ({
-          weekday: i + 1,
-          working: i < 5,
-          opens: i < 5 ? "09:00" : null,
-          closes: i < 5 ? "17:00" : null,
-        })),
-        holidays: [
-          { date: "2099-12-31", label: `Project calendar ${run.runId}` },
-        ],
-        exceptions: [],
-      };
-      const preview = await run.graphql(
-        context,
-        "mutation($input:CalendarConfigurationInput!){previewCompanyCalendar(input:$input){previewId}}",
-        { input: config },
-      );
-      expect(preview.errors).toBeUndefined();
-      const published = await run.graphql(
-        context,
-        "mutation($input:PublishCalendarInput!){publishCompanyCalendar(input:$input){id}}",
-        {
-          input: {
-            requestId: requestId(),
-            previewId: preview.data.previewCompanyCalendar.previewId,
-            confirm: true,
-          },
-        },
-      );
-      expect(published.errors).toBeUndefined();
-      workspace = await run.graphql(
-        context,
-        "{companyCalendar{current{id config{timezone week{weekday working} holidays{date} exceptions{date working}}}}}",
-      );
-    }
-    const deadline = workingDate(workspace.data.companyCalendar.current.config);
+    const deadline = await run.calendar(context);
     run.boundary = "manager entry and confirmed project creation";
     run.people("role", "MANAGER");
     await page.goto("/auth/ready");

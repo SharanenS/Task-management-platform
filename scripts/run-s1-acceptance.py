@@ -41,6 +41,7 @@ def main() -> int:
     parser.add_argument("--organization-only", action="store_true")
     parser.add_argument("--calendar-only", action="store_true")
     parser.add_argument("--projects-only", action="store_true")
+    parser.add_argument("--membership-only", action="store_true")
     args = parser.parse_args()
     focuses = [
         args.account_entry_only,
@@ -49,6 +50,7 @@ def main() -> int:
         args.organization_only,
         args.calendar_only,
         args.projects_only,
+        args.membership_only,
     ]
     if sum(focuses) > 1 or (args.recovery and any(focuses)):
         raise RuntimeError("Acceptance focus cannot run outages or another focus")
@@ -78,7 +80,9 @@ def main() -> int:
     actual_names = {x["Config"]["Labels"].get("com.docker.compose.service") for x in owned}
     if actual_names & calendar_services:
         expected_services |= calendar_services
-    if (args.calendar_only or args.projects_only) and not calendar_services <= actual_names:
+    if (
+        args.calendar_only or args.projects_only or args.membership_only
+    ) and not calendar_services <= actual_names:
         raise RuntimeError("Calendar services are required")
     expected_count = len(expected_services)
     service_names = [x["Config"]["Labels"].get("com.docker.compose.service") for x in owned]
@@ -99,6 +103,7 @@ def main() -> int:
         or args.organization_only
         or args.calendar_only
         or args.projects_only
+        or args.membership_only
     ):
         assert_capture_delivery()
     env = os.environ.copy()
@@ -110,13 +115,16 @@ def main() -> int:
         ["tests/e2e/recovery.spec.ts"]
         if args.recovery
         else (
-            ["tests/e2e/manager-projects.spec.ts"]
+            ["tests/e2e/project-membership.spec.ts"]
+            if args.membership_only
+            else ["tests/e2e/manager-projects.spec.ts"]
             if args.projects_only
             else ["tests/e2e/authentication.spec.ts"]
         )
     )
     if not args.recovery and not any(focuses):
         specs.append("tests/e2e/manager-projects.spec.ts")
+        specs.append("tests/e2e/project-membership.spec.ts")
     try:
         result = subprocess.run(
             [
@@ -170,7 +178,7 @@ def main() -> int:
     if not args.recovery:
         created_receipts = set(receipt_dir.glob("*.json")) - prior_receipts
         if not created_receipts or (
-            code == 0 and len(created_receipts) != (1 if any(focuses) else 2)
+            code == 0 and len(created_receipts) != (1 if any(focuses) else 3)
         ):
             raise RuntimeError("Acceptance identity creation scope was incomplete")
         for path in created_receipts:
@@ -185,6 +193,7 @@ def main() -> int:
                     "organizationCleanupVerified",
                     "calendarCleanupVerified",
                     "projectsCleanupVerified",
+                    "membershipCleanupVerified",
                 )
             ):
                 raise RuntimeError(
@@ -196,7 +205,9 @@ def main() -> int:
         )
     report = json.loads((ROOT / "apps/web/test-results/s1-acceptance.json").read_text())
     expected = (
-        1
+        3
+        if args.membership_only
+        else 1
         if (
             args.account_entry_only
             or args.admin_only
@@ -205,7 +216,7 @@ def main() -> int:
             or args.calendar_only
             or args.projects_only
         )
-        else (2 if args.recovery else 11)
+        else (2 if args.recovery else 14)
     )
     if (
         code
@@ -218,7 +229,9 @@ def main() -> int:
     destination = ROOT / "test-results/reports/s1"
     destination.mkdir(parents=True, exist_ok=True)
     scope = (
-        "projects"
+        "membership"
+        if args.membership_only
+        else "projects"
         if args.projects_only
         else "calendar"
         if args.calendar_only

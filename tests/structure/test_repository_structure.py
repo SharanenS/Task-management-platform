@@ -26,6 +26,33 @@ class RepositoryStructureTests(unittest.TestCase):
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, destination)
 
+    def test_membership_acceptance_cannot_be_omitted(self) -> None:
+        runner = self.fixture / "scripts/run-s1-acceptance.py"
+        runner.write_text(
+            runner.read_text(encoding="utf-8").replace(
+                'specs.append("tests/e2e/project-membership.spec.ts")', "pass"
+            ),
+            encoding="utf-8",
+        )
+        self.assertTrue(
+            any("S8 membership browser" in e for e in structure.check_repository(self.fixture))
+        )
+
+    def test_membership_runtime_cannot_be_omitted(self) -> None:
+        ci = self.fixture / ".github/workflows/ci.yml"
+        ci.write_text(
+            ci.read_text(encoding="utf-8").replace(
+                "python scripts/membership-development.py up --apply-migration", "echo omitted"
+            ),
+            encoding="utf-8",
+        )
+        self.assertTrue(
+            any(
+                "S8 membership source/runtime" in e
+                for e in structure.check_repository(self.fixture)
+            )
+        )
+
     def test_project_acceptance_cannot_be_omitted(self) -> None:
         runner = self.fixture / "scripts/run-s1-acceptance.py"
         runner.write_text(

@@ -100,6 +100,17 @@ input ChangeAccountInput {
   role: String = null
 }
 
+input ChangeProjectMembershipInput {
+  projectId: ID!
+  requestId: ID!
+  version: Int!
+  accountId: ID!
+  action: String!
+  confirm: Boolean!
+  responsibility: String! = "CONTRIBUTOR"
+  duties: String! = ""
+}
+
 type CompanyCalendarPreview {
   tzdbVersion: String!
   previewId: ID!
@@ -170,6 +181,7 @@ type Mutation {
   changeOrganization(input: OrganizationChangeInput!): OrganizationChangeResult!
   previewCompanyCalendar(input: CalendarConfigurationInput!): CompanyCalendarPreview!
   publishCompanyCalendar(input: PublishCalendarInput!): CompanyCalendarVersion!
+  changeProjectMembership(input: ChangeProjectMembershipInput!): ProjectMembershipResult!
   previewProject(input: ProjectPreviewInput!): ProjectCreationPreview!
   createProject(input: CreateProjectInput!): ProjectRecord!
   createAccount(input: CreateAccountInput!): AccountCommandResult!
@@ -230,6 +242,18 @@ type ProjectCalendarReference {
   tzdbVersion: String!
 }
 
+type ProjectCandidate {
+  accountId: ID!
+  displayName: String!
+  role: String!
+  active: Boolean!
+}
+
+type ProjectCandidates {
+  candidates: [ProjectCandidate!]!
+  hasMore: Boolean!
+}
+
 type ProjectCreationPreview {
   previewId: ID!
   name: String!
@@ -242,6 +266,40 @@ type ProjectCreationPreview {
   tzdbVersion: String!
   expiresAt: String!
   pastDeadline: Boolean!
+}
+
+type ProjectMember {
+  id: ID!
+  accountId: ID
+  displayName: String!
+  responsibility: String!
+  duties: String
+  active: Boolean!
+}
+
+type ProjectMembershipHistory {
+  id: ID!
+  actorId: ID!
+  targetId: ID!
+  action: String!
+  before: String!
+  after: String!
+  projectVersion: Int!
+  createdAt: String!
+}
+
+type ProjectMembershipResult {
+  projectId: ID!
+  version: Int!
+  changeId: ID!
+}
+
+type ProjectMembershipWorkspace {
+  project: ProjectRecord!
+  canManage: Boolean!
+  responsibility: String!
+  members: [ProjectMember!]!
+  history: [ProjectMembershipHistory!]!
 }
 
 input ProjectPreviewInput {
@@ -293,6 +351,8 @@ type Query {
   organizationWorkspace(page: Int! = 0, search: String! = ""): OrganizationWorkspace!
   companyCalendar: CompanyCalendarWorkspace!
   calculateWorkingDays(input: WorkingDaysInput!): WorkingDaysResult!
+  projectMembership(id: ID!): ProjectMembershipWorkspace!
+  projectCandidates(id: ID!, page: Int! = 0, search: String! = ""): ProjectCandidates!
   projectWorkspace(page: Int! = 0, search: String! = ""): ProjectWorkspace!
   project(id: ID!): ProjectRecord!
   viewer: Viewer!

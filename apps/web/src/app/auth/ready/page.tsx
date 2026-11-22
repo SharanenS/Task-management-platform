@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { currentSession, sessionCookie } from "@/shared/auth/session";
 import { accountEntry, AccountDenied } from "@/shared/api/account-entry";
 import { AuthFrame } from "@/shared/ui/auth-frame";
@@ -36,7 +37,11 @@ export default async function ReadyPage() {
     <AuthFrame
       eyebrow="SIGNED IN"
       title="You’re securely signed in."
-      description="Your identity and active account have been verified. Your workspace is not available yet."
+      description={
+        actor.companyRoles[0] === "EMPLOYEE"
+          ? "Your identity and active account have been verified. Open assigned projects to see your current project access."
+          : "Your identity and active account have been verified. Your workspace is not available yet."
+      }
     >
       <div className="account-summary">
         <span className="avatar" aria-hidden="true">
@@ -47,6 +52,11 @@ export default async function ReadyPage() {
           <p>{actor.companyRoles.join(", ")} · Verified account</p>
         </div>
       </div>
+      {actor.companyRoles[0] === "EMPLOYEE" && (
+        <p>
+          <Link href="/projects">Open assigned projects</Link>
+        </p>
+      )}
       <p className="support-note">You can sign out securely below.</p>
       <form method="post" action="/auth/logout">
         <button className="secondary-button">Sign out</button>

@@ -57,6 +57,7 @@ function receipt(status: string, extra: Record<string, unknown> = {}) {
         organizationCleanupVerified,
         calendarCleanupVerified,
         projectsCleanupVerified: true,
+        membershipCleanupVerified: true,
         ...extra,
       },
       null,

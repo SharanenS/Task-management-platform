@@ -440,7 +440,10 @@ def create_app(settings=None, verifier=None, transport=None):
                 ) from None
 
         async def projects(command, value):
-            if viewer.company_roles not in [["ADMIN"], ["MANAGER"]]:
+            if viewer.company_roles not in [["ADMIN"], ["MANAGER"], ["EMPLOYEE"]] or (
+                command in {"preview", "create", "candidates", "membership-change"}
+                and viewer.company_roles not in [["ADMIN"], ["MANAGER"]]
+            ):
                 raise GraphQLError("Access denied", extensions={"code": "FORBIDDEN"})
             origin = os.environ.get("PROJECT_WORK_URL", "http://project-work:8000")
             boundary = urlsplit(origin)
@@ -471,7 +474,7 @@ def create_app(settings=None, verifier=None, transport=None):
                     headers = {"Authorization": authorization, "X-Service-Key": key}
                     if command == "list":
                         response = await client.get(path, params=value, headers=headers)
-                    elif command == "detail":
+                    elif command in {"detail", "members", "candidates"}:
                         try:
                             project_id = str(UUID(value["id"]))
                         except (ValueError, TypeError, AttributeError):
@@ -482,7 +485,25 @@ def create_app(settings=None, verifier=None, transport=None):
                                     "reason": "project_not_found",
                                 },
                             ) from None
-                        response = await client.get(path + "/" + project_id, headers=headers)
+                        if command == "detail":
+                            response = await client.get(path + "/" + project_id, headers=headers)
+                        else:
+                            membership_path = (
+                                origin.rstrip("/") + "/internal/project-memberships/" + project_id
+                            )
+                            if command == "candidates":
+                                membership_path += "/candidates"
+                            response = await client.get(
+                                membership_path,
+                                params={k: v for k, v in value.items() if k != "id"},
+                                headers=headers,
+                            )
+                    elif command == "membership-change":
+                        response = await client.post(
+                            origin.rstrip("/") + "/internal/project-memberships/change",
+                            json=value,
+                            headers=headers,
+                        )
                     else:
                         response = await client.post(
                             path + "/" + command, json=value, headers=headers
@@ -491,6 +512,13 @@ def create_app(settings=None, verifier=None, transport=None):
                     raise GraphQLError("Access denied", extensions={"code": "FORBIDDEN"})
                 if response.status_code in {400, 404, 409, 422}:
                     reasons = {
+                        "invalid_membership_change",
+                        "stale_project_membership",
+                        "member_not_eligible",
+                        "membership_not_active",
+                        "leader_already_appointed",
+                        "project_membership_limit",
+                        "no_membership_change",
                         "project_not_found",
                         "invalid_project_details",
                         "invalid_identifier",

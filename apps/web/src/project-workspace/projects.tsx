@@ -182,6 +182,9 @@ export async function ProjectDetails({ id }: { id: string }) {
       <p className="project-eyebrow">PROJECT DETAILS</p>
       <h1>{project.name}</h1>
       <Link href={root}>Back to projects</Link>
+      <p>
+        <Link href={`${root}/${project.id}/members`}>Project membership</Link>
+      </p>
       <section className="project-panel">
         <h2>Objectives</h2>
         <p className="project-objectives">{project.objectives}</p>
@@ -226,8 +229,8 @@ export async function ProjectDetails({ id }: { id: string }) {
         </details>
         <p className="project-intro">
           The original deadline is retained. No delivery forecast is available
-          before task planning. Membership and team-leader appointments are
-          introduced separately.
+          before task planning. Manage project appointments through the
+          membership page.
         </p>
       </section>
     </>

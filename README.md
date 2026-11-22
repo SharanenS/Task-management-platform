@@ -4,12 +4,12 @@ Taskspace is being rebuilt as a portal-oriented corporate project and employee
 management platform using Next.js, React, TypeScript, Python, FastAPI, Strawberry
 GraphQL, PostgreSQL, Keycloak, Redis, RabbitMQ and Celery where required.
 
-S0 through S6 are merged. S7 adds the manager portal, owned-project listing and
-confirmed project creation with a pinned initial deadline. The approved local
-migration, PostgreSQL checks and desktop/tablet/mobile acceptance passed. Owner
-review and remote CI remain pending. See [S7 verification](docs/s7-verification.md)
-and [project contract](docs/s7-project-contract.md).
-Gmail remains configured as dailygotasks@gmail.com; project acceptance sends no email.
+S0 through S7 are merged. S8 source adds explicit project membership and contextual
+team-leader/contributor appointments for EMPLOYEE accounts. The approved migration,
+container build, PostgreSQL probes and desktop/tablet/mobile membership journeys
+passed locally. CI integration is prepared; owner review and remote CI remain pending. See [S8 verification](docs/s8-verification.md) and the
+[membership contract](docs/s8-membership-contract.md).
+Gmail remains configured as dailygotasks@gmail.com; membership acceptance sends no email.
 The calendar form detects local time automatically; see [calendar entry](docs/calendar-local-time.md).
 
 ## Source layout

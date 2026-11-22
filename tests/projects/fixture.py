@@ -5,7 +5,14 @@ import os
 import sys
 from uuid import UUID, uuid5
 
-from project_work.models import CalendarPreview, CalendarVersion, Project, ProjectPreview
+from project_work.models import (
+    CalendarPreview,
+    CalendarVersion,
+    Project,
+    ProjectMember,
+    ProjectMembershipChange,
+    ProjectPreview,
+)
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import Session
 
@@ -49,7 +56,34 @@ def main():
             row.preview_id not in calendar_ids for row in versions
         ):
             raise ValueError("Fixture preview ownership mismatch")
+        members = s.scalars(
+            select(ProjectMember).where(
+                ProjectMember.project_id.in_(project_ids) | ProjectMember.account_id.in_(actors)
+            )
+        ).all()
+        changes = s.scalars(
+            select(ProjectMembershipChange).where(
+                ProjectMembershipChange.project_id.in_(project_ids)
+                | ProjectMembershipChange.actor_id.in_(actors)
+                | ProjectMembershipChange.target_id.in_(actors)
+            )
+        ).all()
+        if any(
+            r.issuer != issuer or r.project_id not in project_ids or r.account_id not in actors
+            for r in members
+        ):
+            raise ValueError("Membership fixture ownership mismatch")
+        if any(
+            r.issuer != issuer
+            or r.project_id not in project_ids
+            or r.actor_id not in actors
+            or r.target_id not in actors
+            for r in changes
+        ):
+            raise ValueError("Membership history ownership mismatch")
         result = {
+            "memberships": len(members),
+            "membershipChanges": len(changes),
             "projects": len(projects),
             "previews": len(previews),
             "versions": len(versions),
@@ -85,6 +119,12 @@ def main():
                 )
             ):
                 raise ValueError("Foreign calendar references fixture data")
+            s.execute(
+                delete(ProjectMembershipChange).where(
+                    ProjectMembershipChange.id.in_([r.id for r in changes])
+                )
+            )
+            s.execute(delete(ProjectMember).where(ProjectMember.id.in_([r.id for r in members])))
             s.execute(delete(Project).where(Project.id.in_(project_ids)))
             s.execute(delete(ProjectPreview).where(ProjectPreview.id.in_(preview_ids)))
             for row in calendar_previews:
@@ -95,7 +135,20 @@ def main():
             s.flush()
             s.expire_all()
             if (
-                s.scalar(select(Project.id).where(Project.creator_id.in_(actors)))
+                s.scalar(
+                    select(ProjectMember.id).where(
+                        ProjectMember.project_id.in_(project_ids)
+                        | ProjectMember.account_id.in_(actors)
+                    )
+                )
+                or s.scalar(
+                    select(ProjectMembershipChange.id).where(
+                        ProjectMembershipChange.project_id.in_(project_ids)
+                        | ProjectMembershipChange.actor_id.in_(actors)
+                        | ProjectMembershipChange.target_id.in_(actors)
+                    )
+                )
+                or s.scalar(select(Project.id).where(Project.creator_id.in_(actors)))
                 or s.scalar(select(ProjectPreview.id).where(ProjectPreview.actor_id.in_(actors)))
                 or s.scalar(select(CalendarVersion.id).where(CalendarVersion.actor_id.in_(actors)))
                 or s.scalar(select(CalendarPreview.id).where(CalendarPreview.actor_id.in_(actors)))

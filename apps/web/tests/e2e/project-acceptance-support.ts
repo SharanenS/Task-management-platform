@@ -33,6 +33,7 @@ export class ProjectAcceptance {
   grants: string[] = [];
   bootstrapId = "";
   boundary = "initialization";
+  diagnosticScope: "s7" | "s8" = "s7";
   receiptPath = resolve(`../../.local/auth/runs/${this.runId}.json`);
   write(status: string, extra: Record<string, unknown> = {}) {
     mkdirSync(resolve("../../.local/auth/runs"), { recursive: true });
@@ -233,6 +234,51 @@ export class ProjectAcceptance {
     this.people("role", "ADMIN");
     this.write("ready");
   }
+  async calendar(context: BrowserContext) {
+    let workspace = await this.graphql(
+      context,
+      "{companyCalendar{current{id config{timezone week{weekday working opens closes} holidays{date label} exceptions{date label working opens closes}}}}}",
+    );
+    expect(workspace.errors).toBeUndefined();
+    if (!workspace.data.companyCalendar.current) {
+      const config = {
+        timezone: "Etc/UTC",
+        week: Array.from({ length: 7 }, (_, i) => ({
+          weekday: i + 1,
+          working: i < 5,
+          opens: i < 5 ? "09:00" : null,
+          closes: i < 5 ? "17:00" : null,
+        })),
+        holidays: [
+          { date: "2099-12-31", label: `Project calendar ${this.runId}` },
+        ],
+        exceptions: [],
+      };
+      const preview = await this.graphql(
+        context,
+        "mutation($input:CalendarConfigurationInput!){previewCompanyCalendar(input:$input){previewId}}",
+        { input: config },
+      );
+      expect(preview.errors).toBeUndefined();
+      const published = await this.graphql(
+        context,
+        "mutation($input:PublishCalendarInput!){publishCompanyCalendar(input:$input){id}}",
+        {
+          input: {
+            requestId: randomUUID(),
+            previewId: preview.data.previewCompanyCalendar.previewId,
+            confirm: true,
+          },
+        },
+      );
+      expect(published.errors).toBeUndefined();
+      workspace = await this.graphql(
+        context,
+        "{companyCalendar{current{id config{timezone week{weekday working} holidays{date} exceptions{date working}}}}}",
+      );
+    }
+    return workingDate(workspace.data.companyCalendar.current.config);
+  }
   async login(page: Page, identity = this.primary) {
     await page.goto("/sign-in");
     await page
@@ -326,9 +372,13 @@ export class ProjectAcceptance {
     message = message
       .replace(/https?:\/\/[^\s<>]+/g, "[address omitted]")
       .slice(0, 2000);
-    mkdirSync(resolve("../../test-results/reports/s7"), { recursive: true });
+    mkdirSync(resolve(`../../test-results/reports/${this.diagnosticScope}`), {
+      recursive: true,
+    });
     writeFileSync(
-      resolve(`../../test-results/reports/s7/${this.runId}.json`),
+      resolve(
+        `../../test-results/reports/${this.diagnosticScope}/${this.runId}-${randomUUID()}.json`,
+      ),
       JSON.stringify({ stage: this.boundary, project, message }, null, 2),
     );
   }
@@ -348,7 +398,9 @@ export class ProjectAcceptance {
           check.projects === 0 &&
             check.previews === 0 &&
             check.versions === 0 &&
-            check.calendarPreviews === 0,
+            check.calendarPreviews === 0 &&
+            check.memberships === 0 &&
+            check.membershipChanges === 0,
         ).toBe(true);
         projectsCleaned = true;
         if (!this.people("inspect").absent) {
@@ -418,6 +470,7 @@ export class ProjectAcceptance {
           bootstrapPreserved,
           grantsRevoked,
           projectsCleanupVerified: projectsCleaned,
+          membershipCleanupVerified: projectsCleaned,
           calendarCleanupVerified: projectsCleaned,
           organizationCleanupVerified: true,
         },
@@ -425,4 +478,24 @@ export class ProjectAcceptance {
     }
     if (failure) throw failure;
   }
+}
+
+export function workingDate(config: {
+  week: { weekday: number; working: boolean }[];
+  holidays: { date: string }[];
+  exceptions: { date: string; working: boolean }[];
+}) {
+  const date = new Date("2030-01-07T00:00:00Z");
+  for (let i = 0; i < 3660; i++) {
+    const iso = date.toISOString().slice(0, 10);
+    const exception = config.exceptions.find((r) => r.date === iso);
+    const weekday = date.getUTCDay() || 7;
+    const working = exception
+      ? exception.working
+      : !config.holidays.some((r) => r.date === iso) &&
+        config.week.find((r) => r.weekday === weekday)?.working;
+    if (working) return iso;
+    date.setUTCDate(date.getUTCDate() + 1);
+  }
+  throw new Error("No eligible deadline in the tested calendar window");
 }
