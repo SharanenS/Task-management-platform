@@ -105,6 +105,13 @@ export type OrganizationChangeInput = {
   version?: number | null | undefined;
 };
 
+export type PreviewOwnerDeadlineInput = {
+  deadlineDate: string;
+  escalationId: string | number;
+  projectId: string | number;
+  version: number;
+};
+
 export type ProjectPreviewInput = {
   deadlineDate: string;
   name: string;
@@ -117,8 +124,41 @@ export type PublishCalendarInput = {
   requestId: string | number;
 };
 
+export type RecordOwnerDecisionInput = {
+  affectedTeam: string;
+  confirm: boolean;
+  escalationId: string | number;
+  outcome: string;
+  previewId?: string | number | null | undefined;
+  projectId: string | number;
+  projectVersion: number;
+  reason: string;
+  requestId: string | number;
+  version: number;
+};
+
+export type RecordReviewFallbackInput = {
+  confirm: boolean;
+  endsAt: string;
+  leaderId?: string | number | null | undefined;
+  projectId: string | number;
+  projectVersion: number;
+  reason: string;
+  requestId: string | number;
+  scope: string;
+  startsAt: string;
+};
+
 export type RecoverAccountInput = {
   operationId: string | number;
+  requestId: string | number;
+};
+
+export type RevokeReviewFallbackInput = {
+  confirm: boolean;
+  projectId: string | number;
+  reason: string;
+  recordId: string | number;
   requestId: string | number;
 };
 
@@ -406,6 +446,132 @@ export type ChangeOrganizationMutationVariables = Exact<{
 
 export type ChangeOrganizationMutation = {
   changeOrganization: { entityId: string; state: string };
+};
+
+export type OwnerOversightQueryVariables = Exact<{
+  id: string | number;
+  page: number;
+}>;
+
+export type OwnerOversightQuery = {
+  ownerOversight: {
+    currentDeadline: string;
+    originalOverdue: boolean;
+    currentOverdue: boolean;
+    forecastAt: string | null;
+    forecastState: string;
+    forecastLate: boolean | null;
+    actualDeliveryAt: string | null;
+    hasMore: boolean;
+    project: {
+      id: string;
+      name: string;
+      version: number;
+      approvedDeadline: string;
+      deadlineLocal: string;
+      timezone: string;
+      ownerName: string;
+    };
+    escalations: Array<{
+      id: string;
+      sourceRequestId: string;
+      version: number;
+      reason: string;
+      affectedTeam: string;
+      assessmentState: string;
+      forecastAt: string | null;
+      assessmentSummary: string | null;
+      createdAt: string;
+    }>;
+    history: Array<{
+      id: string;
+      escalationId: string;
+      outcome: string;
+      actorId: string;
+      actorName: string;
+      actorRole: string;
+      reason: string;
+      affectedTeam: string;
+      forecastAt: string | null;
+      assessmentState: string;
+      previousDeadline: string;
+      revisedDeadline: string | null;
+      previousOverdue: boolean;
+      projectVersion: number;
+      createdAt: string;
+    }>;
+  };
+};
+
+export type ReviewFallbacksQueryVariables = Exact<{
+  id: string | number;
+  page: number;
+}>;
+
+export type ReviewFallbacksQuery = {
+  reviewFallbacks: {
+    canRecord: boolean;
+    leaderId: string | null;
+    leaderName: string | null;
+    hasMore: boolean;
+    records: Array<{
+      id: string;
+      leaderId: string | null;
+      leaderName: string | null;
+      scope: string;
+      reason: string;
+      actorId: string;
+      actorName: string;
+      startsAt: string;
+      endsAt: string;
+      createdAt: string;
+      active: boolean;
+      revokedAt: string | null;
+      revokedBy: string | null;
+      revocationReason: string | null;
+    }>;
+  };
+};
+
+export type PreviewOwnerDeadlineMutationVariables = Exact<{
+  input: PreviewOwnerDeadlineInput;
+}>;
+
+export type PreviewOwnerDeadlineMutation = {
+  previewOwnerDeadline: {
+    id: string;
+    deadlineAt: string;
+    deadlineLocal: string;
+    originalDeadline: string;
+    currentDeadline: string;
+    forecastAt: string;
+    calendarNumber: number;
+    expiresAt: string;
+  };
+};
+
+export type RecordOwnerDecisionMutationVariables = Exact<{
+  input: RecordOwnerDecisionInput;
+}>;
+
+export type RecordOwnerDecisionMutation = {
+  recordOwnerDecision: { id: string; outcome: string };
+};
+
+export type RecordReviewFallbackMutationVariables = Exact<{
+  input: RecordReviewFallbackInput;
+}>;
+
+export type RecordReviewFallbackMutation = {
+  recordReviewFallback: { id: string; active: boolean };
+};
+
+export type RevokeReviewFallbackMutationVariables = Exact<{
+  input: RevokeReviewFallbackInput;
+}>;
+
+export type RevokeReviewFallbackMutation = {
+  revokeReviewFallback: { id: string; active: boolean };
 };
 
 export type CoordinationFieldsFragment = {
@@ -2028,6 +2194,595 @@ export const ChangeOrganizationDocument = {
 } as unknown as DocumentNode<
   ChangeOrganizationMutation,
   ChangeOrganizationMutationVariables
+>;
+export const OwnerOversightDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "OwnerOversight" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "page" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "Int" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "ownerOversight" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "page" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "page" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "project" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      { kind: "Field", name: { kind: "Name", value: "name" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "version" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "approvedDeadline" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "deadlineLocal" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "timezone" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "ownerName" },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "currentDeadline" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "originalOverdue" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "currentOverdue" },
+                },
+                { kind: "Field", name: { kind: "Name", value: "forecastAt" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "forecastState" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "forecastLate" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "actualDeliveryAt" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "escalations" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "sourceRequestId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "version" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "reason" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "affectedTeam" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "assessmentState" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "forecastAt" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "assessmentSummary" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "createdAt" },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "history" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "escalationId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "outcome" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "actorId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "actorName" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "actorRole" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "reason" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "affectedTeam" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "forecastAt" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "assessmentState" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "previousDeadline" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "revisedDeadline" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "previousOverdue" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "projectVersion" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "createdAt" },
+                      },
+                    ],
+                  },
+                },
+                { kind: "Field", name: { kind: "Name", value: "hasMore" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<OwnerOversightQuery, OwnerOversightQueryVariables>;
+export const ReviewFallbacksDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "ReviewFallbacks" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "page" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "Int" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "reviewFallbacks" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "page" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "page" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "canRecord" } },
+                { kind: "Field", name: { kind: "Name", value: "leaderId" } },
+                { kind: "Field", name: { kind: "Name", value: "leaderName" } },
+                { kind: "Field", name: { kind: "Name", value: "hasMore" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "records" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "leaderId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "leaderName" },
+                      },
+                      { kind: "Field", name: { kind: "Name", value: "scope" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "reason" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "actorId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "actorName" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "startsAt" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "endsAt" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "createdAt" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "active" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "revokedAt" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "revokedBy" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "revocationReason" },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  ReviewFallbacksQuery,
+  ReviewFallbacksQueryVariables
+>;
+export const PreviewOwnerDeadlineDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "PreviewOwnerDeadline" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "PreviewOwnerDeadlineInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "previewOwnerDeadline" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "deadlineAt" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "deadlineLocal" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "originalDeadline" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "currentDeadline" },
+                },
+                { kind: "Field", name: { kind: "Name", value: "forecastAt" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "calendarNumber" },
+                },
+                { kind: "Field", name: { kind: "Name", value: "expiresAt" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  PreviewOwnerDeadlineMutation,
+  PreviewOwnerDeadlineMutationVariables
+>;
+export const RecordOwnerDecisionDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "RecordOwnerDecision" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "RecordOwnerDecisionInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "recordOwnerDecision" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "outcome" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  RecordOwnerDecisionMutation,
+  RecordOwnerDecisionMutationVariables
+>;
+export const RecordReviewFallbackDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "RecordReviewFallback" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "RecordReviewFallbackInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "recordReviewFallback" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "active" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  RecordReviewFallbackMutation,
+  RecordReviewFallbackMutationVariables
+>;
+export const RevokeReviewFallbackDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "RevokeReviewFallback" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "RevokeReviewFallbackInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "revokeReviewFallback" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "active" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  RevokeReviewFallbackMutation,
+  RevokeReviewFallbackMutationVariables
 >;
 export const ProjectCoordinationDocument = {
   kind: "Document",

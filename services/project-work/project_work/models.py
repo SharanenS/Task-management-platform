@@ -216,3 +216,149 @@ class CoordinationFollowUp(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
+
+
+class DeliveryState(Base):
+    __tablename__ = "project_delivery_state"
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), primary_key=True
+    )
+    schedule_version: Mapped[int] = mapped_column(Integer)
+
+
+class DeliveryAssessment(Base):
+    __tablename__ = "project_delivery_assessments"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('ASSESSED', 'UNASSESSED')", name="ck_delivery_assessment_status"
+        ),
+        CheckConstraint(
+            "(status = 'ASSESSED' AND forecast_at IS NOT NULL) OR "
+            "(status = 'UNASSESSED' AND forecast_at IS NULL)",
+            name="ck_delivery_forecast_presence",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), index=True
+    )
+    schedule_version: Mapped[int] = mapped_column(Integer)
+    project_version: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(20))
+    forecast_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    summary: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class OwnerEscalation(Base):
+    __tablename__ = "project_owner_escalations"
+    __table_args__ = (
+        CheckConstraint("status IN ('PENDING', 'DECIDED')", name="ck_owner_escalation_status"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), index=True
+    )
+    source_request_id: Mapped[str] = mapped_column(String(36), unique=True)
+    assessment_id: Mapped[str | None] = mapped_column(
+        ForeignKey("project_delivery_assessments.id", ondelete="RESTRICT")
+    )
+    reason: Mapped[str] = mapped_column(Text)
+    affected_team: Mapped[str] = mapped_column(String(300))
+    status: Mapped[str] = mapped_column(String(20), default="PENDING")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+
+class OwnerDecisionPreview(Base):
+    __tablename__ = "project_owner_decision_previews"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="RESTRICT"))
+    escalation_id: Mapped[str] = mapped_column(
+        ForeignKey("project_owner_escalations.id", ondelete="RESTRICT")
+    )
+    actor_id: Mapped[str] = mapped_column(String(36))
+    project_version: Mapped[int] = mapped_column(Integer)
+    escalation_version: Mapped[int] = mapped_column(Integer)
+    assessment_id: Mapped[str] = mapped_column(
+        ForeignKey("project_delivery_assessments.id", ondelete="RESTRICT")
+    )
+    calendar_version_id: Mapped[str] = mapped_column(
+        ForeignKey("calendar_versions.id", ondelete="RESTRICT")
+    )
+    deadline_date: Mapped[str] = mapped_column(String(10))
+    deadline_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    deadline_local: Mapped[str] = mapped_column(String(50))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class OwnerDecision(Base):
+    __tablename__ = "project_owner_decisions"
+    __table_args__ = (
+        CheckConstraint(
+            "outcome IN ('REVISE_DEADLINE', 'ACCEPT_FORECAST_LATE', 'REQUEST_REPLAN')",
+            name="ck_owner_decision_outcome",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), index=True
+    )
+    escalation_id: Mapped[str] = mapped_column(
+        ForeignKey("project_owner_escalations.id", ondelete="RESTRICT"), unique=True
+    )
+    assessment_id: Mapped[str | None] = mapped_column(
+        ForeignKey("project_delivery_assessments.id", ondelete="RESTRICT")
+    )
+    preview_id: Mapped[str | None] = mapped_column(
+        ForeignKey("project_owner_decision_previews.id", ondelete="RESTRICT"), unique=True
+    )
+    request_id: Mapped[str] = mapped_column(String(36), unique=True)
+    request_hash: Mapped[str] = mapped_column(String(64))
+    actor_id: Mapped[str] = mapped_column(String(36))
+    actor_name: Mapped[str] = mapped_column(String(150))
+    actor_role: Mapped[str] = mapped_column(String(20))
+    outcome: Mapped[str] = mapped_column(String(30))
+    reason: Mapped[str] = mapped_column(Text)
+    affected_team: Mapped[str] = mapped_column(String(300))
+    forecast_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    assessment_state: Mapped[str] = mapped_column(String(20))
+    previous_deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revised_deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    previous_overdue: Mapped[bool] = mapped_column(Boolean)
+    project_version: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+
+class ReviewFallback(Base):
+    __tablename__ = "project_review_fallbacks"
+    __table_args__ = (
+        CheckConstraint(
+            "scope IN ('REVIEWS', 'EXTENSIONS', 'BOTH')", name="ck_review_fallback_scope"
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), index=True
+    )
+    request_id: Mapped[str] = mapped_column(String(36), unique=True)
+    request_hash: Mapped[str] = mapped_column(String(64))
+    actor_id: Mapped[str] = mapped_column(String(36))
+    actor_name: Mapped[str] = mapped_column(String(150))
+    leader_id: Mapped[str | None] = mapped_column(String(36))
+    leader_name: Mapped[str | None] = mapped_column(String(150))
+    scope: Mapped[str] = mapped_column(String(20))
+    reason: Mapped[str] = mapped_column(Text)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_by: Mapped[str | None] = mapped_column(String(36))
+    revocation_reason: Mapped[str | None] = mapped_column(Text)
+    revocation_request_id: Mapped[str | None] = mapped_column(String(36), unique=True)
+    revocation_hash: Mapped[str | None] = mapped_column(String(64))

@@ -11,13 +11,102 @@ from project_work.models import (
     CoordinationFollowUp,
     CoordinationRecipient,
     CoordinationRecord,
+    DeliveryAssessment,
+    DeliveryState,
+    OwnerDecision,
+    OwnerDecisionPreview,
+    OwnerEscalation,
     Project,
     ProjectMember,
     ProjectMembershipChange,
     ProjectPreview,
+    ReviewFallback,
 )
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import Session
+
+
+def owner_rows(session, project_ids, actors, run):
+    assessments = session.scalars(
+        select(DeliveryAssessment).where(DeliveryAssessment.project_id.in_(project_ids))
+    ).all()
+    if any(run not in row.summary for row in assessments):
+        raise ValueError("Owner assessment fixture ownership mismatch")
+    assessment_ids = [row.id for row in assessments]
+    escalations = session.scalars(
+        select(OwnerEscalation).where(
+            OwnerEscalation.project_id.in_(project_ids)
+            | OwnerEscalation.assessment_id.in_(assessment_ids)
+        )
+    ).all()
+    if any(
+        row.project_id not in project_ids or run not in row.reason or run not in row.affected_team
+        for row in escalations
+    ):
+        raise ValueError("Owner escalation fixture ownership mismatch")
+    escalation_ids = [row.id for row in escalations]
+    previews = session.scalars(
+        select(OwnerDecisionPreview).where(
+            OwnerDecisionPreview.project_id.in_(project_ids)
+            | OwnerDecisionPreview.actor_id.in_(actors)
+            | OwnerDecisionPreview.escalation_id.in_(escalation_ids)
+            | OwnerDecisionPreview.assessment_id.in_(assessment_ids)
+        )
+    ).all()
+    if any(
+        row.project_id not in project_ids
+        or row.actor_id not in actors
+        or row.escalation_id not in escalation_ids
+        or row.assessment_id not in assessment_ids
+        for row in previews
+    ):
+        raise ValueError("Owner preview fixture ownership mismatch")
+    preview_ids = [row.id for row in previews]
+    decisions = session.scalars(
+        select(OwnerDecision).where(
+            OwnerDecision.project_id.in_(project_ids)
+            | OwnerDecision.actor_id.in_(actors)
+            | OwnerDecision.escalation_id.in_(escalation_ids)
+            | OwnerDecision.assessment_id.in_(assessment_ids)
+            | OwnerDecision.preview_id.in_(preview_ids)
+        )
+    ).all()
+    if any(
+        row.project_id not in project_ids
+        or row.actor_id not in actors
+        or row.escalation_id not in escalation_ids
+        or (row.assessment_id and row.assessment_id not in assessment_ids)
+        or (row.preview_id and row.preview_id not in preview_ids)
+        for row in decisions
+    ):
+        raise ValueError("Owner decision fixture ownership mismatch")
+    fallbacks = session.scalars(
+        select(ReviewFallback).where(
+            ReviewFallback.project_id.in_(project_ids)
+            | ReviewFallback.actor_id.in_(actors)
+            | ReviewFallback.leader_id.in_(actors)
+            | ReviewFallback.revoked_by.in_(actors)
+        )
+    ).all()
+    if any(
+        row.project_id not in project_ids
+        or row.actor_id not in actors
+        or (row.leader_id and row.leader_id not in actors)
+        or (row.revoked_by and row.revoked_by not in actors)
+        for row in fallbacks
+    ):
+        raise ValueError("Fallback fixture ownership mismatch")
+    states = session.scalars(
+        select(DeliveryState).where(DeliveryState.project_id.in_(project_ids))
+    ).all()
+    return {
+        OwnerDecision: decisions,
+        OwnerDecisionPreview: previews,
+        OwnerEscalation: escalations,
+        DeliveryAssessment: assessments,
+        DeliveryState: states,
+        ReviewFallback: fallbacks,
+    }
 
 
 def main():
@@ -114,7 +203,9 @@ def main():
             raise ValueError("Coordination recipient ownership mismatch")
         if any(r.record_id not in coordination_ids or r.actor_id not in actors for r in follow_ups):
             raise ValueError("Coordination follow-up ownership mismatch")
+        owner_data = owner_rows(s, project_ids, actors, run)
         result = {
+            "ownerRows": sum(len(rows) for rows in owner_data.values()),
             "coordinationRecords": len(coordination),
             "coordinationRecipients": len(recipients),
             "coordinationFollowUps": len(follow_ups),
@@ -126,6 +217,13 @@ def main():
             "calendarPreviews": len(calendar_previews),
         }
         if value["action"] == "cleanup":
+            if s.scalar(
+                select(OwnerDecisionPreview.id).where(
+                    OwnerDecisionPreview.calendar_version_id.in_(version_ids),
+                    OwnerDecisionPreview.project_id.not_in(project_ids),
+                )
+            ):
+                raise ValueError("Foreign owner preview references fixture calendar")
             if s.scalar(
                 select(Project.id).where(
                     Project.preview_id.in_(preview_ids), Project.creator_id.not_in(actors)
@@ -155,6 +253,18 @@ def main():
                 )
             ):
                 raise ValueError("Foreign calendar references fixture data")
+            for model, rows in owner_data.items():
+                key = model.project_id if model is DeliveryState else model.id
+                s.execute(
+                    delete(model).where(
+                        key.in_(
+                            [row.project_id if model is DeliveryState else row.id for row in rows]
+                        )
+                    )
+                )
+            s.flush()
+            if any(owner_rows(s, project_ids, actors, run).values()):
+                raise ValueError("Owner fixture cleanup incomplete")
             s.execute(
                 delete(CoordinationFollowUp).where(
                     CoordinationFollowUp.id.in_([r.id for r in follow_ups])

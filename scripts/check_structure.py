@@ -17,6 +17,12 @@ LEGACY_JOBS = (
     "reliability-and-recovery",
 )
 REQUIRED_FILES = (
+    "scripts/owner-decisions-development.py",
+    "scripts/run-s10-source-checks.py",
+    "scripts/verify-owner-postgres.py",
+    "services/project-work/project_work/owner_decisions.py",
+    "services/project-work/migrations/versions/0005_owner_decisions.py",
+    "apps/web/tests/e2e/owner-decisions.spec.ts",
     "services/project-work/project_work/memberships.py",
     "services/project-work/migrations/versions/0003_project_membership.py",
     "services/people/people/project_directory.py",
@@ -134,6 +140,15 @@ def check_repository(root: Path) -> list[str]:
     ):
         if required not in ci_source:
             errors.append("S9 coordination source/runtime acceptance is missing")
+    for required in (
+        "python scripts/run-s10-source-checks.py",
+        "python scripts/owner-decisions-development.py up --apply-migration",
+        "python scripts/verify-owner-postgres.py",
+    ):
+        if required not in ci_source:
+            errors.append("S10 owner-decision source/runtime acceptance is missing")
+    if 'specs.append("tests/e2e/owner-decisions.spec.ts")' not in runner_source:
+        errors.append("S10 owner-decision browser acceptance is missing from full lifecycle")
     if 'specs.append("tests/e2e/project-coordination.spec.ts")' not in runner_source:
         errors.append("S9 coordination browser acceptance is missing from full lifecycle")
     if 'specs.append("tests/e2e/project-membership.spec.ts")' not in runner_source:
