@@ -137,6 +137,15 @@ class ProjectMembershipResult:
 @strawberry.type
 class ProjectQuery:
     @strawberry.field
+    async def project_coordination(
+        self, info: Info, id: strawberry.ID, page: int = 0
+    ) -> "CoordinationWorkspace":
+        value = await info.context.projects("coordination", {"id": str(id), "page": page})
+        return CoordinationWorkspace(
+            records=[coordination_record(r) for r in value["records"]], has_more=value["has_more"]
+        )
+
+    @strawberry.field
     async def project_membership(self, info: Info, id: strawberry.ID) -> ProjectMembershipWorkspace:
         value = await info.context.projects("members", {"id": str(id)})
         return ProjectMembershipWorkspace(
@@ -178,6 +187,22 @@ class ProjectQuery:
 @strawberry.type
 class ProjectMutation:
     @strawberry.mutation
+    async def create_coordination(
+        self, info: Info, input: "CreateCoordinationInput"
+    ) -> "CoordinationRecord":
+        return coordination_record(
+            await info.context.projects("coordination-create", asdict(input))
+        )
+
+    @strawberry.mutation
+    async def follow_up_coordination(
+        self, info: Info, input: "FollowUpCoordinationInput"
+    ) -> "CoordinationRecord":
+        return coordination_record(
+            await info.context.projects("coordination-follow-up", asdict(input))
+        )
+
+    @strawberry.mutation
     async def change_project_membership(
         self, info: Info, input: ChangeProjectMembershipInput
     ) -> ProjectMembershipResult:
@@ -194,3 +219,78 @@ class ProjectMutation:
     @strawberry.mutation
     async def create_project(self, info: Info, input: CreateProjectInput) -> ProjectRecord:
         return ProjectRecord(**await info.context.projects("create", asdict(input)))
+
+
+@strawberry.type
+class CoordinationRecipient:
+    account_id: strawberry.ID
+    display_name: str
+    acknowledgement: str
+    response_state: str
+
+
+@strawberry.type
+class CoordinationFollowUp:
+    id: strawberry.ID
+    actor_id: strawberry.ID
+    note: str
+    next_follow_up_at: str
+    created_at: str
+
+
+@strawberry.type
+class CoordinationRecord:
+    id: strawberry.ID
+    project_id: strawberry.ID
+    kind: str
+    topic: str
+    details: str
+    due_at: str
+    location: str
+    acknowledgement_required: bool
+    version: int
+    created_at: str
+    overdue: bool
+    recipients: list[CoordinationRecipient]
+    follow_ups: list[CoordinationFollowUp]
+
+
+def coordination_record(value):
+    return CoordinationRecord(
+        **{
+            **value,
+            "recipients": [CoordinationRecipient(**r) for r in value["recipients"]],
+            "follow_ups": [CoordinationFollowUp(**r) for r in value["follow_ups"]],
+        }
+    )
+
+
+@strawberry.type
+class CoordinationWorkspace:
+    records: list[CoordinationRecord]
+    has_more: bool
+
+
+@strawberry.input
+class CreateCoordinationInput:
+    project_id: strawberry.ID
+    request_id: strawberry.ID
+    kind: str
+    topic: str
+    details: str
+    due_at: str
+    location: str
+    acknowledgement_required: bool
+    recipients: list[strawberry.ID]
+    confirm: bool
+
+
+@strawberry.input
+class FollowUpCoordinationInput:
+    project_id: strawberry.ID
+    record_id: strawberry.ID
+    request_id: strawberry.ID
+    version: int
+    note: str
+    next_follow_up_at: str
+    confirm: bool

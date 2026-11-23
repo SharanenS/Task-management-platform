@@ -12,6 +12,7 @@ from taskspace_security.settings import SecuritySettings
 from taskspace_security.tokens import TokenVerifier
 
 from .calendar import CalendarError
+from .coordination import CoordinationService
 from .memberships import MembershipService
 from .projects import ProjectActor, ProjectError, ProjectService
 from .service import CalendarService, identifier
@@ -54,6 +55,7 @@ def create_app(
     service = CalendarService(sessions)
     projects = ProjectService(sessions)
     memberships = MembershipService(sessions)
+    coordination = CoordinationService(sessions)
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
     def authority(request, project_access=False):
@@ -254,6 +256,35 @@ def create_app(
         except Exception:
             raise HTTPException(503, "Service unavailable") from None
 
+    @app.get("/internal/project-coordination/{project_id}")
+    def coordination_workspace(project_id: str, request: Request, page: int = 0):
+        try:
+            return coordination.workspace(authority(request, True), project_id, page)
+        except ProjectError as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
+    @app.post("/internal/project-coordination/{command}")
+    def coordination_command(command: str, value: dict, request: Request):
+        try:
+            actor = authority(request, True)
+            if command == "create":
+                return coordination.create(
+                    actor, lambda target: directory(request, account_id=target), value
+                )
+            if command == "follow-up":
+                return coordination.follow_up(actor, value)
+            raise HTTPException(404, "Not found")
+        except ProjectError as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
     @app.get("/health/live")
     def live():
         return {"status": "up"}
@@ -265,6 +296,7 @@ def create_app(
                 s.execute(text("SELECT 1 FROM calendar_versions LIMIT 1"))
                 s.execute(text("SELECT 1 FROM projects LIMIT 1"))
                 s.execute(text("SELECT 1 FROM project_membership_changes LIMIT 1"))
+                s.execute(text("SELECT 1 FROM coordination_records LIMIT 1"))
             return {"status": "up"}
         except Exception:
             raise HTTPException(503, "Service unavailable") from None

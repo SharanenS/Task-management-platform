@@ -453,6 +453,10 @@ jobs:
         run: python scripts/calendar-development.py up --apply-migration
       - name: Apply isolated S8 membership runtime
         run: python scripts/membership-development.py up --apply-migration
+      - name: Apply isolated S9 coordination runtime
+        run: python scripts/coordination-development.py up --apply-migration
+      - name: Verify PostgreSQL coordination concurrency and scoped cleanup
+        run: python scripts/verify-coordination-postgres.py
       - name: Verify PostgreSQL membership concurrency and scoped cleanup
         run: python scripts/verify-membership-postgres.py
       - name: Verify PostgreSQL calendar concurrency and scoped cleanup
@@ -496,6 +500,7 @@ jobs:
           python scripts/run-s6-source-checks.py
           python scripts/run-s7-source-checks.py
           python scripts/run-s8-source-checks.py
+          python scripts/run-s9-source-checks.py
       - name: Audit new service dependency locks
         run: |
           pip-audit --no-deps --disable-pip -r services/gateway/requirements.lock

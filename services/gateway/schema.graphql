@@ -134,6 +134,42 @@ type CompanyCalendarWorkspace {
   history: [CalendarHistory!]!
 }
 
+type CoordinationFollowUp {
+  id: ID!
+  actorId: ID!
+  note: String!
+  nextFollowUpAt: String!
+  createdAt: String!
+}
+
+type CoordinationRecipient {
+  accountId: ID!
+  displayName: String!
+  acknowledgement: String!
+  responseState: String!
+}
+
+type CoordinationRecord {
+  id: ID!
+  projectId: ID!
+  kind: String!
+  topic: String!
+  details: String!
+  dueAt: String!
+  location: String!
+  acknowledgementRequired: Boolean!
+  version: Int!
+  createdAt: String!
+  overdue: Boolean!
+  recipients: [CoordinationRecipient!]!
+  followUps: [CoordinationFollowUp!]!
+}
+
+type CoordinationWorkspace {
+  records: [CoordinationRecord!]!
+  hasMore: Boolean!
+}
+
 input CreateAccountInput {
   requestId: ID!
   username: String!
@@ -141,6 +177,19 @@ input CreateAccountInput {
   displayName: String!
   role: String!
   employeeId: ID = null
+}
+
+input CreateCoordinationInput {
+  projectId: ID!
+  requestId: ID!
+  kind: String!
+  topic: String!
+  details: String!
+  dueAt: String!
+  location: String!
+  acknowledgementRequired: Boolean!
+  recipients: [ID!]!
+  confirm: Boolean!
 }
 
 input CreateProjectInput {
@@ -152,6 +201,16 @@ input CreateProjectInput {
 type EmployeeChoice {
   id: ID!
   displayName: String!
+}
+
+input FollowUpCoordinationInput {
+  projectId: ID!
+  recordId: ID!
+  requestId: ID!
+  version: Int!
+  note: String!
+  nextFollowUpAt: String!
+  confirm: Boolean!
 }
 
 type ManagedAccount {
@@ -181,6 +240,8 @@ type Mutation {
   changeOrganization(input: OrganizationChangeInput!): OrganizationChangeResult!
   previewCompanyCalendar(input: CalendarConfigurationInput!): CompanyCalendarPreview!
   publishCompanyCalendar(input: PublishCalendarInput!): CompanyCalendarVersion!
+  createCoordination(input: CreateCoordinationInput!): CoordinationRecord!
+  followUpCoordination(input: FollowUpCoordinationInput!): CoordinationRecord!
   changeProjectMembership(input: ChangeProjectMembershipInput!): ProjectMembershipResult!
   previewProject(input: ProjectPreviewInput!): ProjectCreationPreview!
   createProject(input: CreateProjectInput!): ProjectRecord!
@@ -351,6 +412,7 @@ type Query {
   organizationWorkspace(page: Int! = 0, search: String! = ""): OrganizationWorkspace!
   companyCalendar: CompanyCalendarWorkspace!
   calculateWorkingDays(input: WorkingDaysInput!): WorkingDaysResult!
+  projectCoordination(id: ID!, page: Int! = 0): CoordinationWorkspace!
   projectMembership(id: ID!): ProjectMembershipWorkspace!
   projectCandidates(id: ID!, page: Int! = 0, search: String! = ""): ProjectCandidates!
   projectWorkspace(page: Int! = 0, search: String! = ""): ProjectWorkspace!

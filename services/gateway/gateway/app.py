@@ -441,7 +441,16 @@ def create_app(settings=None, verifier=None, transport=None):
 
         async def projects(command, value):
             if viewer.company_roles not in [["ADMIN"], ["MANAGER"], ["EMPLOYEE"]] or (
-                command in {"preview", "create", "candidates", "membership-change"}
+                command
+                in {
+                    "preview",
+                    "create",
+                    "candidates",
+                    "membership-change",
+                    "coordination",
+                    "coordination-create",
+                    "coordination-follow-up",
+                }
                 and viewer.company_roles not in [["ADMIN"], ["MANAGER"]]
             ):
                 raise GraphQLError("Access denied", extensions={"code": "FORBIDDEN"})
@@ -474,7 +483,7 @@ def create_app(settings=None, verifier=None, transport=None):
                     headers = {"Authorization": authorization, "X-Service-Key": key}
                     if command == "list":
                         response = await client.get(path, params=value, headers=headers)
-                    elif command in {"detail", "members", "candidates"}:
+                    elif command in {"detail", "members", "candidates", "coordination"}:
                         try:
                             project_id = str(UUID(value["id"]))
                         except (ValueError, TypeError, AttributeError):
@@ -485,7 +494,13 @@ def create_app(settings=None, verifier=None, transport=None):
                                     "reason": "project_not_found",
                                 },
                             ) from None
-                        if command == "detail":
+                        if command == "coordination":
+                            response = await client.get(
+                                origin.rstrip("/") + "/internal/project-coordination/" + project_id,
+                                params={"page": value.get("page", 0)},
+                                headers=headers,
+                            )
+                        elif command == "detail":
                             response = await client.get(path + "/" + project_id, headers=headers)
                         else:
                             membership_path = (
@@ -498,6 +513,14 @@ def create_app(settings=None, verifier=None, transport=None):
                                 params={k: v for k, v in value.items() if k != "id"},
                                 headers=headers,
                             )
+                    elif command in {"coordination-create", "coordination-follow-up"}:
+                        response = await client.post(
+                            origin.rstrip("/")
+                            + "/internal/project-coordination/"
+                            + command.removeprefix("coordination-"),
+                            json=value,
+                            headers=headers,
+                        )
                     elif command == "membership-change":
                         response = await client.post(
                             origin.rstrip("/") + "/internal/project-memberships/change",
@@ -512,6 +535,13 @@ def create_app(settings=None, verifier=None, transport=None):
                     raise GraphQLError("Access denied", extensions={"code": "FORBIDDEN"})
                 if response.status_code in {400, 404, 409, 422}:
                     reasons = {
+                        "invalid_coordination",
+                        "invalid_coordination_time",
+                        "coordination_request_conflict",
+                        "coordination_recipient_ineligible",
+                        "coordination_not_found",
+                        "coordination_stale",
+                        "coordination_follow_up_limit",
                         "invalid_membership_change",
                         "stale_project_membership",
                         "member_not_eligible",

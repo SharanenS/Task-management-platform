@@ -1,0 +1,44 @@
+fragment CoordinationFields on CoordinationRecord {
+  id
+  projectId
+  kind
+  topic
+  details
+  dueAt
+  location
+  acknowledgementRequired
+  version
+  createdAt
+  overdue
+  recipients {
+    accountId
+    displayName
+    acknowledgement
+    responseState
+  }
+  followUps {
+    id
+    actorId
+    note
+    nextFollowUpAt
+    createdAt
+  }
+}
+query ProjectCoordination($id: ID!, $page: Int!) {
+  projectCoordination(id: $id, page: $page) {
+    records {
+      ...CoordinationFields
+    }
+    hasMore
+  }
+}
+mutation CreateCoordination($input: CreateCoordinationInput!) {
+  createCoordination(input: $input) {
+    ...CoordinationFields
+  }
+}
+mutation FollowUpCoordination($input: FollowUpCoordinationInput!) {
+  followUpCoordination(input: $input) {
+    ...CoordinationFields
+  }
+}

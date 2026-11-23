@@ -184,6 +184,15 @@ export async function ProjectDetails({ id }: { id: string }) {
       <Link href={root}>Back to projects</Link>
       <p>
         <Link href={`${root}/${project.id}/members`}>Project membership</Link>
+        {root !== "/projects" && (
+          <>
+            {" "}
+            ·{" "}
+            <Link href={`${root}/${project.id}/coordination`}>
+              Project coordination
+            </Link>
+          </>
+        )}
       </p>
       <section className="project-panel">
         <h2>Objectives</h2>

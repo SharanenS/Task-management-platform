@@ -162,3 +162,57 @@ class ProjectMembershipChange(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
+
+
+class CoordinationRecord(Base):
+    __tablename__ = "coordination_records"
+    __table_args__ = (
+        CheckConstraint("kind IN ('UPDATE', 'MEETING', 'CHECK_IN')", name="ck_coordination_kind"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    issuer: Mapped[str] = mapped_column(String(512))
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), index=True
+    )
+    request_id: Mapped[str] = mapped_column(String(36), unique=True)
+    request_hash: Mapped[str] = mapped_column(String(64))
+    actor_id: Mapped[str] = mapped_column(String(36))
+    kind: Mapped[str] = mapped_column(String(20))
+    topic: Mapped[str] = mapped_column(String(150))
+    details: Mapped[str] = mapped_column(Text)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    location: Mapped[str] = mapped_column(String(300))
+    acknowledgement_required: Mapped[bool] = mapped_column(Boolean)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+
+class CoordinationRecipient(Base):
+    __tablename__ = "coordination_recipients"
+    __table_args__ = (
+        UniqueConstraint("record_id", "account_id", name="uq_coordination_recipient"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    record_id: Mapped[str] = mapped_column(
+        ForeignKey("coordination_records.id", ondelete="RESTRICT")
+    )
+    account_id: Mapped[str] = mapped_column(String(36))
+    display_name: Mapped[str] = mapped_column(String(150))
+
+
+class CoordinationFollowUp(Base):
+    __tablename__ = "coordination_follow_ups"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    record_id: Mapped[str] = mapped_column(
+        ForeignKey("coordination_records.id", ondelete="RESTRICT")
+    )
+    request_id: Mapped[str] = mapped_column(String(36), unique=True)
+    request_hash: Mapped[str] = mapped_column(String(64))
+    actor_id: Mapped[str] = mapped_column(String(36))
+    note: Mapped[str] = mapped_column(Text)
+    next_follow_up_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )

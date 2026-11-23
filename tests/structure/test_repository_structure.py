@@ -26,6 +26,33 @@ class RepositoryStructureTests(unittest.TestCase):
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, destination)
 
+    def test_coordination_acceptance_cannot_be_omitted(self) -> None:
+        runner = self.fixture / "scripts/run-s1-acceptance.py"
+        runner.write_text(
+            runner.read_text(encoding="utf-8").replace(
+                'specs.append("tests/e2e/project-coordination.spec.ts")', "pass"
+            ),
+            encoding="utf-8",
+        )
+        self.assertTrue(
+            any("S9 coordination browser" in e for e in structure.check_repository(self.fixture))
+        )
+
+    def test_coordination_runtime_cannot_be_omitted(self) -> None:
+        ci = self.fixture / ".github/workflows/ci.yml"
+        ci.write_text(
+            ci.read_text(encoding="utf-8").replace(
+                "python scripts/coordination-development.py up --apply-migration", "echo omitted"
+            ),
+            encoding="utf-8",
+        )
+        self.assertTrue(
+            any(
+                "S9 coordination source/runtime" in e
+                for e in structure.check_repository(self.fixture)
+            )
+        )
+
     def test_membership_acceptance_cannot_be_omitted(self) -> None:
         runner = self.fixture / "scripts/run-s1-acceptance.py"
         runner.write_text(

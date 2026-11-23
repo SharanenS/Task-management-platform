@@ -8,6 +8,9 @@ from uuid import UUID, uuid5
 from project_work.models import (
     CalendarPreview,
     CalendarVersion,
+    CoordinationFollowUp,
+    CoordinationRecipient,
+    CoordinationRecord,
     Project,
     ProjectMember,
     ProjectMembershipChange,
@@ -81,7 +84,40 @@ def main():
             for r in changes
         ):
             raise ValueError("Membership history ownership mismatch")
+        coordination = s.scalars(
+            select(CoordinationRecord).where(
+                CoordinationRecord.project_id.in_(project_ids)
+                | CoordinationRecord.actor_id.in_(actors)
+            )
+        ).all()
+        if any(
+            r.issuer != issuer or r.project_id not in project_ids or r.actor_id not in actors
+            for r in coordination
+        ):
+            raise ValueError("Coordination fixture ownership mismatch")
+        coordination_ids = [r.id for r in coordination]
+        recipients = s.scalars(
+            select(CoordinationRecipient).where(
+                CoordinationRecipient.record_id.in_(coordination_ids)
+                | CoordinationRecipient.account_id.in_(actors)
+            )
+        ).all()
+        follow_ups = s.scalars(
+            select(CoordinationFollowUp).where(
+                CoordinationFollowUp.record_id.in_(coordination_ids)
+                | CoordinationFollowUp.actor_id.in_(actors)
+            )
+        ).all()
+        if any(
+            r.record_id not in coordination_ids or r.account_id not in actors for r in recipients
+        ):
+            raise ValueError("Coordination recipient ownership mismatch")
+        if any(r.record_id not in coordination_ids or r.actor_id not in actors for r in follow_ups):
+            raise ValueError("Coordination follow-up ownership mismatch")
         result = {
+            "coordinationRecords": len(coordination),
+            "coordinationRecipients": len(recipients),
+            "coordinationFollowUps": len(follow_ups),
             "memberships": len(members),
             "membershipChanges": len(changes),
             "projects": len(projects),
@@ -120,6 +156,17 @@ def main():
             ):
                 raise ValueError("Foreign calendar references fixture data")
             s.execute(
+                delete(CoordinationFollowUp).where(
+                    CoordinationFollowUp.id.in_([r.id for r in follow_ups])
+                )
+            )
+            s.execute(
+                delete(CoordinationRecipient).where(
+                    CoordinationRecipient.id.in_([r.id for r in recipients])
+                )
+            )
+            s.execute(delete(CoordinationRecord).where(CoordinationRecord.id.in_(coordination_ids)))
+            s.execute(
                 delete(ProjectMembershipChange).where(
                     ProjectMembershipChange.id.in_([r.id for r in changes])
                 )
@@ -136,6 +183,24 @@ def main():
             s.expire_all()
             if (
                 s.scalar(
+                    select(CoordinationRecord.id).where(
+                        CoordinationRecord.project_id.in_(project_ids)
+                        | CoordinationRecord.actor_id.in_(actors)
+                    )
+                )
+                or s.scalar(
+                    select(CoordinationRecipient.id).where(
+                        CoordinationRecipient.record_id.in_(coordination_ids)
+                        | CoordinationRecipient.account_id.in_(actors)
+                    )
+                )
+                or s.scalar(
+                    select(CoordinationFollowUp.id).where(
+                        CoordinationFollowUp.record_id.in_(coordination_ids)
+                        | CoordinationFollowUp.actor_id.in_(actors)
+                    )
+                )
+                or s.scalar(
                     select(ProjectMember.id).where(
                         ProjectMember.project_id.in_(project_ids)
                         | ProjectMember.account_id.in_(actors)
