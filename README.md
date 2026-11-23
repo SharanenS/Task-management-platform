@@ -4,12 +4,14 @@ Taskspace is being rebuilt as a portal-oriented corporate project and employee
 management platform using Next.js, React, TypeScript, Python, FastAPI, Strawberry
 GraphQL, PostgreSQL, Keycloak, Redis, RabbitMQ and Celery where required.
 
-S0 through S7 are merged. S8 source adds explicit project membership and contextual
-team-leader/contributor appointments for EMPLOYEE accounts. The approved migration,
-container build, PostgreSQL probes and desktop/tablet/mobile membership journeys
-passed locally. CI integration is prepared; owner review and remote CI remain pending. See [S8 verification](docs/s8-verification.md) and the
-[membership contract](docs/s8-membership-contract.md).
-Gmail remains configured as dailygotasks@gmail.com; membership acceptance sends no email.
+S0 through S8 are merged. S9 adds project-owner update requests, internal meetings,
+check-ins and retained manual follow-ups. Local source checks, production container
+builds, PostgreSQL probes and desktop/tablet/mobile coordination journeys passed.
+Owner website review is accepted. CI integration is prepared; remote CI remains pending.
+See [S9 verification](docs/s9-verification.md) and the
+[coordination contract](docs/s9-coordination-contract.md). Employee response UI
+remains a later stage; pending responses are not simulated.
+Gmail remains configured as dailygotasks@gmail.com; coordination sends no email.
 The calendar form detects local time automatically; see [calendar entry](docs/calendar-local-time.md).
 
 ## Source layout
@@ -18,7 +20,7 @@ The calendar form detects local time automatically; see [calendar entry](docs/ca
 | --- | --- |
 | apps/web | Independent authentication interface and server-side session boundary |
 | services/gateway | Public GraphQL account-entry API and verified identity orchestration |
-| services/project-work | Versioned company calendar, working-day calculations and owned project commitments |
+| services/project-work | Versioned calendars, projects, membership and project coordination |
 | services/people | Authoritative accounts, employee associations and company-role grants |
 | packages/security | Shared provider JWT validation; no business data ownership |
 | legacy/frontend | Accepted baseline frontend used by historical verification |

@@ -33,7 +33,7 @@ export class ProjectAcceptance {
   grants: string[] = [];
   bootstrapId = "";
   boundary = "initialization";
-  diagnosticScope: "s7" | "s8" = "s7";
+  diagnosticScope: "s7" | "s8" | "s9" = "s7";
   receiptPath = resolve(`../../.local/auth/runs/${this.runId}.json`);
   write(status: string, extra: Record<string, unknown> = {}) {
     mkdirSync(resolve("../../.local/auth/runs"), { recursive: true });
@@ -382,6 +382,17 @@ export class ProjectAcceptance {
       JSON.stringify({ stage: this.boundary, project, message }, null, 2),
     );
   }
+  checkpoint(project: string) {
+    mkdirSync(resolve(`../../test-results/reports/${this.diagnosticScope}`), {
+      recursive: true,
+    });
+    writeFileSync(
+      resolve(
+        `../../test-results/reports/${this.diagnosticScope}/${this.runId}-boundary.json`,
+      ),
+      JSON.stringify({ stage: this.boundary, project }, null, 2),
+    );
+  }
   async cleanup() {
     let failure: unknown;
     let removed = false;
@@ -400,7 +411,10 @@ export class ProjectAcceptance {
             check.versions === 0 &&
             check.calendarPreviews === 0 &&
             check.memberships === 0 &&
-            check.membershipChanges === 0,
+            check.membershipChanges === 0 &&
+            check.coordinationRecords === 0 &&
+            check.coordinationRecipients === 0 &&
+            check.coordinationFollowUps === 0,
         ).toBe(true);
         projectsCleaned = true;
         if (!this.people("inspect").absent) {
@@ -471,6 +485,7 @@ export class ProjectAcceptance {
           grantsRevoked,
           projectsCleanupVerified: projectsCleaned,
           membershipCleanupVerified: projectsCleaned,
+          coordinationCleanupVerified: projectsCleaned,
           calendarCleanupVerified: projectsCleaned,
           organizationCleanupVerified: true,
         },

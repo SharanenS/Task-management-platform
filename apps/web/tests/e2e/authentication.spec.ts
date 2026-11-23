@@ -1932,7 +1932,6 @@ function expectedCalendarDeadline(date: string, timezone: string) {
 
 test("S6 versioned working calendar, approved counting and administrator-only publication", async ({
   page,
-  context,
 }) => {
   let boundary = "calendar entry";
   calendarCleanupVerified = false;
@@ -2093,6 +2092,49 @@ test("S6 versioned working calendar, approved counting and administrator-only pu
         (row: { timezone: string }) => row.timezone === savedTimezone,
       ),
     ).toBe(true);
+    boundary = "calendar scoped cleanup";
+    await cleanupCalendar();
+  } catch (error) {
+    let message =
+      error instanceof Error ? error.message : "Calendar boundary failed";
+    for (const secret of [...disposablePasswords, ...Object.values(secrets)])
+      message = message.split(secret).join("[private]");
+    message = message
+      .replace(/https?:\/\/[^\s<>]+/g, "[address omitted]")
+      .slice(0, 2000);
+    mkdirSync(resolve("../../test-results/reports/s6"), { recursive: true });
+    writeFileSync(
+      resolve(`../../test-results/reports/s6/${runId}-${randomUUID()}.json`),
+      JSON.stringify(
+        {
+          stage: boundary,
+          message,
+          project: test.info().project.name,
+          status: "failed",
+          applicationOrigin: new URL(page.url()).origin === appOrigin,
+        },
+        null,
+        2,
+      ),
+    );
+    throw new Error(`S6 boundary failed: ${boundary}`);
+  } finally {
+    accountFixture("role", "EMPLOYEE");
+  }
+});
+
+test("S6 versioned working calendar rejects non-administrator roles and cross-origin commands", async ({
+  page,
+  context,
+}) => {
+  let boundary = "calendar authorization entry";
+  try {
+    accountFixture("role", "ADMIN");
+    await login(page);
+    await page.goto("/admin/calendar");
+    await expect(
+      page.getByRole("heading", { name: "Working calendar", exact: true }),
+    ).toBeVisible();
     boundary = "calendar authorization and request origin";
     expect(
       (
@@ -2119,8 +2161,6 @@ test("S6 versioned working calendar, approved counting and administrator-only pu
       await page.goto("/admin/calendar");
       await expect(page).toHaveURL(new URL("/access-denied", appOrigin).href);
     }
-    boundary = "calendar scoped cleanup";
-    await cleanupCalendar();
   } catch (error) {
     let message =
       error instanceof Error ? error.message : "Calendar boundary failed";
@@ -2131,7 +2171,7 @@ test("S6 versioned working calendar, approved counting and administrator-only pu
       .slice(0, 2000);
     mkdirSync(resolve("../../test-results/reports/s6"), { recursive: true });
     writeFileSync(
-      resolve(`../../test-results/reports/s6/${runId}.json`),
+      resolve(`../../test-results/reports/s6/${runId}-${randomUUID()}.json`),
       JSON.stringify(
         {
           stage: boundary,

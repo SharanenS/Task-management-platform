@@ -6,6 +6,37 @@
   margin: 1.5rem 0;
   min-width: 0;
 }
+
+.coordination-form fieldset {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  border: 1px solid #d9e1ec;
+  padding: 1rem;
+}
+.coordination-form label {
+  display: grid;
+  gap: 0.4rem;
+  overflow-wrap: anywhere;
+}
+.coordination-form input:not([type="checkbox"]),
+.coordination-form textarea,
+.coordination-form select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.7rem;
+  border: 1px solid #afc1d3;
+  border-radius: 0.5rem;
+  background: white;
+  color: #183953;
+}
+.coordination-form textarea {
+  min-height: 7rem;
+}
+.coordination-form input[type="checkbox"] {
+  width: 1.25rem;
+  height: 1.25rem;
+}
 .project-intro {
   max-width: 48rem;
   line-height: 1.8;

@@ -62,10 +62,33 @@ export type CreateAccountInput = {
   username: string;
 };
 
+export type CreateCoordinationInput = {
+  acknowledgementRequired: boolean;
+  confirm: boolean;
+  details: string;
+  dueAt: string;
+  kind: string;
+  location: string;
+  projectId: string | number;
+  recipients: Array<string | number>;
+  requestId: string | number;
+  topic: string;
+};
+
 export type CreateProjectInput = {
   confirm: boolean;
   previewId: string | number;
   requestId: string | number;
+};
+
+export type FollowUpCoordinationInput = {
+  confirm: boolean;
+  nextFollowUpAt: string;
+  note: string;
+  projectId: string | number;
+  recordId: string | number;
+  requestId: string | number;
+  version: number;
 };
 
 export type OrganizationChangeInput = {
@@ -385,6 +408,136 @@ export type ChangeOrganizationMutation = {
   changeOrganization: { entityId: string; state: string };
 };
 
+export type CoordinationFieldsFragment = {
+  id: string;
+  projectId: string;
+  kind: string;
+  topic: string;
+  details: string;
+  dueAt: string;
+  location: string;
+  acknowledgementRequired: boolean;
+  version: number;
+  createdAt: string;
+  overdue: boolean;
+  recipients: Array<{
+    accountId: string;
+    displayName: string;
+    acknowledgement: string;
+    responseState: string;
+  }>;
+  followUps: Array<{
+    id: string;
+    actorId: string;
+    note: string;
+    nextFollowUpAt: string;
+    createdAt: string;
+  }>;
+};
+
+export type ProjectCoordinationQueryVariables = Exact<{
+  id: string | number;
+  page: number;
+}>;
+
+export type ProjectCoordinationQuery = {
+  projectCoordination: {
+    hasMore: boolean;
+    records: Array<{
+      id: string;
+      projectId: string;
+      kind: string;
+      topic: string;
+      details: string;
+      dueAt: string;
+      location: string;
+      acknowledgementRequired: boolean;
+      version: number;
+      createdAt: string;
+      overdue: boolean;
+      recipients: Array<{
+        accountId: string;
+        displayName: string;
+        acknowledgement: string;
+        responseState: string;
+      }>;
+      followUps: Array<{
+        id: string;
+        actorId: string;
+        note: string;
+        nextFollowUpAt: string;
+        createdAt: string;
+      }>;
+    }>;
+  };
+};
+
+export type CreateCoordinationMutationVariables = Exact<{
+  input: CreateCoordinationInput;
+}>;
+
+export type CreateCoordinationMutation = {
+  createCoordination: {
+    id: string;
+    projectId: string;
+    kind: string;
+    topic: string;
+    details: string;
+    dueAt: string;
+    location: string;
+    acknowledgementRequired: boolean;
+    version: number;
+    createdAt: string;
+    overdue: boolean;
+    recipients: Array<{
+      accountId: string;
+      displayName: string;
+      acknowledgement: string;
+      responseState: string;
+    }>;
+    followUps: Array<{
+      id: string;
+      actorId: string;
+      note: string;
+      nextFollowUpAt: string;
+      createdAt: string;
+    }>;
+  };
+};
+
+export type FollowUpCoordinationMutationVariables = Exact<{
+  input: FollowUpCoordinationInput;
+}>;
+
+export type FollowUpCoordinationMutation = {
+  followUpCoordination: {
+    id: string;
+    projectId: string;
+    kind: string;
+    topic: string;
+    details: string;
+    dueAt: string;
+    location: string;
+    acknowledgementRequired: boolean;
+    version: number;
+    createdAt: string;
+    overdue: boolean;
+    recipients: Array<{
+      accountId: string;
+      displayName: string;
+      acknowledgement: string;
+      responseState: string;
+    }>;
+    followUps: Array<{
+      id: string;
+      actorId: string;
+      note: string;
+      nextFollowUpAt: string;
+      createdAt: string;
+    }>;
+  };
+};
+
 export type ProjectMembershipQueryVariables = Exact<{
   id: string | number;
 }>;
@@ -635,6 +788,74 @@ export const CalendarConfigurationFieldsFragmentDoc = {
     },
   ],
 } as unknown as DocumentNode<CalendarConfigurationFieldsFragment, unknown>;
+export const CoordinationFieldsFragmentDoc = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "CoordinationFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "CoordinationRecord" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "id" } },
+          { kind: "Field", name: { kind: "Name", value: "projectId" } },
+          { kind: "Field", name: { kind: "Name", value: "kind" } },
+          { kind: "Field", name: { kind: "Name", value: "topic" } },
+          { kind: "Field", name: { kind: "Name", value: "details" } },
+          { kind: "Field", name: { kind: "Name", value: "dueAt" } },
+          { kind: "Field", name: { kind: "Name", value: "location" } },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "acknowledgementRequired" },
+          },
+          { kind: "Field", name: { kind: "Name", value: "version" } },
+          { kind: "Field", name: { kind: "Name", value: "createdAt" } },
+          { kind: "Field", name: { kind: "Name", value: "overdue" } },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "recipients" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "accountId" } },
+                { kind: "Field", name: { kind: "Name", value: "displayName" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "acknowledgement" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "responseState" },
+                },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "followUps" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "actorId" } },
+                { kind: "Field", name: { kind: "Name", value: "note" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "nextFollowUpAt" },
+                },
+                { kind: "Field", name: { kind: "Name", value: "createdAt" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<CoordinationFieldsFragment, unknown>;
 export const ProjectFieldsFragmentDoc = {
   kind: "Document",
   definitions: [
@@ -1807,6 +2028,386 @@ export const ChangeOrganizationDocument = {
 } as unknown as DocumentNode<
   ChangeOrganizationMutation,
   ChangeOrganizationMutationVariables
+>;
+export const ProjectCoordinationDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "ProjectCoordination" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "page" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "Int" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "projectCoordination" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "page" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "page" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "records" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      {
+                        kind: "FragmentSpread",
+                        name: { kind: "Name", value: "CoordinationFields" },
+                      },
+                    ],
+                  },
+                },
+                { kind: "Field", name: { kind: "Name", value: "hasMore" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "CoordinationFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "CoordinationRecord" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "id" } },
+          { kind: "Field", name: { kind: "Name", value: "projectId" } },
+          { kind: "Field", name: { kind: "Name", value: "kind" } },
+          { kind: "Field", name: { kind: "Name", value: "topic" } },
+          { kind: "Field", name: { kind: "Name", value: "details" } },
+          { kind: "Field", name: { kind: "Name", value: "dueAt" } },
+          { kind: "Field", name: { kind: "Name", value: "location" } },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "acknowledgementRequired" },
+          },
+          { kind: "Field", name: { kind: "Name", value: "version" } },
+          { kind: "Field", name: { kind: "Name", value: "createdAt" } },
+          { kind: "Field", name: { kind: "Name", value: "overdue" } },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "recipients" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "accountId" } },
+                { kind: "Field", name: { kind: "Name", value: "displayName" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "acknowledgement" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "responseState" },
+                },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "followUps" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "actorId" } },
+                { kind: "Field", name: { kind: "Name", value: "note" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "nextFollowUpAt" },
+                },
+                { kind: "Field", name: { kind: "Name", value: "createdAt" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  ProjectCoordinationQuery,
+  ProjectCoordinationQueryVariables
+>;
+export const CreateCoordinationDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "CreateCoordination" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "CreateCoordinationInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "createCoordination" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "FragmentSpread",
+                  name: { kind: "Name", value: "CoordinationFields" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "CoordinationFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "CoordinationRecord" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "id" } },
+          { kind: "Field", name: { kind: "Name", value: "projectId" } },
+          { kind: "Field", name: { kind: "Name", value: "kind" } },
+          { kind: "Field", name: { kind: "Name", value: "topic" } },
+          { kind: "Field", name: { kind: "Name", value: "details" } },
+          { kind: "Field", name: { kind: "Name", value: "dueAt" } },
+          { kind: "Field", name: { kind: "Name", value: "location" } },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "acknowledgementRequired" },
+          },
+          { kind: "Field", name: { kind: "Name", value: "version" } },
+          { kind: "Field", name: { kind: "Name", value: "createdAt" } },
+          { kind: "Field", name: { kind: "Name", value: "overdue" } },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "recipients" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "accountId" } },
+                { kind: "Field", name: { kind: "Name", value: "displayName" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "acknowledgement" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "responseState" },
+                },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "followUps" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "actorId" } },
+                { kind: "Field", name: { kind: "Name", value: "note" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "nextFollowUpAt" },
+                },
+                { kind: "Field", name: { kind: "Name", value: "createdAt" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  CreateCoordinationMutation,
+  CreateCoordinationMutationVariables
+>;
+export const FollowUpCoordinationDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "FollowUpCoordination" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "FollowUpCoordinationInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "followUpCoordination" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "FragmentSpread",
+                  name: { kind: "Name", value: "CoordinationFields" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "CoordinationFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "CoordinationRecord" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "id" } },
+          { kind: "Field", name: { kind: "Name", value: "projectId" } },
+          { kind: "Field", name: { kind: "Name", value: "kind" } },
+          { kind: "Field", name: { kind: "Name", value: "topic" } },
+          { kind: "Field", name: { kind: "Name", value: "details" } },
+          { kind: "Field", name: { kind: "Name", value: "dueAt" } },
+          { kind: "Field", name: { kind: "Name", value: "location" } },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "acknowledgementRequired" },
+          },
+          { kind: "Field", name: { kind: "Name", value: "version" } },
+          { kind: "Field", name: { kind: "Name", value: "createdAt" } },
+          { kind: "Field", name: { kind: "Name", value: "overdue" } },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "recipients" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "accountId" } },
+                { kind: "Field", name: { kind: "Name", value: "displayName" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "acknowledgement" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "responseState" },
+                },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "followUps" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "actorId" } },
+                { kind: "Field", name: { kind: "Name", value: "note" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "nextFollowUpAt" },
+                },
+                { kind: "Field", name: { kind: "Name", value: "createdAt" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  FollowUpCoordinationMutation,
+  FollowUpCoordinationMutationVariables
 >;
 export const ProjectMembershipDocument = {
   kind: "Document",

@@ -23,6 +23,12 @@ REQUIRED_FILES = (
     "apps/web/tests/e2e/project-membership.spec.ts",
     "scripts/run-s8-source-checks.py",
     "scripts/membership-development.py",
+    "scripts/coordination-development.py",
+    "scripts/run-s9-source-checks.py",
+    "scripts/verify-coordination-postgres.py",
+    "services/project-work/project_work/coordination.py",
+    "services/project-work/migrations/versions/0004_manager_coordination.py",
+    "apps/web/tests/e2e/project-coordination.spec.ts",
     "services/project-work/project_work/projects.py",
     "services/project-work/migrations/versions/0002_manager_projects.py",
     "services/gateway/gateway/project_schema.py",
@@ -121,6 +127,15 @@ def check_repository(root: Path) -> list[str]:
             errors.append("S8 membership source/runtime acceptance is missing")
 
     runner_source = (root / "scripts/run-s1-acceptance.py").read_text(encoding="utf-8")
+    for required in (
+        "python scripts/run-s9-source-checks.py",
+        "python scripts/coordination-development.py up --apply-migration",
+        "python scripts/verify-coordination-postgres.py",
+    ):
+        if required not in ci_source:
+            errors.append("S9 coordination source/runtime acceptance is missing")
+    if 'specs.append("tests/e2e/project-coordination.spec.ts")' not in runner_source:
+        errors.append("S9 coordination browser acceptance is missing from full lifecycle")
     if 'specs.append("tests/e2e/project-membership.spec.ts")' not in runner_source:
         errors.append("S8 membership browser acceptance is missing from full lifecycle")
     if 'specs.append("tests/e2e/manager-projects.spec.ts")' not in runner_source:
