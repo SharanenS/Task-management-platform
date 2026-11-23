@@ -33,7 +33,7 @@ export class ProjectAcceptance {
   grants: string[] = [];
   bootstrapId = "";
   boundary = "initialization";
-  diagnosticScope: "s7" | "s8" | "s9" = "s7";
+  diagnosticScope: "s7" | "s8" | "s9" | "s10" = "s7";
   receiptPath = resolve(`../../.local/auth/runs/${this.runId}.json`);
   write(status: string, extra: Record<string, unknown> = {}) {
     mkdirSync(resolve("../../.local/auth/runs"), { recursive: true });
@@ -234,6 +234,37 @@ export class ProjectAcceptance {
     this.people("role", "ADMIN");
     this.write("ready");
   }
+  ownerFixture(
+    projectId: string,
+    action: "seed" | "refresh",
+    escalationId?: string,
+  ) {
+    return JSON.parse(
+      execFileSync(
+        "docker",
+        [
+          "exec",
+          "-i",
+          this.container("project-work"),
+          "python",
+          "-c",
+          readFileSync(
+            resolve("../../tests/projects/owner_fixture.py"),
+            "utf8",
+          ),
+        ],
+        {
+          input: JSON.stringify({
+            runId: this.runId,
+            projectId,
+            action,
+            escalationId,
+          }),
+          encoding: "utf8",
+        },
+      ),
+    );
+  }
   async calendar(context: BrowserContext) {
     let workspace = await this.graphql(
       context,
@@ -370,6 +401,14 @@ export class ProjectAcceptance {
     ])
       message = message.split(secret).join("[private]");
     message = message
+      .replace(
+        /(?:authorization|cookie|set-cookie):[^\r\n]*/gi,
+        "[private header omitted]",
+      )
+      .replace(
+        /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
+        "[private token omitted]",
+      )
       .replace(/https?:\/\/[^\s<>]+/g, "[address omitted]")
       .slice(0, 2000);
     mkdirSync(resolve(`../../test-results/reports/${this.diagnosticScope}`), {
@@ -414,7 +453,8 @@ export class ProjectAcceptance {
             check.membershipChanges === 0 &&
             check.coordinationRecords === 0 &&
             check.coordinationRecipients === 0 &&
-            check.coordinationFollowUps === 0,
+            check.coordinationFollowUps === 0 &&
+            check.ownerRows === 0,
         ).toBe(true);
         projectsCleaned = true;
         if (!this.people("inspect").absent) {
@@ -486,6 +526,7 @@ export class ProjectAcceptance {
           projectsCleanupVerified: projectsCleaned,
           membershipCleanupVerified: projectsCleaned,
           coordinationCleanupVerified: projectsCleaned,
+          ownerCleanupVerified: projectsCleaned,
           calendarCleanupVerified: projectsCleaned,
           organizationCleanupVerified: true,
         },

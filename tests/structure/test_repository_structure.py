@@ -26,6 +26,33 @@ class RepositoryStructureTests(unittest.TestCase):
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, destination)
 
+    def test_owner_decision_acceptance_cannot_be_omitted(self) -> None:
+        runner = self.fixture / "scripts/run-s1-acceptance.py"
+        runner.write_text(
+            runner.read_text(encoding="utf-8").replace(
+                'specs.append("tests/e2e/owner-decisions.spec.ts")', "pass"
+            ),
+            encoding="utf-8",
+        )
+        self.assertTrue(
+            any("S10 owner-decision browser" in e for e in structure.check_repository(self.fixture))
+        )
+
+    def test_owner_decision_runtime_cannot_be_omitted(self) -> None:
+        ci = self.fixture / ".github/workflows/ci.yml"
+        ci.write_text(
+            ci.read_text(encoding="utf-8").replace(
+                "python scripts/owner-decisions-development.py up --apply-migration", "echo omitted"
+            ),
+            encoding="utf-8",
+        )
+        self.assertTrue(
+            any(
+                "S10 owner-decision source/runtime" in e
+                for e in structure.check_repository(self.fixture)
+            )
+        )
+
     def test_coordination_acceptance_cannot_be_omitted(self) -> None:
         runner = self.fixture / "scripts/run-s1-acceptance.py"
         runner.write_text(

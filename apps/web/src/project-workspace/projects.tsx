@@ -84,7 +84,7 @@ export async function ProjectList({
                   {p.creatorName}.
                 </p>
                 <p>
-                  Agreed deadline: {p.deadlineDate} · {p.timezone}
+                  Original agreed deadline: {p.deadlineDate} · {p.timezone}
                 </p>
               </li>
             ))}
@@ -191,6 +191,10 @@ export async function ProjectDetails({ id }: { id: string }) {
             <Link href={`${root}/${project.id}/coordination`}>
               Project coordination
             </Link>
+            {" · "}
+            <Link href={`${root}/${project.id}/oversight`}>
+              Delivery oversight
+            </Link>
           </>
         )}
       </p>
@@ -199,7 +203,7 @@ export async function ProjectDetails({ id }: { id: string }) {
         <p className="project-objectives">{project.objectives}</p>
       </section>
       <section className="project-panel">
-        <h2>Ownership and agreed deadline</h2>
+        <h2>Ownership and original commitment</h2>
         <dl className="project-snapshot">
           <div>
             <dt>Original creator</dt>
@@ -216,7 +220,7 @@ export async function ProjectDetails({ id }: { id: string }) {
             </dd>
           </div>
           <div>
-            <dt>UTC deadline</dt>
+            <dt>Original UTC deadline</dt>
             <dd>{project.approvedDeadline}</dd>
           </div>
           <div>
@@ -237,9 +241,9 @@ export async function ProjectDetails({ id }: { id: string }) {
           <p>Current owner: {project.ownerId}</p>
         </details>
         <p className="project-intro">
-          The original deadline is retained. No delivery forecast is available
-          before task planning. Manage project appointments through the
-          membership page.
+          The original commitment is retained. Open Delivery oversight to review
+          approved revisions and available assessments. Manage appointments
+          through Project membership.
         </p>
       </section>
     </>

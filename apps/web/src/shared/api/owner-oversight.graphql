@@ -1,0 +1,103 @@
+query OwnerOversight($id: ID!, $page: Int!) {
+  ownerOversight(id: $id, page: $page) {
+    project {
+      id
+      name
+      version
+      approvedDeadline
+      deadlineLocal
+      timezone
+      ownerName
+    }
+    currentDeadline
+    originalOverdue
+    currentOverdue
+    forecastAt
+    forecastState
+    forecastLate
+    actualDeliveryAt
+    escalations {
+      id
+      sourceRequestId
+      version
+      reason
+      affectedTeam
+      assessmentState
+      forecastAt
+      assessmentSummary
+      createdAt
+    }
+    history {
+      id
+      escalationId
+      outcome
+      actorId
+      actorName
+      actorRole
+      reason
+      affectedTeam
+      forecastAt
+      assessmentState
+      previousDeadline
+      revisedDeadline
+      previousOverdue
+      projectVersion
+      createdAt
+    }
+    hasMore
+  }
+}
+query ReviewFallbacks($id: ID!, $page: Int!) {
+  reviewFallbacks(id: $id, page: $page) {
+    canRecord
+    leaderId
+    leaderName
+    hasMore
+    records {
+      id
+      leaderId
+      leaderName
+      scope
+      reason
+      actorId
+      actorName
+      startsAt
+      endsAt
+      createdAt
+      active
+      revokedAt
+      revokedBy
+      revocationReason
+    }
+  }
+}
+mutation PreviewOwnerDeadline($input: PreviewOwnerDeadlineInput!) {
+  previewOwnerDeadline(input: $input) {
+    id
+    deadlineAt
+    deadlineLocal
+    originalDeadline
+    currentDeadline
+    forecastAt
+    calendarNumber
+    expiresAt
+  }
+}
+mutation RecordOwnerDecision($input: RecordOwnerDecisionInput!) {
+  recordOwnerDecision(input: $input) {
+    id
+    outcome
+  }
+}
+mutation RecordReviewFallback($input: RecordReviewFallbackInput!) {
+  recordReviewFallback(input: $input) {
+    id
+    active
+  }
+}
+mutation RevokeReviewFallback($input: RevokeReviewFallbackInput!) {
+  revokeReviewFallback(input: $input) {
+    id
+    active
+  }
+}

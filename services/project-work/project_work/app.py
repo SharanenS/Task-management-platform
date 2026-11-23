@@ -14,12 +14,19 @@ from taskspace_security.tokens import TokenVerifier
 from .calendar import CalendarError
 from .coordination import CoordinationService
 from .memberships import MembershipService
+from .owner_decisions import OwnerDecisionService
 from .projects import ProjectActor, ProjectError, ProjectService
+from .review_fallbacks import ReviewFallbackService
 from .service import CalendarService, identifier
 
 
 def create_app(
-    settings=None, sessions=None, verifier=None, people_transport=None, service_key=None
+    settings=None,
+    sessions=None,
+    verifier=None,
+    people_transport=None,
+    service_key=None,
+    fallback_grant_roles=None,
 ):
     settings = settings or SecuritySettings.from_environment()
     service_key = service_key or os.environ["PROJECT_WORK_SERVICE_KEY"]
@@ -55,6 +62,12 @@ def create_app(
     service = CalendarService(sessions)
     projects = ProjectService(sessions)
     memberships = MembershipService(sessions)
+    owner_decisions = OwnerDecisionService(sessions)
+    # Confirmed policy: only the current project owner or ADMIN records absence.
+    fallbacks = ReviewFallbackService(
+        sessions,
+        {"ADMIN", "MANAGER"} if fallback_grant_roles is None else fallback_grant_roles,
+    )
     coordination = CoordinationService(sessions)
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -285,6 +298,48 @@ def create_app(
         except Exception:
             raise HTTPException(503, "Service unavailable") from None
 
+    @app.get("/internal/project-oversight/{project_id}")
+    def owner_workspace(project_id: str, request: Request, page: int = 0):
+        try:
+            return owner_decisions.workspace(authority(request, True), project_id, page)
+        except ProjectError as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
+    @app.get("/internal/project-oversight/{project_id}/fallbacks")
+    def owner_fallbacks(project_id: str, request: Request, page: int = 0):
+        try:
+            return fallbacks.workspace(authority(request, True), project_id, page)
+        except ProjectError as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
+    @app.post("/internal/project-oversight/{command}")
+    def owner_command(command: str, value: dict, request: Request):
+        try:
+            actor = authority(request, True)
+            if command == "preview":
+                return owner_decisions.preview(actor, value)
+            if command == "decide":
+                return owner_decisions.decide(actor, value)
+            if command == "fallback-create":
+                return fallbacks.create(actor, value)
+            if command == "fallback-revoke":
+                return fallbacks.revoke(actor, value)
+            raise HTTPException(404, "Not found")
+        except ProjectError as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
     @app.get("/health/live")
     def live():
         return {"status": "up"}
@@ -297,6 +352,7 @@ def create_app(
                 s.execute(text("SELECT 1 FROM projects LIMIT 1"))
                 s.execute(text("SELECT 1 FROM project_membership_changes LIMIT 1"))
                 s.execute(text("SELECT 1 FROM coordination_records LIMIT 1"))
+                s.execute(text("SELECT 1 FROM project_owner_decisions LIMIT 1"))
             return {"status": "up"}
         except Exception:
             raise HTTPException(503, "Service unavailable") from None

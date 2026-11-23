@@ -7,6 +7,36 @@
   min-width: 0;
 }
 
+.oversight-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.oversight-metrics > div {
+  background: #14283f;
+  color: #f0f5fb;
+  border: 1px solid #315772;
+  border-radius: 0.85rem;
+  padding: 1.25rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.oversight-metrics dt {
+  color: #8ed9e5;
+  font-size: 0.8rem;
+}
+.oversight-metrics dd {
+  margin: 0.7rem 0 0;
+  line-height: 1.7;
+}
+.oversight-record {
+  border-top: 1px solid #d9e1ec;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  overflow-wrap: anywhere;
+}
+
 .coordination-form fieldset {
   display: grid;
   gap: 1rem;

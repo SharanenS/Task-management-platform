@@ -4,14 +4,12 @@ Taskspace is being rebuilt as a portal-oriented corporate project and employee
 management platform using Next.js, React, TypeScript, Python, FastAPI, Strawberry
 GraphQL, PostgreSQL, Keycloak, Redis, RabbitMQ and Celery where required.
 
-S0 through S8 are merged. S9 adds project-owner update requests, internal meetings,
-check-ins and retained manual follow-ups. Local source checks, production container
-builds, PostgreSQL probes and desktop/tablet/mobile coordination journeys passed.
-Owner website review is accepted. CI integration is prepared; remote CI remains pending.
-See [S9 verification](docs/s9-verification.md) and the
-[coordination contract](docs/s9-coordination-contract.md). Employee response UI
-remains a later stage; pending responses are not simulated.
-Gmail remains configured as dailygotasks@gmail.com; coordination sends no email.
+S0 through S9 are merged. S10 source adds project-owner delivery oversight,
+escalation decisions, preserved deadline revisions and explicit scoped absence
+records. The approved migration and three-service production build are applied;
+local acceptance passed. Owner review and remote CI remain pending. See [S10 verification](docs/s10-verification.md) and the
+[owner-decision contract](docs/s10-owner-decision-contract.md).
+Gmail remains configured as dailygotasks@gmail.com; owner decisions and coordination send no email.
 The calendar form detects local time automatically; see [calendar entry](docs/calendar-local-time.md).
 
 ## Source layout
@@ -20,7 +18,7 @@ The calendar form detects local time automatically; see [calendar entry](docs/ca
 | --- | --- |
 | apps/web | Independent authentication interface and server-side session boundary |
 | services/gateway | Public GraphQL account-entry API and verified identity orchestration |
-| services/project-work | Versioned calendars, projects, membership and project coordination |
+| services/project-work | Calendars, projects, membership, coordination and owner decisions |
 | services/people | Authoritative accounts, employee associations and company-role grants |
 | packages/security | Shared provider JWT validation; no business data ownership |
 | legacy/frontend | Accepted baseline frontend used by historical verification |
@@ -176,7 +174,7 @@ never resets an existing identity's password or automatically promotes an unrela
 identity. The new migration records ownership so interrupted setup can resume
 without duplicating accounts. Ordinary service startup never resets credentials.
 
-The combined browser wrapper now requires eight cases, including admin navigation,
+The combined browser wrapper now requires 24 cases, including admin navigation,
 forced first-login password change, self-service password change, current-role
 authorization and repeated provisioning safety. Runtime and provisioning approval
 is required before these tests; only verified disposable identities are reset or
@@ -202,3 +200,27 @@ disabled, never as command arguments or in chat. Email acceptance tests require
 local capture and refuse to run against a live Gmail configuration. Gmail authentication and realm configuration passed; real inbox receipt still
 needs verification. Credentials belong outside committed source.
 See [S4 verification](docs/s4-verification.md) for actual evidence and gaps.
+
+## S10 owner oversight
+
+As ADMIN or the current MANAGER owner, open a project and choose Delivery oversight.
+The page separates the original commitment, current approved deadline, forecast and
+actual delivery. No planning data is fabricated: an empty escalation inbox and
+“Not assessed” forecast are expected until the later task-planning workflow produces
+inputs. Explicit leader absence requires a reason, scope, bounded dates and
+confirmation; signing out never activates fallback.
+
+After explicit runtime approval, use the repository-root wrappers:
+
+```powershell
+python scripts/owner-decisions-development.py up --apply-migration
+python scripts/verify-owner-postgres.py
+python scripts/run-s1-acceptance.py --project desktop --owner-decisions-only
+python scripts/run-s1-acceptance.py --project tablet --owner-decisions-only
+python scripts/run-s1-acceptance.py --project mobile --owner-decisions-only
+```
+
+These focused journeys send no email and verify removal of their owned fixtures.
+The full lifecycle also includes email tests and therefore requires local mail
+capture; it refuses to run against configured Gmail. See the S10 verification
+record for actual results and pending review gates.

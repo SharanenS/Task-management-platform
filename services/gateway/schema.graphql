@@ -245,6 +245,10 @@ type Mutation {
   changeProjectMembership(input: ChangeProjectMembershipInput!): ProjectMembershipResult!
   previewProject(input: ProjectPreviewInput!): ProjectCreationPreview!
   createProject(input: CreateProjectInput!): ProjectRecord!
+  previewOwnerDeadline(input: PreviewOwnerDeadlineInput!): OwnerDecisionPreview!
+  recordOwnerDecision(input: RecordOwnerDecisionInput!): OwnerDecision!
+  recordReviewFallback(input: RecordReviewFallbackInput!): ReviewFallback!
+  revokeReviewFallback(input: RevokeReviewFallbackInput!): ReviewFallback!
   createAccount(input: CreateAccountInput!): AccountCommandResult!
   changeAccount(input: ChangeAccountInput!): AccountCommandResult!
   recoverAccount(input: RecoverAccountInput!): AccountCommandResult!
@@ -294,6 +298,68 @@ type OrganizationWorkspace {
   unlinkedEmployees: [EmployeeChoice!]!
   availableAccounts: [AvailableAccount!]!
   history: [OrganizationHistory!]!
+}
+
+type OwnerDecision {
+  id: ID!
+  escalationId: ID!
+  outcome: String!
+  actorId: ID!
+  actorName: String!
+  actorRole: String!
+  reason: String!
+  affectedTeam: String!
+  forecastAt: String
+  assessmentState: String!
+  previousDeadline: String!
+  revisedDeadline: String
+  previousOverdue: Boolean!
+  projectVersion: Int!
+  createdAt: String!
+}
+
+type OwnerDecisionPreview {
+  id: ID!
+  deadlineAt: String!
+  deadlineLocal: String!
+  originalDeadline: String!
+  currentDeadline: String!
+  forecastAt: String!
+  calendarNumber: Int!
+  expiresAt: String!
+}
+
+type OwnerEscalation {
+  id: ID!
+  sourceRequestId: ID!
+  version: Int!
+  reason: String!
+  affectedTeam: String!
+  assessmentState: String!
+  forecastAt: String
+  assessmentSummary: String
+  createdAt: String!
+}
+
+type OwnerOversight {
+  project: ProjectRecord!
+  currentDeadline: String!
+  originalOverdue: Boolean!
+  currentOverdue: Boolean!
+  forecastAt: String
+  forecastState: String!
+  forecastLate: Boolean
+  actualDeliveryAt: String
+  escalations: [OwnerEscalation!]!
+  history: [OwnerDecision!]!
+  hasMore: Boolean!
+}
+
+input PreviewOwnerDeadlineInput {
+  projectId: ID!
+  escalationId: ID!
+  version: Int!
+  deadlineDate: String!
 }
 
 type ProjectCalendarReference {
@@ -417,14 +483,74 @@ type Query {
   projectCandidates(id: ID!, page: Int! = 0, search: String! = ""): ProjectCandidates!
   projectWorkspace(page: Int! = 0, search: String! = ""): ProjectWorkspace!
   project(id: ID!): ProjectRecord!
+  ownerOversight(id: ID!, page: Int! = 0): OwnerOversight!
+  reviewFallbacks(id: ID!, page: Int! = 0): ReviewFallbacks!
   viewer: Viewer!
   adminWorkspace: AdminWorkspace!
   accountAdministration(page: Int! = 0): AccountAdministration!
 }
 
+input RecordOwnerDecisionInput {
+  projectId: ID!
+  escalationId: ID!
+  requestId: ID!
+  version: Int!
+  projectVersion: Int!
+  outcome: String!
+  reason: String!
+  affectedTeam: String!
+  confirm: Boolean!
+  previewId: ID = null
+}
+
+input RecordReviewFallbackInput {
+  projectId: ID!
+  requestId: ID!
+  projectVersion: Int!
+  scope: String!
+  reason: String!
+  startsAt: String!
+  endsAt: String!
+  confirm: Boolean!
+  leaderId: ID = null
+}
+
 input RecoverAccountInput {
   requestId: ID!
   operationId: ID!
+}
+
+type ReviewFallback {
+  id: ID!
+  leaderId: ID
+  leaderName: String
+  scope: String!
+  reason: String!
+  actorId: ID!
+  actorName: String!
+  startsAt: String!
+  endsAt: String!
+  createdAt: String!
+  active: Boolean!
+  revokedAt: String
+  revokedBy: ID
+  revocationReason: String
+}
+
+type ReviewFallbacks {
+  canRecord: Boolean!
+  leaderId: ID
+  leaderName: String
+  records: [ReviewFallback!]!
+  hasMore: Boolean!
+}
+
+input RevokeReviewFallbackInput {
+  projectId: ID!
+  recordId: ID!
+  requestId: ID!
+  reason: String!
+  confirm: Boolean!
 }
 
 type Viewer {

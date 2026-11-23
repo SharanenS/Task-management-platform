@@ -18,6 +18,7 @@ from taskspace_security.tokens import TokenVerifier
 
 from .calendar_schema import CalendarMutation, CalendarQuery
 from .organization_schema import OrganizationMutation, OrganizationQuery
+from .owner_schema import OwnerMutation, OwnerQuery
 from .project_schema import ProjectMutation, ProjectQuery
 
 
@@ -119,7 +120,7 @@ class ActorContext(BaseContext):
 
 
 @strawberry.type
-class Query(OrganizationQuery, CalendarQuery, ProjectQuery):
+class Query(OrganizationQuery, CalendarQuery, ProjectQuery, OwnerQuery):
     @strawberry.field
     def viewer(self, info: Info[ActorContext, None]) -> Viewer:
         return info.context.viewer
@@ -152,7 +153,7 @@ class Query(OrganizationQuery, CalendarQuery, ProjectQuery):
 
 
 @strawberry.type
-class Mutation(OrganizationMutation, CalendarMutation, ProjectMutation):
+class Mutation(OrganizationMutation, CalendarMutation, ProjectMutation, OwnerMutation):
     @strawberry.mutation
     async def create_account(
         self, info: Info[ActorContext, None], input: CreateAccountInput
@@ -450,6 +451,12 @@ def create_app(settings=None, verifier=None, transport=None):
                     "coordination",
                     "coordination-create",
                     "coordination-follow-up",
+                    "owner-workspace",
+                    "owner-fallbacks",
+                    "owner-preview",
+                    "owner-decide",
+                    "owner-fallback-create",
+                    "owner-fallback-revoke",
                 }
                 and viewer.company_roles not in [["ADMIN"], ["MANAGER"]]
             ):
@@ -483,7 +490,14 @@ def create_app(settings=None, verifier=None, transport=None):
                     headers = {"Authorization": authorization, "X-Service-Key": key}
                     if command == "list":
                         response = await client.get(path, params=value, headers=headers)
-                    elif command in {"detail", "members", "candidates", "coordination"}:
+                    elif command in {
+                        "detail",
+                        "members",
+                        "candidates",
+                        "coordination",
+                        "owner-workspace",
+                        "owner-fallbacks",
+                    }:
                         try:
                             project_id = str(UUID(value["id"]))
                         except (ValueError, TypeError, AttributeError):
@@ -494,7 +508,16 @@ def create_app(settings=None, verifier=None, transport=None):
                                     "reason": "project_not_found",
                                 },
                             ) from None
-                        if command == "coordination":
+                        if command in {"owner-workspace", "owner-fallbacks"}:
+                            response = await client.get(
+                                origin.rstrip("/")
+                                + "/internal/project-oversight/"
+                                + project_id
+                                + ("/fallbacks" if command == "owner-fallbacks" else ""),
+                                params={"page": value.get("page", 0)},
+                                headers=headers,
+                            )
+                        elif command == "coordination":
                             response = await client.get(
                                 origin.rstrip("/") + "/internal/project-coordination/" + project_id,
                                 params={"page": value.get("page", 0)},
@@ -513,6 +536,19 @@ def create_app(settings=None, verifier=None, transport=None):
                                 params={k: v for k, v in value.items() if k != "id"},
                                 headers=headers,
                             )
+                    elif command in {
+                        "owner-preview",
+                        "owner-decide",
+                        "owner-fallback-create",
+                        "owner-fallback-revoke",
+                    }:
+                        response = await client.post(
+                            origin.rstrip("/")
+                            + "/internal/project-oversight/"
+                            + command.removeprefix("owner-"),
+                            json=value,
+                            headers=headers,
+                        )
                     elif command in {"coordination-create", "coordination-follow-up"}:
                         response = await client.post(
                             origin.rstrip("/")
@@ -535,6 +571,20 @@ def create_app(settings=None, verifier=None, transport=None):
                     raise GraphQLError("Access denied", extensions={"code": "FORBIDDEN"})
                 if response.status_code in {400, 404, 409, 422}:
                     reasons = {
+                        "invalid_owner_request",
+                        "stale_owner_escalation",
+                        "owner_escalation_not_found",
+                        "owner_assessment_required",
+                        "owner_escalation_within_deadline",
+                        "owner_calendar_required",
+                        "owner_deadline_before_forecast",
+                        "stale_owner_preview",
+                        "owner_request_conflict",
+                        "invalid_fallback_record",
+                        "invalid_fallback_period",
+                        "stale_fallback_leader",
+                        "fallback_not_found",
+                        "fallback_already_revoked",
                         "invalid_coordination",
                         "invalid_coordination_time",
                         "coordination_request_conflict",
