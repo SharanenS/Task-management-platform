@@ -111,6 +111,21 @@ input ChangeProjectMembershipInput {
   duties: String! = ""
 }
 
+input ChangeTaskInput {
+  projectId: ID!
+  requestId: ID!
+  projectVersion: Int!
+  action: String!
+  taskId: ID
+  version: Int!
+  title: String
+  instructions: String
+  acceptanceCriteria: String
+  assigneeId: ID
+  reason: String!
+  confirm: Boolean!
+}
+
 type CompanyCalendarPreview {
   tzdbVersion: String!
   previewId: ID!
@@ -249,6 +264,7 @@ type Mutation {
   recordOwnerDecision(input: RecordOwnerDecisionInput!): OwnerDecision!
   recordReviewFallback(input: RecordReviewFallbackInput!): ReviewFallback!
   revokeReviewFallback(input: RevokeReviewFallbackInput!): ReviewFallback!
+  changeTask(input: ChangeTaskInput!): TaskChangeReceipt!
   createAccount(input: CreateAccountInput!): AccountCommandResult!
   changeAccount(input: ChangeAccountInput!): AccountCommandResult!
   recoverAccount(input: RecoverAccountInput!): AccountCommandResult!
@@ -485,6 +501,8 @@ type Query {
   project(id: ID!): ProjectRecord!
   ownerOversight(id: ID!, page: Int! = 0): OwnerOversight!
   reviewFallbacks(id: ID!, page: Int! = 0): ReviewFallbacks!
+  projectTasks(id: ID!, page: Int! = 0): TaskWorkspace!
+  taskCandidates(id: ID!, page: Int! = 0): TaskCandidates!
   viewer: Viewer!
   adminWorkspace: AdminWorkspace!
   accountAdministration(page: Int! = 0): AccountAdministration!
@@ -551,6 +569,57 @@ input RevokeReviewFallbackInput {
   requestId: ID!
   reason: String!
   confirm: Boolean!
+}
+
+type TaskCandidate {
+  accountId: ID!
+  displayName: String!
+}
+
+type TaskCandidates {
+  candidates: [TaskCandidate!]!
+  hasMore: Boolean!
+}
+
+type TaskChangeReceipt {
+  taskId: ID!
+  version: Int!
+  projectVersion: Int!
+}
+
+type TaskDetails {
+  instructions: String!
+  acceptanceCriteria: String!
+  version: Int!
+  assigneeId: ID
+  assignedAt: String
+  history: [TaskHistory!]!
+}
+
+type TaskHistory {
+  id: ID!
+  action: String!
+  reason: String!
+  actorName: String!
+  before: String!
+  after: String!
+  version: Int!
+  createdAt: String!
+}
+
+type TaskRecord {
+  id: ID!
+  title: String!
+  status: String!
+  assigneeName: String
+  details: TaskDetails
+}
+
+type TaskWorkspace {
+  project: ProjectRecord!
+  canPlan: Boolean!
+  hasMore: Boolean!
+  tasks: [TaskRecord!]!
 }
 
 type Viewer {

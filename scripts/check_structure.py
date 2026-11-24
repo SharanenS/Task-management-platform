@@ -17,6 +17,12 @@ LEGACY_JOBS = (
     "reliability-and-recovery",
 )
 REQUIRED_FILES = (
+    "scripts/task-breakdown-development.py",
+    "scripts/run-s11-source-checks.py",
+    "scripts/verify-tasks-postgres.py",
+    "services/project-work/project_work/tasks.py",
+    "services/project-work/migrations/versions/0006_task_breakdown.py",
+    "apps/web/tests/e2e/task-breakdown.spec.ts",
     "scripts/owner-decisions-development.py",
     "scripts/run-s10-source-checks.py",
     "scripts/verify-owner-postgres.py",
@@ -147,6 +153,15 @@ def check_repository(root: Path) -> list[str]:
     ):
         if required not in ci_source:
             errors.append("S10 owner-decision source/runtime acceptance is missing")
+    for required in (
+        "python scripts/run-s11-source-checks.py",
+        "python scripts/task-breakdown-development.py up --apply-migration",
+        "python scripts/verify-tasks-postgres.py",
+    ):
+        if required not in ci_source:
+            errors.append("S11 task source/runtime acceptance is missing")
+    if 'specs.append("tests/e2e/task-breakdown.spec.ts")' not in runner_source:
+        errors.append("S11 task browser acceptance is missing from full lifecycle")
     if 'specs.append("tests/e2e/owner-decisions.spec.ts")' not in runner_source:
         errors.append("S10 owner-decision browser acceptance is missing from full lifecycle")
     if 'specs.append("tests/e2e/project-coordination.spec.ts")' not in runner_source:

@@ -21,9 +21,41 @@ from project_work.models import (
     ProjectMembershipChange,
     ProjectPreview,
     ReviewFallback,
+    TaskAssignment,
+    TaskChange,
+    WorkTask,
 )
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import Session
+
+
+def task_rows(session, project_ids, actors):
+    tasks = session.scalars(
+        select(WorkTask).where(
+            WorkTask.project_id.in_(project_ids) | WorkTask.creator_id.in_(actors)
+        )
+    ).all()
+    if any(row.project_id not in project_ids or row.creator_id not in actors for row in tasks):
+        raise ValueError("Task fixture ownership mismatch")
+    task_ids = [row.id for row in tasks]
+    assignments = session.scalars(
+        select(TaskAssignment).where(
+            TaskAssignment.task_id.in_(task_ids)
+            | TaskAssignment.actor_id.in_(actors)
+            | TaskAssignment.account_id.in_(actors)
+        )
+    ).all()
+    if any(
+        row.task_id not in task_ids or row.actor_id not in actors or row.account_id not in actors
+        for row in assignments
+    ):
+        raise ValueError("Task assignment fixture ownership mismatch")
+    changes = session.scalars(
+        select(TaskChange).where(TaskChange.task_id.in_(task_ids) | TaskChange.actor_id.in_(actors))
+    ).all()
+    if any(row.task_id not in task_ids or row.actor_id not in actors for row in changes):
+        raise ValueError("Task history fixture ownership mismatch")
+    return {TaskChange: changes, TaskAssignment: assignments, WorkTask: tasks}
 
 
 def owner_rows(session, project_ids, actors, run):
@@ -115,6 +147,9 @@ def main():
     if value["action"] not in {"inspect", "cleanup"}:
         raise ValueError("Invalid fixture action")
     actors = {run, str(uuid5(UUID(run), "project-account"))}
+    if value.get("peerSubject") is not None:
+        UUID(value["peerSubject"])
+        actors.add(str(uuid5(UUID(run), "task-peer-account")))
     issuer = "http://127.0.0.1:8180/realms/taskspace-portals"
     engine = create_engine(os.environ["PROJECT_WORK_DATABASE_URL"], hide_parameters=True)
     if engine.url.host != "project-work-db" or engine.url.database != "taskspace_project_work":
@@ -203,8 +238,10 @@ def main():
             raise ValueError("Coordination recipient ownership mismatch")
         if any(r.record_id not in coordination_ids or r.actor_id not in actors for r in follow_ups):
             raise ValueError("Coordination follow-up ownership mismatch")
+        task_data = task_rows(s, project_ids, actors)
         owner_data = owner_rows(s, project_ids, actors, run)
         result = {
+            "taskRows": sum(len(rows) for rows in task_data.values()),
             "ownerRows": sum(len(rows) for rows in owner_data.values()),
             "coordinationRecords": len(coordination),
             "coordinationRecipients": len(recipients),
@@ -253,6 +290,12 @@ def main():
                 )
             ):
                 raise ValueError("Foreign calendar references fixture data")
+            for model, rows in task_data.items():
+                s.execute(delete(model).where(model.id.in_([r.id for r in rows])))
+            s.flush()
+            s.expire_all()
+            if any(task_rows(s, project_ids, actors).values()):
+                raise ValueError("Task fixture cleanup incomplete")
             for model, rows in owner_data.items():
                 key = model.project_id if model is DeliveryState else model.id
                 s.execute(

@@ -67,3 +67,42 @@ class ProjectDirectory:
             if account_id is not None:
                 return values[0] if values else {"account_id": account_id, "active": False}
             return {"candidates": values[:25], "has_more": len(values) > 25}
+
+    def task_references(self, identity, account_ids):
+        # Private exact-reference lookup; project-work must authorize membership first.
+        if not isinstance(account_ids, list) or len(account_ids) > 25:
+            raise ValueError("Invalid account references")
+        ids = list(dict.fromkeys(str(UUID(v)) for v in account_ids))
+        with self.sessions() as s:
+            actor = resolve_actor(s, identity)
+            if actor.company_roles not in {("ADMIN",), ("MANAGER",), ("EMPLOYEE",)}:
+                raise AccessDenied()
+            rows = s.scalars(
+                select(Account)
+                .join(EmployeeProfile)
+                .where(
+                    Account.id.in_(ids),
+                    Account.issuer == identity.issuer,
+                    EmployeeProfile.issuer == identity.issuer,
+                    Account.active.is_(True),
+                    EmployeeProfile.active.is_(True),
+                    select(func.count())
+                    .select_from(CompanyRoleGrant)
+                    .where(CompanyRoleGrant.account_id == Account.id)
+                    .correlate(Account)
+                    .scalar_subquery()
+                    == 1,
+                    Account.grants.any(CompanyRoleGrant.role == "EMPLOYEE"),
+                )
+                .options(selectinload(Account.profile), selectinload(Account.grants))
+                .order_by(Account.id)
+            ).all()
+            return [
+                {
+                    "account_id": r.id,
+                    "display_name": r.profile.display_name,
+                    "active": True,
+                    "role": "EMPLOYEE",
+                }
+                for r in rows
+            ]
