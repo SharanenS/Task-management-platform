@@ -148,3 +148,38 @@ The original plan SHA256 remains
 08af1dd1024824bbc91d7f0433e2e35e45db8b3e7084c9650edb99314199d6fd.
 All resulting edits remain unstaged; no Git mutation was performed. Proposed commit:
 `add S11 contextual leader task planning and reassignment history`.
+
+## Retained operations CI correction — 25 November 2026
+
+The supplied PR #35 CI log records 9/10 retained desktop domain cases passed.
+The first failure was the operations report submission check at line 380:
+`getByText(/SUBMITTED|QUEUED|RUNNING/).first()` found no element within its
+existing five-second assertion limit. The quality gate failed because this
+required browser job failed. The log does not prove a report execution failure;
+execution and trace assertions had not yet been reached.
+
+Source inspection confirms that report submission reloads the list after the
+mutation. A worker can finish before that reload, so a transient status is not a
+reliable submission acknowledgement. The test now matches the exact same-origin
+GraphQL submission response, checks HTTP/GraphQL success and a valid returned ID,
+independently discovers the unique report using the existing project, submitter
+and bounded creation window, compares both IDs, and checks that report's exact
+UI link. Only the ownership-verified ID enters cleanup. Existing publication,
+single-attempt execution, successful completion, notification, distributed trace,
+CSP, authorization and administrator-preservation assertions remain intact.
+No timeout or retry limit changed; no application authorization changed.
+
+Local focused ESLint, Prettier and TypeScript checks passed. A credentialed
+Playwright rerun remains pending: `legacy/.env.ci.e2e` and its isolated runtime
+are absent locally, and the retained helper deliberately rejects the existing
+development Compose project. No discovery or skipped run is counted as a pass.
+Docker inspection found the existing legacy RabbitMQ health check timing out;
+a separate read-only broker ping succeeded. This observation is not offered as
+an explanation for the remote CI failure. No service was rebuilt, restarted or
+removed, no live test resources were created, and no credentials were printed.
+The supplied failure boundary above is retained as sanitized diagnostic evidence;
+the remote error-context artifact itself was not available locally.
+
+Rerun the required CI browser job after the manual fix commit/push. S11 remains
+in progress until the required remote checks pass. The original plan is unchanged,
+S12 has not started, and this correction is left unstaged for owner review.
