@@ -24,6 +24,14 @@ export class ProjectAcceptance {
     earliest: 0,
     latest: 0,
   };
+  peer = {
+    id: "",
+    username: `s11-${this.runId}`,
+    password: randomBytes(32).toString("base64url"),
+    earliest: 0,
+    latest: 0,
+  };
+  peerAccountCreated = false;
   privateSecrets: Record<string, string> = JSON.parse(
     readFileSync(resolve("../../.local/auth/development.json"), "utf8"),
   );
@@ -33,7 +41,7 @@ export class ProjectAcceptance {
   grants: string[] = [];
   bootstrapId = "";
   boundary = "initialization";
-  diagnosticScope: "s7" | "s8" | "s9" | "s10" = "s7";
+  diagnosticScope: "s7" | "s8" | "s9" | "s10" | "s11" = "s7";
   receiptPath = resolve(`../../.local/auth/runs/${this.runId}.json`);
   write(status: string, extra: Record<string, unknown> = {}) {
     mkdirSync(resolve("../../.local/auth/runs"), { recursive: true });
@@ -47,6 +55,9 @@ export class ProjectAcceptance {
           username: this.primary.username,
           userId: this.primary.id,
           secondaryUserId: this.secondary.id,
+          peerUserId: this.peer.id,
+          peerCreatedEarliest: this.peer.earliest,
+          peerCreatedLatest: this.peer.latest,
           primaryCreatedEarliest: this.primary.earliest,
           primaryCreatedLatest: this.primary.latest,
           secondaryCreatedEarliest: this.secondary.earliest,
@@ -111,7 +122,9 @@ export class ProjectAcceptance {
     const proof = JSON.parse(readFileSync(this.receiptPath, "utf8"));
     expect(
       proof.runId === this.runId &&
-        [proof.userId, proof.secondaryUserId].includes(identity.id) &&
+        [proof.userId, proof.secondaryUserId, proof.peerUserId].includes(
+          identity.id,
+        ) &&
         value.id === identity.id &&
         value.username === identity.username &&
         value.email === `${identity.username}@example.invalid` &&
@@ -188,13 +201,17 @@ export class ProjectAcceptance {
           readFileSync(resolve("../../tests/projects/fixture.py"), "utf8"),
         ],
         {
-          input: JSON.stringify({ runId: this.runId, action }),
+          input: JSON.stringify({
+            runId: this.runId,
+            action,
+            peerSubject: this.peer.id || null,
+          }),
           encoding: "utf8",
         },
       ),
     );
   }
-  async setup() {
+  async setup(withTaskPeer = false) {
     this.write("initializing");
     await this.renew();
     const admins = await (
@@ -202,7 +219,11 @@ export class ProjectAcceptance {
     ).json();
     expect(admins.length).toBe(1);
     this.bootstrapId = admins[0].id;
-    for (const identity of [this.primary, this.secondary]) {
+    for (const identity of [
+      this.primary,
+      this.secondary,
+      ...(withTaskPeer ? [this.peer] : []),
+    ]) {
       identity.earliest = Date.now();
       const response = await this.admin(`${realm}/users`, {
         method: "POST",
@@ -231,6 +252,13 @@ export class ProjectAcceptance {
     const secondary = this.people("project_other_create", this.secondary.id);
     expect(secondary.subject).toBe(this.secondary.id);
     this.secondaryAccountCreated = true;
+    if (withTaskPeer) {
+      await this.owned(this.peer);
+      expect(this.people("task_peer_create", this.peer.id).subject).toBe(
+        this.peer.id,
+      );
+      this.peerAccountCreated = true;
+    }
     this.people("role", "ADMIN");
     this.write("ready");
   }
@@ -397,6 +425,7 @@ export class ProjectAcceptance {
     for (const secret of [
       this.primary.password,
       this.secondary.password,
+      this.peer.password,
       ...Object.values(this.privateSecrets),
     ])
       message = message.split(secret).join("[private]");
@@ -442,6 +471,7 @@ export class ProjectAcceptance {
       if (this.primary.id) {
         await this.owned();
         if (this.secondary.id) await this.owned(this.secondary);
+        if (this.peer.id) await this.owned(this.peer);
         expect(this.work("cleanup").cleaned).toBe(true);
         const check = this.work("inspect");
         expect(
@@ -454,18 +484,29 @@ export class ProjectAcceptance {
             check.coordinationRecords === 0 &&
             check.coordinationRecipients === 0 &&
             check.coordinationFollowUps === 0 &&
-            check.ownerRows === 0,
+            check.ownerRows === 0 &&
+            check.taskRows === 0,
         ).toBe(true);
         projectsCleaned = true;
         if (!this.people("inspect").absent) {
+          if (this.peer.id) {
+            expect(this.people("task_peer_cleanup", this.peer.id).cleaned).toBe(
+              true,
+            );
+            expect(this.people("task_peer_inspect", this.peer.id).absent).toBe(
+              true,
+            );
+          }
           expect(this.people("project_other_cleanup").cleaned).toBe(true);
           expect(this.people("cleanup").cleaned).toBe(true);
         } else {
           expect(
-            !this.primaryAccountCreated && !this.secondaryAccountCreated,
+            !this.primaryAccountCreated &&
+              !this.secondaryAccountCreated &&
+              !this.peerAccountCreated,
           ).toBe(true);
         }
-        for (const identity of [this.secondary, this.primary]) {
+        for (const identity of [this.peer, this.secondary, this.primary]) {
           if (!identity.id) continue;
           await this.owned(identity);
           await this.admin(`${realm}/users/${identity.id}`, {
@@ -520,6 +561,10 @@ export class ProjectAcceptance {
           : "blocked",
         {
           identityRemoved: removed,
+          peerIdentityRemoved: this.peer.id ? removed : undefined,
+          peerAccountRemoved: this.peer.id
+            ? removed && projectsCleaned
+            : undefined,
           accountRemoved: removed,
           bootstrapPreserved,
           grantsRevoked,
@@ -527,6 +572,7 @@ export class ProjectAcceptance {
           membershipCleanupVerified: projectsCleaned,
           coordinationCleanupVerified: projectsCleaned,
           ownerCleanupVerified: projectsCleaned,
+          taskCleanupVerified: projectsCleaned,
           calendarCleanupVerified: projectsCleaned,
           organizationCleanupVerified: true,
         },

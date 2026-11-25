@@ -49,6 +49,9 @@ def membership_api(monkeypatch):
             return httpx.Response(403)
         if request.url.path == "/internal/admin/workspace" and actor["role"] != "ADMIN":
             return httpx.Response(403)
+        if request.url.path == "/internal/task-references":
+            ids = json.loads(request.content)["account_ids"]
+            return httpx.Response(200, json=[targets[i] for i in ids if i in targets])
         if request.url.path == "/internal/project-candidates":
             if actor["role"] not in {"ADMIN", "MANAGER"}:
                 return httpx.Response(403)

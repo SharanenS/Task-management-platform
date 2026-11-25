@@ -54,6 +54,9 @@ export async function AssignedProjects() {
                   {project.name}
                 </Link>
               </h2>
+              <Link href={`${root}/${project.id}/tasks`}>
+                Open work breakdown
+              </Link>
             </li>
           ))}
         </ul>
@@ -121,6 +124,7 @@ export async function ProjectMembership({
     <>
       <p className="project-eyebrow">PROJECT CONTEXT</p>
       <h1 className="project-title">{workspace.project.name}</h1>
+      <Link href={`${root}/${id}/tasks`}>Work breakdown</Link>
       <Link href={root}>Back to projects</Link>
       <section className="project-panel">
         <h2>Your role: {title}</h2>

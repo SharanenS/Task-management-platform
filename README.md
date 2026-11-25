@@ -4,11 +4,11 @@ Taskspace is being rebuilt as a portal-oriented corporate project and employee
 management platform using Next.js, React, TypeScript, Python, FastAPI, Strawberry
 GraphQL, PostgreSQL, Keycloak, Redis, RabbitMQ and Celery where required.
 
-S0 through S9 are merged. S10 source adds project-owner delivery oversight,
-escalation decisions, preserved deadline revisions and explicit scoped absence
-records. The approved migration and three-service production build are applied;
-local acceptance passed. Owner review and remote CI remain pending. See [S10 verification](docs/s10-verification.md) and the
-[owner-decision contract](docs/s10-owner-decision-contract.md).
+S0 through S10 are merged. S11 adds contextual leader task planning,
+private instructions and acceptance criteria, and retained single-assignee
+reassignment history. The approved runtime is applied and responsive acceptance
+passed; owner website review and remote CI remain pending. See [S11 verification](docs/s11-verification.md) and the
+[task-planning contract](docs/s11-task-planning-contract.md).
 Gmail remains configured as dailygotasks@gmail.com; owner decisions and coordination send no email.
 The calendar form detects local time automatically; see [calendar entry](docs/calendar-local-time.md).
 
@@ -18,7 +18,7 @@ The calendar form detects local time automatically; see [calendar entry](docs/ca
 | --- | --- |
 | apps/web | Independent authentication interface and server-side session boundary |
 | services/gateway | Public GraphQL account-entry API and verified identity orchestration |
-| services/project-work | Calendars, projects, membership, coordination and owner decisions |
+| services/project-work | Calendars, projects, membership, coordination, owner decisions and tasks |
 | services/people | Authoritative accounts, employee associations and company-role grants |
 | packages/security | Shared provider JWT validation; no business data ownership |
 | legacy/frontend | Accepted baseline frontend used by historical verification |
@@ -224,3 +224,27 @@ These focused journeys send no email and verify removal of their owned fixtures.
 The full lifecycle also includes email tests and therefore requires local mail
 capture; it refuses to run against configured Gmail. See the S10 verification
 record for actual results and pending review gates.
+
+## S11 leader task breakdown
+
+Open an assigned project and choose Work breakdown. Its current EMPLOYEE leader
+can create tasks with instructions, acceptance criteria and one eligible assignee,
+including themselves. Pending tasks can be edited or reassigned with a reason and
+confirmation. The current owner and ADMIN have read-only oversight; contributors
+see colleagues' summaries and only their own private task details. Removal of
+membership immediately denies access without erasing history.
+
+The approved local runtime and focused verification wrappers are:
+
+```powershell
+python scripts/task-breakdown-development.py up --apply-migration
+python scripts/verify-tasks-postgres.py
+python scripts/run-s1-acceptance.py --project desktop --tasks-only
+python scripts/run-s1-acceptance.py --project tablet --tasks-only
+python scripts/run-s1-acceptance.py --project mobile --tasks-only
+```
+
+Runtime updates require explicit approval. Focused tests use three receipt-owned
+identities (owner, leader and contributor), send no email and verify exact cleanup.
+No demonstration tasks or permanent test accounts are left in the portal. Task
+scheduling, progress and completion review remain in their later planned stages.

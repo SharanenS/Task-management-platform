@@ -362,3 +362,73 @@ class ReviewFallback(Base):
     revocation_reason: Mapped[str | None] = mapped_column(Text)
     revocation_request_id: Mapped[str | None] = mapped_column(String(36), unique=True)
     revocation_hash: Mapped[str | None] = mapped_column(String(64))
+
+
+class WorkTask(Base):
+    __tablename__ = "work_tasks"
+    __table_args__ = (
+        CheckConstraint("version >= 1", name="ck_task_version"),
+        CheckConstraint(
+            "status IN ('PENDING','IN_PROGRESS','AWAITING_REVIEW','COMPLETED','CANCELLED')",
+            name="ck_task_status",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    instructions: Mapped[str] = mapped_column(Text)
+    acceptance_criteria: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(24), default="PENDING")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    creator_id: Mapped[str] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+
+class TaskAssignment(Base):
+    __tablename__ = "task_assignments"
+    __table_args__ = (
+        Index(
+            "uq_task_active_assignment",
+            "task_id",
+            unique=True,
+            postgresql_where=text("ended_at IS NULL"),
+            sqlite_where=text("ended_at IS NULL"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    task_id: Mapped[str] = mapped_column(
+        ForeignKey("work_tasks.id", ondelete="RESTRICT"), index=True
+    )
+    account_id: Mapped[str] = mapped_column(String(36))
+    display_name: Mapped[str] = mapped_column(String(150))
+    actor_id: Mapped[str] = mapped_column(String(36))
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TaskChange(Base):
+    __tablename__ = "task_changes"
+    __table_args__ = (UniqueConstraint("task_id", "task_version", name="uq_task_change_version"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    task_id: Mapped[str] = mapped_column(
+        ForeignKey("work_tasks.id", ondelete="RESTRICT"), index=True
+    )
+    request_id: Mapped[str] = mapped_column(String(36), unique=True)
+    request_hash: Mapped[str] = mapped_column(String(64))
+    actor_id: Mapped[str] = mapped_column(String(36))
+    actor_name: Mapped[str] = mapped_column(String(150))
+    action: Mapped[str] = mapped_column(String(12))
+    reason: Mapped[str] = mapped_column(Text)
+    before: Mapped[str] = mapped_column(Text)
+    after: Mapped[str] = mapped_column(Text)
+    task_version: Mapped[int] = mapped_column(Integer)
+    project_version: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )

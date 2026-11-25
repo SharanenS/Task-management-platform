@@ -53,6 +53,21 @@ export type ChangeProjectMembershipInput = {
   version: number;
 };
 
+export type ChangeTaskInput = {
+  acceptanceCriteria?: string | null | undefined;
+  action: string;
+  assigneeId?: string | number | null | undefined;
+  confirm: boolean;
+  instructions?: string | null | undefined;
+  projectId: string | number;
+  projectVersion: number;
+  reason: string;
+  requestId: string | number;
+  taskId?: string | number | null | undefined;
+  title?: string | null | undefined;
+  version: number;
+};
+
 export type CreateAccountInput = {
   displayName: string;
   email: string;
@@ -895,6 +910,62 @@ export type CreateProjectMutation = {
     createdAt: string;
     version: number;
   };
+};
+
+export type ProjectTasksQueryVariables = Exact<{
+  id: string | number;
+  page: number;
+}>;
+
+export type ProjectTasksQuery = {
+  projectTasks: {
+    canPlan: boolean;
+    hasMore: boolean;
+    project: { id: string; name: string; version: number };
+    tasks: Array<{
+      id: string;
+      title: string;
+      status: string;
+      assigneeName: string | null;
+      details: {
+        instructions: string;
+        acceptanceCriteria: string;
+        version: number;
+        assigneeId: string | null;
+        assignedAt: string | null;
+        history: Array<{
+          id: string;
+          action: string;
+          reason: string;
+          actorName: string;
+          before: string;
+          after: string;
+          version: number;
+          createdAt: string;
+        }>;
+      } | null;
+    }>;
+  };
+};
+
+export type TaskCandidatesQueryVariables = Exact<{
+  id: string | number;
+  page: number;
+}>;
+
+export type TaskCandidatesQuery = {
+  taskCandidates: {
+    hasMore: boolean;
+    candidates: Array<{ accountId: string; displayName: string }>;
+  };
+};
+
+export type ChangeTaskMutationVariables = Exact<{
+  input: ChangeTaskInput;
+}>;
+
+export type ChangeTaskMutation = {
+  changeTask: { taskId: string; version: number; projectVersion: number };
 };
 
 export const CalendarConfigurationFieldsFragmentDoc = {
@@ -3856,3 +3927,306 @@ export const CreateProjectDocument = {
   CreateProjectMutation,
   CreateProjectMutationVariables
 >;
+export const ProjectTasksDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "ProjectTasks" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "page" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "Int" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "projectTasks" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "page" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "page" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "project" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      { kind: "Field", name: { kind: "Name", value: "name" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "version" },
+                      },
+                    ],
+                  },
+                },
+                { kind: "Field", name: { kind: "Name", value: "canPlan" } },
+                { kind: "Field", name: { kind: "Name", value: "hasMore" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "tasks" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      { kind: "Field", name: { kind: "Name", value: "title" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "status" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "assigneeName" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "details" },
+                        selectionSet: {
+                          kind: "SelectionSet",
+                          selections: [
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "instructions" },
+                            },
+                            {
+                              kind: "Field",
+                              name: {
+                                kind: "Name",
+                                value: "acceptanceCriteria",
+                              },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "version" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "assigneeId" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "assignedAt" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "history" },
+                              selectionSet: {
+                                kind: "SelectionSet",
+                                selections: [
+                                  {
+                                    kind: "Field",
+                                    name: { kind: "Name", value: "id" },
+                                  },
+                                  {
+                                    kind: "Field",
+                                    name: { kind: "Name", value: "action" },
+                                  },
+                                  {
+                                    kind: "Field",
+                                    name: { kind: "Name", value: "reason" },
+                                  },
+                                  {
+                                    kind: "Field",
+                                    name: { kind: "Name", value: "actorName" },
+                                  },
+                                  {
+                                    kind: "Field",
+                                    name: { kind: "Name", value: "before" },
+                                  },
+                                  {
+                                    kind: "Field",
+                                    name: { kind: "Name", value: "after" },
+                                  },
+                                  {
+                                    kind: "Field",
+                                    name: { kind: "Name", value: "version" },
+                                  },
+                                  {
+                                    kind: "Field",
+                                    name: { kind: "Name", value: "createdAt" },
+                                  },
+                                ],
+                              },
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<ProjectTasksQuery, ProjectTasksQueryVariables>;
+export const TaskCandidatesDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "TaskCandidates" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "page" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "Int" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "taskCandidates" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "page" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "page" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "candidates" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "accountId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "displayName" },
+                      },
+                    ],
+                  },
+                },
+                { kind: "Field", name: { kind: "Name", value: "hasMore" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<TaskCandidatesQuery, TaskCandidatesQueryVariables>;
+export const ChangeTaskDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "ChangeTask" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "ChangeTaskInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "changeTask" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "taskId" } },
+                { kind: "Field", name: { kind: "Name", value: "version" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "projectVersion" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<ChangeTaskMutation, ChangeTaskMutationVariables>;

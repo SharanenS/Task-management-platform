@@ -20,6 +20,7 @@ from .calendar_schema import CalendarMutation, CalendarQuery
 from .organization_schema import OrganizationMutation, OrganizationQuery
 from .owner_schema import OwnerMutation, OwnerQuery
 from .project_schema import ProjectMutation, ProjectQuery
+from .task_schema import TaskMutation, TaskQuery
 
 
 @strawberry.type
@@ -120,7 +121,7 @@ class ActorContext(BaseContext):
 
 
 @strawberry.type
-class Query(OrganizationQuery, CalendarQuery, ProjectQuery, OwnerQuery):
+class Query(OrganizationQuery, CalendarQuery, ProjectQuery, OwnerQuery, TaskQuery):
     @strawberry.field
     def viewer(self, info: Info[ActorContext, None]) -> Viewer:
         return info.context.viewer
@@ -153,7 +154,9 @@ class Query(OrganizationQuery, CalendarQuery, ProjectQuery, OwnerQuery):
 
 
 @strawberry.type
-class Mutation(OrganizationMutation, CalendarMutation, ProjectMutation, OwnerMutation):
+class Mutation(
+    OrganizationMutation, CalendarMutation, ProjectMutation, OwnerMutation, TaskMutation
+):
     @strawberry.mutation
     async def create_account(
         self, info: Info[ActorContext, None], input: CreateAccountInput
@@ -488,7 +491,32 @@ def create_app(settings=None, verifier=None, transport=None):
                     timeout=20, transport=transport, follow_redirects=False
                 ) as client:
                     headers = {"Authorization": authorization, "X-Service-Key": key}
-                    if command == "list":
+                    if command in {"tasks", "task-candidates"}:
+                        try:
+                            project_id = str(UUID(value["id"]))
+                        except (ValueError, TypeError, AttributeError):
+                            raise GraphQLError(
+                                "Project not found",
+                                extensions={
+                                    "code": "PROJECT_REJECTED",
+                                    "reason": "project_not_found",
+                                },
+                            ) from None
+                        response = await client.get(
+                            origin.rstrip("/")
+                            + "/internal/project-tasks/"
+                            + project_id
+                            + ("/candidates" if command == "task-candidates" else ""),
+                            params={"page": value.get("page", 0)},
+                            headers=headers,
+                        )
+                    elif command == "task-change":
+                        response = await client.post(
+                            origin.rstrip("/") + "/internal/project-tasks/change",
+                            json=value,
+                            headers=headers,
+                        )
+                    elif command == "list":
                         response = await client.get(path, params=value, headers=headers)
                     elif command in {
                         "detail",
@@ -571,6 +599,13 @@ def create_app(settings=None, verifier=None, transport=None):
                     raise GraphQLError("Access denied", extensions={"code": "FORBIDDEN"})
                 if response.status_code in {400, 404, 409, 422}:
                     reasons = {
+                        "invalid_task",
+                        "stale_task",
+                        "task_not_found",
+                        "task_assignee_ineligible",
+                        "task_request_conflict",
+                        "task_assignment_unchanged",
+                        "task_lifecycle_requires_review",
                         "invalid_owner_request",
                         "stale_owner_escalation",
                         "owner_escalation_not_found",

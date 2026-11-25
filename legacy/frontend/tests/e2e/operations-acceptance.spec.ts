@@ -374,10 +374,28 @@ test.describe("Phase 13: Observability + Security Hardening Acceptance", () => {
       await page.goto("/reports");
       await page.getByLabel("Report project").selectOption(projectId);
       const createdAfter = new Date(Date.now() - 5_000).toISOString();
+      const submissionResponse = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        if (
+          url.origin !== new URL(baseURL).origin ||
+          url.pathname !== "/graphql" ||
+          response.request().method() !== "POST"
+        )
+          return false;
+        return (
+          response.request().postDataJSON()?.operationName ===
+          "RequestProjectTaskReport"
+        );
+      });
       await page.getByRole("button", { name: "Request report" }).click();
-      await expect(
-        page.getByText(/SUBMITTED|QUEUED|RUNNING/).first(),
-      ).toBeVisible();
+      const submission = await submissionResponse;
+      expect(submission.ok()).toBe(true);
+      const result = await submission.json();
+      const submittedReportId = checkedUuid(
+        result.data?.requestProjectTaskReport?.id,
+        "submitted report ID",
+      );
+      expect(result.errors).toBeUndefined();
       const createdBefore = new Date(Date.now() + 5_000).toISOString();
 
       reportId = discoverOwnedReportByWindow({
@@ -387,6 +405,11 @@ test.describe("Phase 13: Observability + Security Hardening Acceptance", () => {
         createdBefore,
       });
       jobs.push(reportId);
+      expect(submittedReportId).toBe(reportId);
+      // A fast worker may already have completed before the list reloads.
+      await expect(
+        page.locator(`a[href="/reports/${reportId}"]`),
+      ).toBeVisible();
 
       // Await publication outbox settlement
       const reportIdentifier = `${sqlLiteral(checkedUuid(reportId, "report Job ID"))}::uuid`;

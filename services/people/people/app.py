@@ -91,6 +91,23 @@ def create_app(settings=None, sessions=None, verifier=None, provider=None):
         except Exception:
             raise HTTPException(503, "Authority unavailable") from None
 
+    @app.post("/internal/task-references")
+    def task_references(request: Request, value: dict):
+        try:
+            if set(value) != {"account_ids"}:
+                raise ValueError("Invalid account references")
+            return ProjectDirectory(sessions).task_references(
+                current_identity(request), value["account_ids"]
+            )
+        except AccessDenied:
+            raise HTTPException(403, "Access denied") from None
+        except (ValueError, TypeError, AttributeError):
+            raise HTTPException(400, "Invalid account references") from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Authority unavailable") from None
+
     @app.get("/internal/admin/workspace")
     def admin_workspace(request: Request):
         actor = current_actor(request)

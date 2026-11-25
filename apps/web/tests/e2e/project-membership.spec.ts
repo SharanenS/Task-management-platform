@@ -40,11 +40,22 @@ async function check(work: () => Promise<void>) {
   }
 }
 
+let identitiesReady = false;
+test.beforeAll(async () => {
+  run.diagnosticScope = "s8";
+  run.boundary = "verified disposable identity preparation";
+  await check(async () => {
+    await run.setup();
+    identitiesReady = true;
+  });
+});
+
 test.beforeAll(async ({ browser }) => {
   run.diagnosticScope = "s8";
   run.boundary = "verified fixture identities and current employee association";
   try {
-    await run.setup();
+    if (!identitiesReady)
+      throw new Error("Identity preparation did not complete");
     run.people("project_other_role", "EMPLOYEE");
     employeeAccount = run.people("project_other_inspect").accountId;
     ownerContext = await browser.newContext({
@@ -57,6 +68,7 @@ test.beforeAll(async ({ browser }) => {
     });
     ownerPage = await ownerContext.newPage();
     employeePage = await employeeContext.newPage();
+    run.boundary = "owner sign-in and configured calendar";
     await run.login(ownerPage);
     await expect(
       ownerPage.getByRole("heading", { name: "Administration", exact: true }),
@@ -68,6 +80,7 @@ test.beforeAll(async ({ browser }) => {
       "Contributor context",
       "Unrelated context",
     ]) {
+      run.boundary = `owned project preview: ${prefix}`;
       const preview = await run.graphql(
         ownerContext,
         "mutation($input:ProjectPreviewInput!){previewProject(input:$input){previewId}}",
@@ -80,6 +93,7 @@ test.beforeAll(async ({ browser }) => {
         },
       );
       expect(preview.errors).toBeUndefined();
+      run.boundary = `owned project creation: ${prefix}`;
       const created = await run.graphql(
         ownerContext,
         "mutation($input:CreateProjectInput!){createProject(input:$input){id version name}}",
@@ -94,6 +108,7 @@ test.beforeAll(async ({ browser }) => {
       expect(created.errors).toBeUndefined();
       projects.push(created.data.createProject);
     }
+    run.boundary = "employee project sign-in";
     await run.login(employeePage, run.secondary);
     await expect(
       employeePage.getByRole("heading", {

@@ -457,6 +457,10 @@ jobs:
         run: python scripts/coordination-development.py up --apply-migration
       - name: Apply isolated S10 owner-decision runtime
         run: python scripts/owner-decisions-development.py up --apply-migration
+      - name: Apply isolated S11 task-planning runtime
+        run: python scripts/task-breakdown-development.py up --apply-migration
+      - name: Verify PostgreSQL task assignments and scoped cleanup
+        run: python scripts/verify-tasks-postgres.py
       - name: Verify PostgreSQL owner decisions and scoped cleanup
         run: python scripts/verify-owner-postgres.py
       - name: Verify PostgreSQL coordination concurrency and scoped cleanup
@@ -506,6 +510,7 @@ jobs:
           python scripts/run-s8-source-checks.py
           python scripts/run-s9-source-checks.py
           python scripts/run-s10-source-checks.py
+          python scripts/run-s11-source-checks.py
       - name: Audit new service dependency locks
         run: |
           pip-audit --no-deps --disable-pip -r services/gateway/requirements.lock

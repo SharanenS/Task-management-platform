@@ -18,6 +18,7 @@ from .owner_decisions import OwnerDecisionService
 from .projects import ProjectActor, ProjectError, ProjectService
 from .review_fallbacks import ReviewFallbackService
 from .service import CalendarService, identifier
+from .tasks import TaskService
 
 
 def create_app(
@@ -69,6 +70,7 @@ def create_app(
         {"ADMIN", "MANAGER"} if fallback_grant_roles is None else fallback_grant_roles,
     )
     coordination = CoordinationService(sessions)
+    tasks = TaskService(sessions)
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
     def authority(request, project_access=False):
@@ -340,6 +342,65 @@ def create_app(
         except Exception:
             raise HTTPException(503, "Service unavailable") from None
 
+    def task_directory(request, ids):
+        try:
+            with httpx.Client(
+                timeout=5, transport=people_transport, follow_redirects=False
+            ) as client:
+                response = client.post(
+                    people_url.rstrip("/") + "/internal/task-references",
+                    json={"account_ids": ids},
+                    headers={
+                        "Authorization": request.headers.get("authorization", ""),
+                        "X-Service-Key": settings.service_key,
+                    },
+                )
+            if response.status_code in {401, 403}:
+                raise HTTPException(403, "Access denied")
+            response.raise_for_status()
+            return response.json()
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Authority unavailable") from None
+
+    @app.get("/internal/project-tasks/{project_id}")
+    def task_workspace(project_id: str, request: Request, page: int = 0):
+        try:
+            return tasks.workspace(authority(request, True), project_id, page)
+        except ProjectError as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
+    @app.get("/internal/project-tasks/{project_id}/candidates")
+    def task_candidates(project_id: str, request: Request, page: int = 0):
+        try:
+            return tasks.candidates(
+                authority(request, True), project_id, lambda ids: task_directory(request, ids), page
+            )
+        except ProjectError as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
+    @app.post("/internal/project-tasks/change")
+    def task_change(request: Request, value: dict):
+        try:
+            return tasks.change(
+                authority(request, True), lambda ids: task_directory(request, ids), value
+            )
+        except ProjectError as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
     @app.get("/health/live")
     def live():
         return {"status": "up"}
@@ -353,6 +414,7 @@ def create_app(
                 s.execute(text("SELECT 1 FROM project_membership_changes LIMIT 1"))
                 s.execute(text("SELECT 1 FROM coordination_records LIMIT 1"))
                 s.execute(text("SELECT 1 FROM project_owner_decisions LIMIT 1"))
+                s.execute(text("SELECT 1 FROM work_tasks LIMIT 1"))
             return {"status": "up"}
         except Exception:
             raise HTTPException(503, "Service unavailable") from None

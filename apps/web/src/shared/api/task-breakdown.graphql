@@ -1,0 +1,50 @@
+query ProjectTasks($id: ID!, $page: Int!) {
+  projectTasks(id: $id, page: $page) {
+    project {
+      id
+      name
+      version
+    }
+    canPlan
+    hasMore
+    tasks {
+      id
+      title
+      status
+      assigneeName
+      details {
+        instructions
+        acceptanceCriteria
+        version
+        assigneeId
+        assignedAt
+        history {
+          id
+          action
+          reason
+          actorName
+          before
+          after
+          version
+          createdAt
+        }
+      }
+    }
+  }
+}
+query TaskCandidates($id: ID!, $page: Int!) {
+  taskCandidates(id: $id, page: $page) {
+    candidates {
+      accountId
+      displayName
+    }
+    hasMore
+  }
+}
+mutation ChangeTask($input: ChangeTaskInput!) {
+  changeTask(input: $input) {
+    taskId
+    version
+    projectVersion
+  }
+}

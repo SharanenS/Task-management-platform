@@ -25,6 +25,71 @@ from sqlalchemy.orm import Session
 ISSUER = "http://127.0.0.1:8180/realms/taskspace-portals"
 
 
+def task_peer_account(session, run_id, subject, action):
+    run_id, subject = str(UUID(run_id)), str(UUID(subject))
+    peer_id = str(uuid5(UUID(run_id), "task-peer-account"))
+    profile_id = str(uuid5(UUID(run_id), "task-peer-profile"))
+    peer = session.get(Account, peer_id)
+    if action == "task_peer_create":
+        if (
+            peer
+            or session.get(EmployeeProfile, profile_id)
+            or session.scalar(
+                select(Account.id).where(Account.issuer == ISSUER, Account.subject == subject)
+            )
+        ):
+            raise ValueError("Task peer fixture would overwrite existing data")
+        peer = Account(id=peer_id, issuer=ISSUER, subject=subject, active=True)
+        peer.profile = EmployeeProfile(
+            id=profile_id, issuer=ISSUER, display_name="Task acceptance peer", active=True
+        )
+        peer.grants = [CompanyRoleGrant(role="EMPLOYEE")]
+        session.add(peer)
+        session.flush()
+    if peer and (
+        peer.issuer != ISSUER
+        or peer.subject != subject
+        or not peer.profile
+        or peer.profile.id != profile_id
+        or peer.profile.display_name != "Task acceptance peer"
+        or len(peer.grants) != 1
+        or peer.grants[0].role != "EMPLOYEE"
+    ):
+        raise ValueError("Task peer fixture ownership mismatch")
+    if action == "task_peer_cleanup" and peer:
+        if session.scalar(
+            select(AccountAudit.id).where(
+                (AccountAudit.actor_id == peer_id) | (AccountAudit.target_id == peer_id)
+            )
+        ) or session.scalar(
+            select(AccountProvisioning.id).where(AccountProvisioning.account_id == peer_id)
+        ):
+            raise ValueError("Unexpected task peer account references")
+        session.execute(delete(CompanyRoleGrant).where(CompanyRoleGrant.account_id == peer_id))
+        session.execute(
+            delete(EmployeeProfile).where(
+                EmployeeProfile.id == profile_id, EmployeeProfile.account_id == peer_id
+            )
+        )
+        session.execute(delete(Account).where(Account.id == peer_id))
+        session.flush()
+        session.expire_all()
+        peer = session.get(Account, peer_id)
+    if peer is None and (
+        session.get(EmployeeProfile, profile_id)
+        or session.scalar(
+            select(CompanyRoleGrant.account_id).where(CompanyRoleGrant.account_id == peer_id)
+        )
+    ):
+        raise ValueError("Task peer cleanup incomplete")
+    return {
+        "accountId": peer_id,
+        "subject": peer.subject if peer else None,
+        "absent": peer is None,
+        "cleaned": action == "task_peer_cleanup" and peer is None,
+    }
+
+
 def main():
     value = json.load(sys.stdin)
     run_id = str(UUID(value["runId"]))
@@ -35,6 +100,9 @@ def main():
     if action not in {
         "create",
         "inspect",
+        "task_peer_create",
+        "task_peer_inspect",
+        "task_peer_cleanup",
         "project_other_create",
         "project_other_inspect",
         "project_other_cleanup",
@@ -93,6 +161,10 @@ def main():
                 raise ValueError("Fixture account ownership mismatch")
             if action == "inspect":
                 print(json.dumps({"absent": False}))
+                return
+            if action.startswith("task_peer_"):
+                result = task_peer_account(session, run_id, value["value"], action)
+                print(json.dumps(result))
                 return
             if action.startswith("project_other_"):
                 other_id = str(uuid5(UUID(run_id), "project-account"))
