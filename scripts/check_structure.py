@@ -235,6 +235,23 @@ def check_repository(root: Path) -> list[str]:
             errors.append(f"Mandatory CI result is not checked: {name}")
     if "needs.s1-authentication.result" not in ci or "  s1-authentication:" not in ci:
         errors.append("S1 authentication CI gate is missing")
+    for required in (
+        "suite: [desktop, tablet, mobile, recovery]",
+        "fail-fast: false",
+        "needs: [s1-authentication-suites]",
+        "${{ needs.s1-authentication-suites.result }}",
+        'if [ "$SUITES_RESULT" != "success" ]; then',
+    ):
+        if required not in ci:
+            errors.append("S1 independent suites or fail-closed aggregation is missing")
+    for suite in ("desktop", "tablet", "mobile", "recovery"):
+        command = (
+            "python scripts/run-s1-acceptance.py --project desktop --recovery"
+            if suite == "recovery"
+            else f"python scripts/run-s1-acceptance.py --project {suite}"
+        )
+        if f"if: matrix.suite == '{suite}'\n        run: {command}\n" not in ci:
+            errors.append(f"S1 independent {suite} acceptance is missing")
     if "needs.s2-account-entry.result" not in ci or "  s2-account-entry:" not in ci:
         errors.append("S2 account-entry CI gate is missing")
     if "python scripts/initial-admin.py --verify --expect-created" not in ci:

@@ -423,10 +423,14 @@ jobs:
           docker compose --env-file .env.ci.recovery -p "${CI_REC_PROJECT}" -f compose.test.yaml down -v
           rm -f .env.ci.recovery
 
-  s1-authentication:
-    name: Authentication Lifecycle and Recovery
+  s1-authentication-suites:
+    name: Portal Lifecycle and Recovery (${{ matrix.suite }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [desktop, tablet, mobile, recovery]
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -460,30 +464,58 @@ jobs:
       - name: Apply isolated S11 task-planning runtime
         run: python scripts/task-breakdown-development.py up --apply-migration
       - name: Verify PostgreSQL task assignments and scoped cleanup
+        if: matrix.suite == 'desktop'
         run: python scripts/verify-tasks-postgres.py
       - name: Verify PostgreSQL owner decisions and scoped cleanup
+        if: matrix.suite == 'desktop'
         run: python scripts/verify-owner-postgres.py
       - name: Verify PostgreSQL coordination concurrency and scoped cleanup
+        if: matrix.suite == 'desktop'
         run: python scripts/verify-coordination-postgres.py
       - name: Verify PostgreSQL membership concurrency and scoped cleanup
+        if: matrix.suite == 'desktop'
         run: python scripts/verify-membership-postgres.py
       - name: Verify PostgreSQL calendar concurrency and scoped cleanup
+        if: matrix.suite == 'desktop'
         run: python scripts/verify-calendar-postgres.py
       - name: Verify PostgreSQL account constraints and scoped rollback
+        if: matrix.suite == 'desktop'
         run: python scripts/verify-account-entry-postgres.py
       - name: Verify desktop authentication
+        if: matrix.suite == 'desktop'
         run: python scripts/run-s1-acceptance.py --project desktop
       - name: Verify tablet authentication
+        if: matrix.suite == 'tablet'
         run: python scripts/run-s1-acceptance.py --project tablet
       - name: Verify mobile authentication
+        if: matrix.suite == 'mobile'
         run: python scripts/run-s1-acceptance.py --project mobile
       - name: Verify fresh initial administrator provisioning and repeat safety
+        if: matrix.suite == 'desktop'
         run: python scripts/initial-admin.py --verify --expect-created
       - name: Verify isolated authentication recovery
+        if: matrix.suite == 'recovery'
         run: python scripts/run-s1-acceptance.py --project desktop --recovery
       - name: Stop only the isolated authentication services
         if: always()
         run: python scripts/calendar-development.py stop
+
+  s1-authentication:
+    name: Authentication Lifecycle and Recovery
+    if: always()
+    needs: [s1-authentication-suites]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every lifecycle and recovery suite
+        env:
+          SUITES_RESULT: ${{ needs.s1-authentication-suites.result }}
+        run: |
+          if [ "$SUITES_RESULT" != "success" ]; then
+            echo "Authentication lifecycle or recovery suite did not succeed." >&2
+            exit 1
+          fi
+          echo "All four lifecycle and recovery suites succeeded."
 
   s2-account-entry:
     name: Account Entry and Server Authorization

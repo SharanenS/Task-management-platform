@@ -183,3 +183,52 @@ the remote error-context artifact itself was not available locally.
 Rerun the required CI browser job after the manual fix commit/push. S11 remains
 in progress until the required remote checks pass. The original plan is unchanged,
 S12 has not started, and this correction is left unstaged for owner review.
+
+## Post-merge CI workload separation — 27 November 2026
+
+PR run [#36](https://github.com/SharanenS/Task-management-platform/actions/runs/45623935930)
+passed all required gates for revision `8b7a9bd`. The merged source tree is the
+same tree as that revision. Main run
+[#37, attempt 2](https://github.com/SharanenS/Task-management-platform/actions/runs/45627305490/attempts/2)
+was cancelled in the authentication job; every other prerequisite job passed.
+Its logs confirm desktop, tablet and mobile lifecycle results of **28/28 each,
+zero skips**, all six PostgreSQL checks, fresh administrator provisioning, and
+**2/2 recovery cases, zero skips**. Service health, scoped disposable cleanup and
+bootstrap/grant preservation were verified before the post-recovery lifecycle.
+The final full desktop lifecycle was interrupted and is not counted as passed.
+The unconditional service-stop step succeeded afterward. This is remote CI
+evidence, not a new local runtime run.
+
+Runner initialization began at 11:00:23 UTC and cancellation occurred at
+11:20:35 UTC, matching the configured 20-minute job budget. The logs contain a
+generic cancellation message, not an explicit timeout annotation; exhaustion of
+the job budget is the supported timing inference, not a proven test failure.
+The serial job combined approximately seven minutes of setup with three
+three-minute lifecycle runs and recovery plus another complete lifecycle.
+
+CI now runs desktop, tablet, mobile and recovery as four independent matrix
+jobs, each retaining the existing 20-minute limit and unconditional scoped stop.
+Matrix fail-fast is disabled so one failing suite does not cancel the others.
+The desktop lane retains all PostgreSQL and fresh administrator checks. The
+recovery lane retains both outage cases and the runner's complete post-restoration
+desktop lifecycle; no test selection, assertion, receipt check, retry or timeout
+was weakened. Each lane has a separate hosted runner and its own fresh stack.
+The existing `Authentication Lifecycle and Recovery` required gate remains under
+`s1-authentication`, runs unconditionally, and rejects any aggregate matrix result
+other than success. The existing final quality gate still requires it.
+
+Local verification: **29 structure regression tests passed, zero skips**;
+repository boundary checks, focused Ruff lint/format checks and workflow YAML
+parsing passed. Workflow semantic checks confirmed all four commands, unchanged
+execution limits, unconditional cleanup and mandatory aggregation. Executing the
+gate shell confirmed that success passes, while failure, cancellation, skip and
+an empty result each fail. The initial restricted-shell launch was unavailable;
+the same shell check passed when run with local execution access. Three initial
+test-formatting findings were corrected and the final lint/format checks passed.
+The CI relocation hash was refreshed for the workflow edit.
+
+No live services, credentials, accounts, databases or email settings were changed
+for this CI-only correction. No new browser run or service restoration is claimed.
+The original plan and Git index remain unchanged; all six changed files are
+unstaged. Validation of the revised matrix on GitHub remains pending the owner's
+manual commit and push. S12 has not started.

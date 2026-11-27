@@ -26,6 +26,42 @@ class RepositoryStructureTests(unittest.TestCase):
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, destination)
 
+    def test_authentication_matrix_cannot_omit_a_suite(self) -> None:
+        ci = self.fixture / ".github/workflows/ci.yml"
+        ci.write_text(
+            ci.read_text(encoding="utf-8").replace(
+                "suite: [desktop, tablet, mobile, recovery]",
+                "suite: [desktop, tablet, mobile]",
+            ),
+            encoding="utf-8",
+        )
+        self.assertTrue(
+            any("S1 independent" in e for e in structure.check_repository(self.fixture))
+        )
+
+    def test_authentication_matrix_cannot_cancel_other_suites(self) -> None:
+        ci = self.fixture / ".github/workflows/ci.yml"
+        ci.write_text(
+            ci.read_text(encoding="utf-8").replace("fail-fast: false", "fail-fast: true"),
+            encoding="utf-8",
+        )
+        self.assertTrue(
+            any("S1 independent" in e for e in structure.check_repository(self.fixture))
+        )
+
+    def test_authentication_gate_cannot_ignore_suite_failures(self) -> None:
+        ci = self.fixture / ".github/workflows/ci.yml"
+        ci.write_text(
+            ci.read_text(encoding="utf-8").replace(
+                'if [ "$SUITES_RESULT" != "success" ]; then',
+                'if [ "$SUITES_RESULT" = "failure" ]; then',
+            ),
+            encoding="utf-8",
+        )
+        self.assertTrue(
+            any("S1 independent" in e for e in structure.check_repository(self.fixture))
+        )
+
     def test_task_acceptance_cannot_be_omitted(self) -> None:
         runner = self.fixture / "scripts/run-s1-acceptance.py"
         runner.write_text(
