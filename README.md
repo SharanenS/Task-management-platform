@@ -4,13 +4,12 @@ Taskspace is being rebuilt as a portal-oriented corporate project and employee
 management platform using Next.js, React, TypeScript, Python, FastAPI, Strawberry
 GraphQL, PostgreSQL, Keycloak, Redis, RabbitMQ and Celery where required.
 
-S0 through S11 are merged and their required CI passed. S12 source development
-adds working-day task schedules, dependencies, private timelines and retained
-schedule revisions. S12 desktop/tablet/mobile scheduling journeys passed locally;
-selected retained regressions also passed. Final environment-health, owner-review
-and remote-CI gates remain open. See
-[S12 verification](docs/s12-verification.md) and the
-[scheduling contract](docs/s12-scheduling-contract.md).
+S0 through S12 are merged and their required post-merge CI passed. S13 source
+work adds separate completion submissions, audited review decisions, leader-owned
+execution and explicit absence fallback. Local S13 review acceptance passed on desktop, tablet and mobile; owner review
+and remote S13 CI remain pending.
+See [S13 verification](docs/s13-verification.md) and the
+[completion contract](docs/s13-completion-contract.md).
 Gmail remains configured as dailygotasks@gmail.com; owner decisions and coordination send no email.
 The calendar form detects local time automatically; see [calendar entry](docs/calendar-local-time.md).
 

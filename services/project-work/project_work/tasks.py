@@ -82,7 +82,10 @@ class TaskService:
             history = (
                 session.scalars(
                     select(TaskChange)
-                    .where(TaskChange.task_id == task.id)
+                    .where(
+                        TaskChange.task_id == task.id,
+                        TaskChange.action.in_(["CREATE", "EDIT", "ASSIGN"]),
+                    )
                     .order_by(TaskChange.task_version.desc())
                     .limit(50)
                 ).all()

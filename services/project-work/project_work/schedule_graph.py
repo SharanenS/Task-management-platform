@@ -59,7 +59,7 @@ def analyze(config, nodes, now=None):
         if node.get("status") == "CANCELLED":
             row["issue"] = "CANCELLED"
             continue
-        if not node.get("eligible", False):
+        if not node.get("eligible", False) and node.get("status") != "COMPLETED":
             row["issue"] = "ASSIGNEE_INELIGIBLE"
             continue
         if not node.get("requested_start") or node.get("duration") is None:
@@ -92,6 +92,13 @@ def analyze(config, nodes, now=None):
             row["readiness"] = "READY"
         if node["status"] != "COMPLETED" and clock > datetime.fromisoformat(row["due_at"]):
             row["issue"] = "INCOMPLETE_PAST_FINISH"
+        if (
+            node["status"] == "COMPLETED"
+            and node.get("actual_completed_at")
+            and datetime.fromisoformat(node["actual_completed_at"])
+            > datetime.fromisoformat(row["due_at"])
+        ):
+            row["issue"] = "LATE_COMPLETION_REASSESSMENT"
     active = [row for row in rows.values() if by_id[row["id"]]["status"] != "CANCELLED"]
     # A calculable path does not make unknown or overdue work a reliable forecast.
     assessed = bool(active) and all(row["issue"] is None for row in active)

@@ -20,6 +20,7 @@ from .calendar_schema import CalendarMutation, CalendarQuery
 from .organization_schema import OrganizationMutation, OrganizationQuery
 from .owner_schema import OwnerMutation, OwnerQuery
 from .project_schema import ProjectMutation, ProjectQuery
+from .review_schema import CompletionMutation, CompletionQuery
 from .schedule_schema import ScheduleMutation, ScheduleQuery
 from .task_schema import TaskMutation, TaskQuery
 
@@ -122,7 +123,15 @@ class ActorContext(BaseContext):
 
 
 @strawberry.type
-class Query(OrganizationQuery, CalendarQuery, ProjectQuery, OwnerQuery, TaskQuery, ScheduleQuery):
+class Query(
+    OrganizationQuery,
+    CalendarQuery,
+    ProjectQuery,
+    OwnerQuery,
+    TaskQuery,
+    ScheduleQuery,
+    CompletionQuery,
+):
     @strawberry.field
     def viewer(self, info: Info[ActorContext, None]) -> Viewer:
         return info.context.viewer
@@ -162,6 +171,7 @@ class Mutation(
     OwnerMutation,
     TaskMutation,
     ScheduleMutation,
+    CompletionMutation,
 ):
     @strawberry.mutation
     async def create_account(
@@ -497,7 +507,15 @@ def create_app(settings=None, verifier=None, transport=None):
                     timeout=20, transport=transport, follow_redirects=False
                 ) as client:
                     headers = {"Authorization": authorization, "X-Service-Key": key}
-                    if command == "schedule":
+                    if command in {"review-execute", "review-decide"}:
+                        response = await client.post(
+                            origin.rstrip("/")
+                            + "/internal/project-reviews/"
+                            + command.removeprefix("review-"),
+                            json=value,
+                            headers=headers,
+                        )
+                    elif command == "schedule":
                         project_id = str(UUID(value["id"]))
                         response = await client.get(
                             origin.rstrip("/") + "/internal/project-schedule/" + project_id,
@@ -511,7 +529,7 @@ def create_app(settings=None, verifier=None, transport=None):
                             json=value,
                             headers=headers,
                         )
-                    elif command in {"tasks", "task-candidates"}:
+                    elif command in {"tasks", "task-candidates", "reviews"}:
                         try:
                             project_id = str(UUID(value["id"]))
                         except (ValueError, TypeError, AttributeError):
@@ -524,7 +542,11 @@ def create_app(settings=None, verifier=None, transport=None):
                             ) from None
                         response = await client.get(
                             origin.rstrip("/")
-                            + "/internal/project-tasks/"
+                            + (
+                                "/internal/project-reviews/"
+                                if command == "reviews"
+                                else "/internal/project-tasks/"
+                            )
                             + project_id
                             + ("/candidates" if command == "task-candidates" else ""),
                             params={"page": value.get("page", 0)},
@@ -634,6 +656,14 @@ def create_app(settings=None, verifier=None, transport=None):
                         "ambiguous_or_nonexistent_time",
                         "invalid_task",
                         "stale_task",
+                        "invalid_task_execution",
+                        "task_execution_state",
+                        "task_execution_denied",
+                        "invalid_review",
+                        "submission_not_found",
+                        "stale_review",
+                        "explicit_self_approval_required",
+                        "task_prerequisites_not_ready",
                         "task_not_found",
                         "task_assignee_ineligible",
                         "task_request_conflict",

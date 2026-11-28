@@ -156,6 +156,35 @@ type CompanyCalendarWorkspace {
   history: [CalendarHistory!]!
 }
 
+type CompletionDecision {
+  actorName: String!
+  outcome: String!
+  feedback: String!
+  selfApproval: Boolean!
+  fallbackId: ID
+  decidedAt: String!
+}
+
+type CompletionSubmission {
+  id: ID!
+  submitterName: String!
+  submittedAt: String!
+  version: Int!
+  summary: String!
+  snapshot: String!
+  pending: Boolean!
+  decision: CompletionDecision
+}
+
+type CompletionWorkspace {
+  project: ProjectRecord!
+  isLeader: Boolean!
+  canReview: Boolean!
+  fallbackId: ID
+  hasMore: Boolean!
+  tasks: [ReviewTask!]!
+}
+
 type CoordinationFollowUp {
   id: ID!
   actorId: ID!
@@ -225,6 +254,19 @@ type EmployeeChoice {
   displayName: String!
 }
 
+input ExecuteTaskInput {
+  projectId: ID!
+  taskId: ID!
+  projectVersion: Int!
+  version: Int!
+  requestId: ID!
+  action: String!
+  note: String!
+  progress: Int!
+  blocker: String
+  confirm: Boolean!
+}
+
 input FollowUpCoordinationInput {
   projectId: ID!
   recordId: ID!
@@ -274,6 +316,8 @@ type Mutation {
   changeTask(input: ChangeTaskInput!): TaskChangeReceipt!
   previewTaskSchedule(input: PreviewTaskScheduleInput!): SchedulePreview!
   commitTaskSchedule(input: CommitTaskScheduleInput!): ScheduleReceipt!
+  executeTask(input: ExecuteTaskInput!): TaskChangeReceipt!
+  reviewCompletion(input: ReviewCompletionInput!): TaskChangeReceipt!
   createAccount(input: CreateAccountInput!): AccountCommandResult!
   changeAccount(input: ChangeAccountInput!): AccountCommandResult!
   recoverAccount(input: RecoverAccountInput!): AccountCommandResult!
@@ -524,6 +568,7 @@ type Query {
   projectTasks(id: ID!, page: Int! = 0): TaskWorkspace!
   taskCandidates(id: ID!, page: Int! = 0): TaskCandidates!
   projectSchedule(id: ID!): ScheduleWorkspace!
+  projectReviews(id: ID!, page: Int! = 0): CompletionWorkspace!
   viewer: Viewer!
   adminWorkspace: AdminWorkspace!
   accountAdministration(page: Int! = 0): AccountAdministration!
@@ -559,6 +604,19 @@ input RecoverAccountInput {
   operationId: ID!
 }
 
+input ReviewCompletionInput {
+  projectId: ID!
+  taskId: ID!
+  submissionId: ID!
+  projectVersion: Int!
+  version: Int!
+  requestId: ID!
+  outcome: String!
+  feedback: String!
+  selfConfirm: Boolean!
+  confirm: Boolean!
+}
+
 type ReviewFallback {
   id: ID!
   leaderId: ID
@@ -582,6 +640,25 @@ type ReviewFallbacks {
   leaderName: String
   records: [ReviewFallback!]!
   hasMore: Boolean!
+}
+
+type ReviewTask {
+  id: ID!
+  title: String!
+  status: String!
+  version: Int!
+  own: Boolean!
+  canAct: Boolean!
+  canReview: Boolean!
+  instructions: String!
+  acceptanceCriteria: String!
+  assigneeName: String
+  progress: Int!
+  blocker: String
+  startedAt: String
+  completedAt: String
+  workHistory: [WorkUpdate!]!
+  submissions: [CompletionSubmission!]!
 }
 
 input RevokeReviewFallbackInput {
@@ -723,6 +800,17 @@ type Viewer {
   displayName: String!
   companyRoles: [String!]!
   permissions: [String!]!
+}
+
+type WorkUpdate {
+  id: ID!
+  action: String!
+  note: String!
+  actorName: String!
+  createdAt: String!
+  progress: Int!
+  blocker: String
+  status: String!
 }
 
 input WorkingDaysInput {

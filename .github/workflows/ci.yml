@@ -465,6 +465,11 @@ jobs:
         run: python scripts/task-breakdown-development.py up --apply-migration
       - name: Apply isolated S12 scheduling runtime
         run: python scripts/scheduling-development.py up --apply-migration
+      - name: Apply isolated S13 completion-review runtime
+        run: python scripts/review-development.py up --apply-migration
+      - name: Verify PostgreSQL completion reviews and scoped cleanup
+        if: matrix.suite == 'desktop'
+        run: python scripts/verify-reviews-postgres.py
       - name: Verify PostgreSQL task scheduling and scoped cleanup
         if: matrix.suite == 'desktop'
         run: python scripts/verify-scheduling-postgres.py
@@ -549,6 +554,7 @@ jobs:
           python scripts/run-s10-source-checks.py
           python scripts/run-s11-source-checks.py
           python scripts/run-s12-source-checks.py
+          python scripts/run-s13-source-checks.py
       - name: Audit new service dependency locks
         run: |
           pip-audit --no-deps --disable-pip -r services/gateway/requirements.lock

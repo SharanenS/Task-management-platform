@@ -26,7 +26,10 @@ from project_work.models import (
     TaskAssignment,
     TaskChange,
     TaskDependency,
+    TaskExecution,
+    TaskReviewDecision,
     TaskSchedule,
+    TaskSubmission,
     WorkTask,
 )
 from sqlalchemy import create_engine, delete, select
@@ -60,6 +63,56 @@ def task_rows(session, project_ids, actors):
     if any(row.task_id not in task_ids or row.actor_id not in actors for row in changes):
         raise ValueError("Task history fixture ownership mismatch")
     return {TaskChange: changes, TaskAssignment: assignments, WorkTask: tasks}
+
+
+def review_rows(session, project_ids, actors):
+    data = task_rows(session, project_ids, actors)
+    ids = {r.id for r in data[WorkTask]}
+    assignments = {r.id: r for r in data[TaskAssignment]}
+    requests = {r.request_id for r in data[TaskChange]}
+    fallbacks = session.scalars(
+        select(ReviewFallback).where(ReviewFallback.project_id.in_(project_ids))
+    ).all()
+    fallback_ids = {r.id for r in fallbacks}
+    if any(r.actor_id not in actors for r in fallbacks):
+        raise ValueError("Review fallback fixture ownership mismatch")
+    submissions = session.scalars(
+        select(TaskSubmission).where(
+            TaskSubmission.task_id.in_(ids)
+            | TaskSubmission.submitter_id.in_(actors)
+            | TaskSubmission.assignment_id.in_(assignments)
+            | TaskSubmission.request_id.in_(requests)
+        )
+    ).all()
+    if any(
+        r.task_id not in ids
+        or r.submitter_id not in actors
+        or r.assignment_id not in assignments
+        or assignments[r.assignment_id].task_id != r.task_id
+        or assignments[r.assignment_id].account_id != r.submitter_id
+        or r.request_id not in requests
+        for r in submissions
+    ):
+        raise ValueError("Review submission fixture ownership mismatch")
+    submission_ids = {r.id for r in submissions}
+    decisions = session.scalars(
+        select(TaskReviewDecision).where(
+            TaskReviewDecision.submission_id.in_(submission_ids)
+            | TaskReviewDecision.actor_id.in_(actors)
+            | TaskReviewDecision.request_id.in_(requests)
+            | TaskReviewDecision.fallback_id.in_(fallback_ids)
+        )
+    ).all()
+    if any(
+        r.submission_id not in submission_ids
+        or r.actor_id not in actors
+        or r.request_id not in requests
+        or (r.fallback_id is not None and r.fallback_id not in fallback_ids)
+        for r in decisions
+    ):
+        raise ValueError("Review decision fixture ownership mismatch")
+    executions = session.scalars(select(TaskExecution).where(TaskExecution.task_id.in_(ids))).all()
+    return {TaskReviewDecision: decisions, TaskSubmission: submissions, TaskExecution: executions}
 
 
 def schedule_rows(session, project_ids, actors):
@@ -301,11 +354,13 @@ def main():
         if any(r.record_id not in coordination_ids or r.actor_id not in actors for r in follow_ups):
             raise ValueError("Coordination follow-up ownership mismatch")
         task_data = task_rows(s, project_ids, actors)
+        review_data = review_rows(s, project_ids, actors)
         schedule_data = schedule_rows(s, project_ids, actors)
         owner_data = owner_rows(s, project_ids, actors, run)
         result = {
             "scheduleRows": sum(len(rows) for rows in schedule_data.values()),
             "taskRows": sum(len(rows) for rows in task_data.values()),
+            "reviewRows": sum(len(rows) for rows in review_data.values()),
             "ownerRows": sum(len(rows) for rows in owner_data.values()),
             "coordinationRecords": len(coordination),
             "coordinationRecipients": len(recipients),
@@ -361,6 +416,16 @@ def main():
                 )
             ):
                 raise ValueError("Foreign task schedule references fixture calendar")
+            for model, rows in review_data.items():
+                key = model.task_id if model is TaskExecution else model.id
+                s.execute(
+                    delete(model).where(
+                        key.in_([r.task_id if model is TaskExecution else r.id for r in rows])
+                    )
+                )
+            s.flush()
+            if any(review_rows(s, project_ids, actors).values()):
+                raise ValueError("Review fixture cleanup incomplete")
             for model, rows in schedule_data.items():
                 if model is TaskDependency:
                     for row in rows:

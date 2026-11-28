@@ -46,6 +46,7 @@ def main() -> int:
     parser.add_argument("--owner-decisions-only", action="store_true")
     parser.add_argument("--tasks-only", action="store_true")
     parser.add_argument("--scheduling-only", action="store_true")
+    parser.add_argument("--reviews-only", action="store_true")
     args = parser.parse_args()
     focuses = [
         args.account_entry_only,
@@ -59,6 +60,7 @@ def main() -> int:
         args.owner_decisions_only,
         args.tasks_only,
         args.scheduling_only,
+        args.reviews_only,
     ]
     if sum(focuses) > 1 or (args.recovery and any(focuses)):
         raise RuntimeError("Acceptance focus cannot run outages or another focus")
@@ -96,6 +98,7 @@ def main() -> int:
         or args.owner_decisions_only
         or args.tasks_only
         or args.scheduling_only
+        or args.reviews_only
     ) and not calendar_services <= actual_names:
         raise RuntimeError("Calendar services are required")
     expected_count = len(expected_services)
@@ -122,6 +125,7 @@ def main() -> int:
         or args.owner_decisions_only
         or args.tasks_only
         or args.scheduling_only
+        or args.reviews_only
     ):
         assert_capture_delivery()
     env = os.environ.copy()
@@ -133,10 +137,12 @@ def main() -> int:
         ["tests/e2e/recovery.spec.ts"]
         if args.recovery
         else (
-            ["tests/e2e/task-scheduling.spec.ts"]
+            ["tests/e2e/completion-reviews.spec.ts"]
+            if args.reviews_only
+            else ["tests/e2e/task-scheduling.spec.ts"]
             if args.scheduling_only
             else ["tests/e2e/task-breakdown.spec.ts"]
-            if args.tasks_only or args.scheduling_only
+            if args.tasks_only
             else ["tests/e2e/owner-decisions.spec.ts"]
             if args.owner_decisions_only
             else ["tests/e2e/project-coordination.spec.ts"]
@@ -155,6 +161,7 @@ def main() -> int:
         specs.append("tests/e2e/owner-decisions.spec.ts")
         specs.append("tests/e2e/task-breakdown.spec.ts")
         specs.append("tests/e2e/task-scheduling.spec.ts")
+        specs.append("tests/e2e/completion-reviews.spec.ts")
     try:
         result = subprocess.run(
             [
@@ -208,17 +215,17 @@ def main() -> int:
     if not args.recovery:
         created_receipts = set(receipt_dir.glob("*.json")) - prior_receipts
         if not created_receipts or (
-            code == 0 and len(created_receipts) != (1 if any(focuses) else 7)
+            code == 0 and len(created_receipts) != (1 if any(focuses) else 8)
         ):
             raise RuntimeError("Acceptance identity creation scope was incomplete")
         for path in created_receipts:
             receipt = json.loads(path.read_text(encoding="utf-8"))
-            if (args.tasks_only or args.scheduling_only) and not (
+            if (args.tasks_only or args.scheduling_only or args.reviews_only) and not (
                 receipt.get("peerIdentityRemoved") is True
                 and receipt.get("peerAccountRemoved") is True
             ):
                 raise RuntimeError("Scoped third employee cleanup was not verified")
-            if (args.tasks_only or args.scheduling_only) and receipt.get(
+            if (args.tasks_only or args.scheduling_only or args.reviews_only) and receipt.get(
                 "taskCleanupVerified"
             ) is not True:
                 raise RuntimeError("Scoped task cleanup was not verified")
@@ -227,6 +234,18 @@ def main() -> int:
                 and receipt.get("sessionCleanupVerified") is True
             ):
                 raise RuntimeError("Scoped schedule cleanup was not verified")
+            if args.reviews_only and not all(
+                receipt.get(k) is True
+                for k in (
+                    "reviewCleanupVerified",
+                    "sessionCleanupVerified",
+                    "taskCleanupVerified",
+                    "scheduleCleanupVerified",
+                    "peerIdentityRemoved",
+                    "peerAccountRemoved",
+                )
+            ):
+                raise RuntimeError("Review cleanup scope was incomplete")
             if args.owner_decisions_only and receipt.get("ownerCleanupVerified") is not True:
                 raise RuntimeError("Scoped owner-decision cleanup was not verified")
             if args.coordination_only and receipt.get("coordinationCleanupVerified") is not True:
@@ -253,7 +272,7 @@ def main() -> int:
                 json.loads(path.read_text(encoding="utf-8")).get("ownerCleanupVerified") is True
                 for path in created_receipts
             )
-            != 6
+            != 7
         ):
             raise RuntimeError("Full lifecycle owner-decision cleanup scope was incomplete")
         if (
@@ -262,7 +281,7 @@ def main() -> int:
                 json.loads(path.read_text(encoding="utf-8")).get("taskCleanupVerified") is True
                 for path in created_receipts
             )
-            != 6
+            != 7
         ):
             raise RuntimeError("Full lifecycle task cleanup scope was incomplete")
         if (
@@ -272,7 +291,7 @@ def main() -> int:
                 and json.loads(path.read_text(encoding="utf-8")).get("peerAccountRemoved") is True
                 for path in created_receipts
             )
-            != 2
+            != 3
         ):
             raise RuntimeError("Full lifecycle third employee cleanup was incomplete")
         if (
@@ -281,17 +300,28 @@ def main() -> int:
                 json.loads(path.read_text(encoding="utf-8")).get("scheduleCleanupVerified") is True
                 for path in created_receipts
             )
-            != 6
+            != 7
         ):
             raise RuntimeError("Full lifecycle schedule cleanup scope was incomplete")
+        if (
+            not any(focuses)
+            and sum(
+                json.loads(path.read_text(encoding="utf-8")).get("reviewCleanupVerified") is True
+                for path in created_receipts
+            )
+            != 7
+        ):
+            raise RuntimeError("Full lifecycle review cleanup scope was incomplete")
         print(
             "Scoped disposable identity cleanup and bootstrap/grant preservation verified.",
             flush=True,
         )
     report = json.loads((ROOT / "apps/web/test-results/s1-acceptance.json").read_text())
     expected = (
-        4
-        if args.tasks_only or args.scheduling_only
+        5
+        if args.reviews_only
+        else 4
+        if args.tasks_only or args.scheduling_only or args.reviews_only
         else 5
         if args.owner_decisions_only
         else 4
@@ -308,7 +338,7 @@ def main() -> int:
             or args.organization_only
             or args.projects_only
         )
-        else (2 if args.recovery else 32)
+        else (2 if args.recovery else 37)
     )
     if (
         code
@@ -321,10 +351,12 @@ def main() -> int:
     destination = ROOT / "test-results/reports/s1"
     destination.mkdir(parents=True, exist_ok=True)
     scope = (
-        "task-scheduling"
+        "completion-reviews"
+        if args.reviews_only
+        else "task-scheduling"
         if args.scheduling_only
         else "task-breakdown"
-        if args.tasks_only or args.scheduling_only
+        if args.tasks_only or args.scheduling_only or args.reviews_only
         else "owner-decisions"
         if args.owner_decisions_only
         else "coordination"

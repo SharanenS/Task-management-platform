@@ -259,8 +259,25 @@ test("S12 leader previews and confirms a private working-day schedule through th
       .getByRole("button", { name: "Preview schedule", exact: true })
       .click();
     const submittedPreview = await previewResponse;
-    expect(submittedPreview.ok()).toBe(true);
     const previewData = await submittedPreview.json();
+    const safeErrors = [
+      "Request rejected",
+      "Please sign in again",
+      "Access denied",
+      "Scheduling is temporarily unavailable. Please try again later.",
+      "Schedule rejected. Refresh, review your authority and preview again.",
+      "Only pending tasks with an eligible active assignee can be scheduled.",
+      "The project's pinned calendar rules are unavailable. No dates were guessed.",
+      "The project, task, eligibility or time boundary changed. Refresh and preview again.",
+    ];
+    expect(
+      submittedPreview.ok(),
+      `Schedule preview HTTP ${submittedPreview.status()}; ${
+        safeErrors.includes(previewData.error)
+          ? previewData.error
+          : "no recognized error category"
+      }`,
+    ).toBe(true);
     const scheduledPoint = previewData.after.tasks.find(
       (row: { id: string }) => row.id === taskIds[0],
     );

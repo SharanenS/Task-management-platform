@@ -15,6 +15,7 @@ from .models import (
     ScheduleChange,
     SchedulePreview,
     TaskDependency,
+    TaskExecution,
     TaskSchedule,
     WorkTask,
 )
@@ -72,10 +73,17 @@ class SchedulingService:
                 and r.get("active") is True
                 and r.get("role") == "EMPLOYEE"
             )
+        executions = {
+            r.task_id: r
+            for r in session.scalars(
+                select(TaskExecution).where(TaskExecution.task_id.in_([t.id for t in tasks]))
+            )
+        }
         nodes = []
         for task in tasks:
             plan = session.get(TaskSchedule, task.id)
             assignment = assignments[task.id]
+            execution = executions.get(task.id)
             if plan and plan.calendar_version_id != calendar.id:
                 raise ProjectError("schedule_calendar_unavailable")
             nodes.append(
@@ -84,6 +92,9 @@ class SchedulingService:
                     "title": task.title,
                     "version": task.version,
                     "status": task.status,
+                    "actual_completed_at": utc(execution.completed_at)
+                    if execution and execution.completed_at
+                    else None,
                     "assignee_id": assignment.account_id if assignment else None,
                     "assignee_name": assignment.display_name if assignment else None,
                     "eligible": bool(assignment and assignment.account_id in members & eligible),

@@ -496,3 +496,74 @@ class ScheduleChange(Base):
     schedule_version: Mapped[int] = mapped_column(Integer)
     project_version: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class TaskExecution(Base):
+    __tablename__ = "task_executions"
+    __table_args__ = (
+        CheckConstraint("progress >= 0 AND progress <= 100", name="ck_execution_progress"),
+    )
+    task_id: Mapped[str] = mapped_column(
+        ForeignKey("work_tasks.id", ondelete="RESTRICT"), primary_key=True
+    )
+    progress: Mapped[int] = mapped_column(Integer, default=0)
+    blocker: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TaskSubmission(Base):
+    __tablename__ = "task_submissions"
+    __table_args__ = (
+        UniqueConstraint("task_id", "task_version", name="uq_submission_task_version"),
+        Index(
+            "uq_open_task_submission",
+            "task_id",
+            unique=True,
+            postgresql_where=text("closed_at IS NULL"),
+            sqlite_where=text("closed_at IS NULL"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    task_id: Mapped[str] = mapped_column(
+        ForeignKey("work_tasks.id", ondelete="RESTRICT"), index=True
+    )
+    assignment_id: Mapped[str] = mapped_column(
+        ForeignKey("task_assignments.id", ondelete="RESTRICT")
+    )
+    request_id: Mapped[str] = mapped_column(
+        ForeignKey("task_changes.request_id", ondelete="RESTRICT"), unique=True
+    )
+    submitter_id: Mapped[str] = mapped_column(String(36))
+    submitter_name: Mapped[str] = mapped_column(String(150))
+    task_version: Mapped[int] = mapped_column(Integer)
+    summary: Mapped[str] = mapped_column(Text)
+    snapshot: Mapped[str] = mapped_column(Text)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TaskReviewDecision(Base):
+    __tablename__ = "task_review_decisions"
+    __table_args__ = (
+        CheckConstraint("outcome IN ('APPROVE','RETURN')", name="ck_review_outcome"),
+        CheckConstraint("NOT self_approval OR outcome = 'APPROVE'", name="ck_review_self_approval"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    submission_id: Mapped[str] = mapped_column(
+        ForeignKey("task_submissions.id", ondelete="RESTRICT"), unique=True
+    )
+    request_id: Mapped[str] = mapped_column(
+        ForeignKey("task_changes.request_id", ondelete="RESTRICT"), unique=True
+    )
+    actor_id: Mapped[str] = mapped_column(String(36))
+    actor_name: Mapped[str] = mapped_column(String(150))
+    outcome: Mapped[str] = mapped_column(String(12))
+    feedback: Mapped[str] = mapped_column(Text)
+    self_approval: Mapped[bool] = mapped_column(Boolean, default=False)
+    fallback_id: Mapped[str | None] = mapped_column(
+        ForeignKey("project_review_fallbacks.id", ondelete="RESTRICT")
+    )
+    task_version: Mapped[int] = mapped_column(Integer)
+    project_version: Mapped[int] = mapped_column(Integer)
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

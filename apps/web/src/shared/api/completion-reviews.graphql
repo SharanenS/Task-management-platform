@@ -1,0 +1,71 @@
+query ProjectReviews($id: ID!, $page: Int!) {
+  projectReviews(id: $id, page: $page) {
+    project {
+      id
+      name
+      version
+      timezone
+    }
+    isLeader
+    canReview
+    fallbackId
+    hasMore
+    tasks {
+      id
+      title
+      status
+      version
+      own
+      canAct
+      canReview
+      assigneeName
+      instructions
+      acceptanceCriteria
+      progress
+      blocker
+      startedAt
+      completedAt
+      workHistory {
+        id
+        action
+        note
+        actorName
+        createdAt
+        progress
+        blocker
+        status
+      }
+      submissions {
+        id
+        submitterName
+        submittedAt
+        version
+        summary
+        snapshot
+        pending
+        decision {
+          actorName
+          outcome
+          feedback
+          selfApproval
+          fallbackId
+          decidedAt
+        }
+      }
+    }
+  }
+}
+mutation ExecuteTask($input: ExecuteTaskInput!) {
+  executeTask(input: $input) {
+    taskId
+    version
+    projectVersion
+  }
+}
+mutation ReviewCompletion($input: ReviewCompletionInput!) {
+  reviewCompletion(input: $input) {
+    taskId
+    version
+    projectVersion
+  }
+}

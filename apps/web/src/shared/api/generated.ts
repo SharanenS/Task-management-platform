@@ -103,6 +103,19 @@ export type CreateProjectInput = {
   requestId: string | number;
 };
 
+export type ExecuteTaskInput = {
+  action: string;
+  blocker?: string | null | undefined;
+  confirm: boolean;
+  note: string;
+  progress: number;
+  projectId: string | number;
+  projectVersion: number;
+  requestId: string | number;
+  taskId: string | number;
+  version: number;
+};
+
 export type FollowUpCoordinationInput = {
   confirm: boolean;
   nextFollowUpAt: string;
@@ -185,6 +198,19 @@ export type RecordReviewFallbackInput = {
 export type RecoverAccountInput = {
   operationId: string | number;
   requestId: string | number;
+};
+
+export type ReviewCompletionInput = {
+  confirm: boolean;
+  feedback: string;
+  outcome: string;
+  projectId: string | number;
+  projectVersion: number;
+  requestId: string | number;
+  selfConfirm: boolean;
+  submissionId: string | number;
+  taskId: string | number;
+  version: number;
 };
 
 export type RevokeReviewFallbackInput = {
@@ -426,6 +452,80 @@ export type CalculateWorkingDaysQuery = {
     dueLocal: string;
     nextHandoff: string;
   };
+};
+
+export type ProjectReviewsQueryVariables = Exact<{
+  id: string | number;
+  page: number;
+}>;
+
+export type ProjectReviewsQuery = {
+  projectReviews: {
+    isLeader: boolean;
+    canReview: boolean;
+    fallbackId: string | null;
+    hasMore: boolean;
+    project: { id: string; name: string; version: number; timezone: string };
+    tasks: Array<{
+      id: string;
+      title: string;
+      status: string;
+      version: number;
+      own: boolean;
+      canAct: boolean;
+      canReview: boolean;
+      assigneeName: string | null;
+      instructions: string;
+      acceptanceCriteria: string;
+      progress: number;
+      blocker: string | null;
+      startedAt: string | null;
+      completedAt: string | null;
+      workHistory: Array<{
+        id: string;
+        action: string;
+        note: string;
+        actorName: string;
+        createdAt: string;
+        progress: number;
+        blocker: string | null;
+        status: string;
+      }>;
+      submissions: Array<{
+        id: string;
+        submitterName: string;
+        submittedAt: string;
+        version: number;
+        summary: string;
+        snapshot: string;
+        pending: boolean;
+        decision: {
+          actorName: string;
+          outcome: string;
+          feedback: string;
+          selfApproval: boolean;
+          fallbackId: string | null;
+          decidedAt: string;
+        } | null;
+      }>;
+    }>;
+  };
+};
+
+export type ExecuteTaskMutationVariables = Exact<{
+  input: ExecuteTaskInput;
+}>;
+
+export type ExecuteTaskMutation = {
+  executeTask: { taskId: string; version: number; projectVersion: number };
+};
+
+export type ReviewCompletionMutationVariables = Exact<{
+  input: ReviewCompletionInput;
+}>;
+
+export type ReviewCompletionMutation = {
+  reviewCompletion: { taskId: string; version: number; projectVersion: number };
 };
 
 export type OrganizationWorkspaceQueryVariables = Exact<{
@@ -2297,6 +2397,374 @@ export const CalculateWorkingDaysDocument = {
 } as unknown as DocumentNode<
   CalculateWorkingDaysQuery,
   CalculateWorkingDaysQueryVariables
+>;
+export const ProjectReviewsDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "ProjectReviews" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "page" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "Int" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "projectReviews" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "page" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "page" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "project" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      { kind: "Field", name: { kind: "Name", value: "name" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "version" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "timezone" },
+                      },
+                    ],
+                  },
+                },
+                { kind: "Field", name: { kind: "Name", value: "isLeader" } },
+                { kind: "Field", name: { kind: "Name", value: "canReview" } },
+                { kind: "Field", name: { kind: "Name", value: "fallbackId" } },
+                { kind: "Field", name: { kind: "Name", value: "hasMore" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "tasks" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      { kind: "Field", name: { kind: "Name", value: "title" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "status" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "version" },
+                      },
+                      { kind: "Field", name: { kind: "Name", value: "own" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "canAct" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "canReview" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "assigneeName" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "instructions" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "acceptanceCriteria" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "progress" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "blocker" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "startedAt" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "completedAt" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "workHistory" },
+                        selectionSet: {
+                          kind: "SelectionSet",
+                          selections: [
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "id" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "action" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "note" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "actorName" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "createdAt" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "progress" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "blocker" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "status" },
+                            },
+                          ],
+                        },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "submissions" },
+                        selectionSet: {
+                          kind: "SelectionSet",
+                          selections: [
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "id" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "submitterName" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "submittedAt" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "version" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "summary" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "snapshot" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "pending" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "decision" },
+                              selectionSet: {
+                                kind: "SelectionSet",
+                                selections: [
+                                  {
+                                    kind: "Field",
+                                    name: { kind: "Name", value: "actorName" },
+                                  },
+                                  {
+                                    kind: "Field",
+                                    name: { kind: "Name", value: "outcome" },
+                                  },
+                                  {
+                                    kind: "Field",
+                                    name: { kind: "Name", value: "feedback" },
+                                  },
+                                  {
+                                    kind: "Field",
+                                    name: {
+                                      kind: "Name",
+                                      value: "selfApproval",
+                                    },
+                                  },
+                                  {
+                                    kind: "Field",
+                                    name: { kind: "Name", value: "fallbackId" },
+                                  },
+                                  {
+                                    kind: "Field",
+                                    name: { kind: "Name", value: "decidedAt" },
+                                  },
+                                ],
+                              },
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<ProjectReviewsQuery, ProjectReviewsQueryVariables>;
+export const ExecuteTaskDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "ExecuteTask" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "ExecuteTaskInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "executeTask" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "taskId" } },
+                { kind: "Field", name: { kind: "Name", value: "version" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "projectVersion" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<ExecuteTaskMutation, ExecuteTaskMutationVariables>;
+export const ReviewCompletionDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "ReviewCompletion" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "ReviewCompletionInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "reviewCompletion" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "taskId" } },
+                { kind: "Field", name: { kind: "Name", value: "version" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "projectVersion" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  ReviewCompletionMutation,
+  ReviewCompletionMutationVariables
 >;
 export const OrganizationWorkspaceDocument = {
   kind: "Document",
