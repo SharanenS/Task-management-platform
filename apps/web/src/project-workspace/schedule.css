@@ -1,0 +1,65 @@
+.schedule-card {
+  padding: 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  margin: 1rem 0;
+  overflow-wrap: anywhere;
+}
+.schedule-form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+  max-width: 42rem;
+}
+.schedule-form label {
+  display: grid;
+  gap: 0.4rem;
+}
+.schedule-form input,
+.schedule-form textarea {
+  max-width: 100%;
+  min-width: 0;
+  padding: 0.5rem;
+  border: 1px solid #94a3b8;
+  border-radius: 6px;
+}
+.schedule-form fieldset label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.schedule-form textarea {
+  min-height: 5rem;
+}
+.schedule-timeline {
+  padding-left: 1.3rem;
+}
+.schedule-card button {
+  padding: 0.6rem 1rem;
+  border: 1px solid #64748b;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.schedule-card button:focus-visible,
+.schedule-card input:focus-visible,
+.schedule-card summary:focus-visible {
+  outline: 3px solid #0284c7;
+  outline-offset: 3px;
+}
+.schedule-card button:disabled {
+  opacity: 0.6;
+}
+
+.schedule-window {
+  height: 0.6rem;
+  background: #e2e8f0;
+  border-radius: 6px;
+  margin: 0.7rem 0;
+  overflow: hidden;
+}
+.schedule-window span {
+  display: block;
+  height: 100%;
+  background: #0284c7;
+  border-radius: 6px;
+}

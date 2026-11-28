@@ -1,5 +1,8 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
-import { ProjectAcceptance } from "./project-acceptance-support";
+import {
+  ProjectAcceptance,
+  registerProjectCleanup,
+} from "./project-acceptance-support";
 
 test.describe.configure({ mode: "serial" });
 const run = new ProjectAcceptance();
@@ -152,34 +155,12 @@ test.beforeAll(async () => {
     await run.login(memberPage, run.peer);
   });
 });
-test.afterAll(async () => {
-  const failures: unknown[] = [];
-  for (const [context, identity] of [
-    [member, run.peer],
-    [leader, run.primary],
-    [owner, run.secondary],
-  ] as const) {
-    if (!context) continue;
-    try {
-      await run.sessions(context, identity);
-    } catch (error) {
-      run.diagnostic(error, test.info().project.name);
-      failures.push(error);
-    }
-    try {
-      await context.close();
-    } catch (error) {
-      failures.push(error);
-    }
-  }
-  try {
-    await run.cleanup();
-  } catch (error) {
-    run.diagnostic(error, test.info().project.name);
-    failures.push(error);
-  }
-  expect(failures.length).toBe(0);
-});
+registerProjectCleanup(run, () => [
+  [member, run.peer],
+  [leader, run.primary],
+  [owner, run.secondary],
+]);
+
 test("S11 leader creates one confirmed task and current assignee sees private instructions", async () => {
   await check(
     "confirmed task creation and contributor write denial",

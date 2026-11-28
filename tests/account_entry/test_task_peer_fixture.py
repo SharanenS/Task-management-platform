@@ -1,4 +1,6 @@
 import importlib.util
+import io
+import json
 from pathlib import Path
 from uuid import uuid4
 
@@ -48,3 +50,33 @@ def test_peer_create_never_overwrites_existing_identity(sessions):
         with pytest.raises(ValueError, match="overwrite"):
             fixture.task_peer_account(s, run, subject, "task_peer_create")
         assert s.get(Account, created["accountId"]).subject == subject
+
+
+@pytest.mark.parametrize("action", ["task_peer_inspect", "task_peer_cleanup"])
+def test_peer_absence_is_verified_after_setup_fails_before_primary_account(
+    sessions, monkeypatch, capsys, action
+):
+    run, subject, peer_subject = str(uuid4()), str(uuid4()), str(uuid4())
+    monkeypatch.setenv("PEOPLE_DATABASE_URL", "private-test-database")
+    monkeypatch.setattr(fixture, "create_engine", lambda *a, **k: sessions.kw["bind"])
+    monkeypatch.setattr(
+        fixture.sys,
+        "stdin",
+        io.StringIO(
+            json.dumps(
+                {
+                    "runId": run,
+                    "subject": subject,
+                    "username": "s1-" + run,
+                    "action": action,
+                    "value": peer_subject,
+                }
+            )
+        ),
+    )
+    fixture.main()
+    result = json.loads(capsys.readouterr().out)
+    assert result["absent"] is True
+    assert result["cleaned"] is (action == "task_peer_cleanup")
+    with sessions() as session:
+        assert session.get(Account, run) is None
