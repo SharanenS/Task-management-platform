@@ -182,6 +182,7 @@ export async function ProjectDetails({ id }: { id: string }) {
       <p className="project-eyebrow">PROJECT DETAILS</p>
       <h1>{project.name}</h1>
       <Link href={`${root}/${id}/tasks`}>Work breakdown</Link>
+      <Link href={`${root}/${id}/schedule`}>Task schedule</Link>
       <Link href={root}>Back to projects</Link>
       <p>
         <Link href={`${root}/${project.id}/members`}>Project membership</Link>

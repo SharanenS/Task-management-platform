@@ -3,7 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient } from "redis";
-import { expect, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { storageKey } from "../../src/shared/auth/policy";
 export const appOrigin = "http://127.0.0.1:3020";
 const providerOrigin = "http://127.0.0.1:8180";
@@ -32,6 +32,7 @@ export class ProjectAcceptance {
     latest: 0,
   };
   peerAccountCreated = false;
+  uncertainIdentity: typeof this.primary | undefined;
   privateSecrets: Record<string, string> = JSON.parse(
     readFileSync(resolve("../../.local/auth/development.json"), "utf8"),
   );
@@ -41,7 +42,7 @@ export class ProjectAcceptance {
   grants: string[] = [];
   bootstrapId = "";
   boundary = "initialization";
-  diagnosticScope: "s7" | "s8" | "s9" | "s10" | "s11" = "s7";
+  diagnosticScope: "s7" | "s8" | "s9" | "s10" | "s11" | "s12" = "s7";
   receiptPath = resolve(`../../.local/auth/runs/${this.runId}.json`);
   write(status: string, extra: Record<string, unknown> = {}) {
     mkdirSync(resolve("../../.local/auth/runs"), { recursive: true });
@@ -70,19 +71,26 @@ export class ProjectAcceptance {
     );
   }
   async renew() {
-    const response = await fetch(
-      `${providerOrigin}/realms/master/protocol/openid-connect/token`,
-      {
-        method: "POST",
-        body: new URLSearchParams({
-          grant_type: "password",
-          client_id: "admin-cli",
-          username: "portal-bootstrap",
-          password: this.privateSecrets.AUTH_BOOTSTRAP_PASSWORD,
-        }),
-        signal: AbortSignal.timeout(5000),
-      },
-    );
+    let response: Response;
+    try {
+      response = await fetch(
+        `${providerOrigin}/realms/master/protocol/openid-connect/token`,
+        {
+          method: "POST",
+          body: new URLSearchParams({
+            grant_type: "password",
+            client_id: "admin-cli",
+            username: "portal-bootstrap",
+            password: this.privateSecrets.AUTH_BOOTSTRAP_PASSWORD,
+          }),
+          signal: AbortSignal.timeout(5000),
+        },
+      );
+    } catch {
+      throw new Error(
+        "Project fixture operator token request did not complete",
+      );
+    }
     if (!response.ok)
       throw new Error("Project fixture authorization unavailable");
     const value = await response.json();
@@ -114,6 +122,29 @@ export class ProjectAcceptance {
         `Project fixture identity operation failed (${response.status})`,
       );
     return response;
+  }
+  async resolveUncertainIdentity() {
+    const identity = this.uncertainIdentity;
+    if (!identity) return;
+    const rows = await (
+      await this.admin(
+        `${realm}/users?username=${encodeURIComponent(identity.username)}&exact=true`,
+      )
+    ).json();
+    expect(rows.length).toBeLessThanOrEqual(1);
+    if (!rows.length) return;
+    const row = rows[0];
+    expect(
+      row.username === identity.username &&
+        row.email === `${identity.username}@example.invalid` &&
+        row.attributes?.taskspaceAcceptanceRun?.[0] === this.runId &&
+        identity.earliest - 1000 <= row.createdTimestamp &&
+        row.createdTimestamp <= identity.latest + 1000 &&
+        /^[0-9a-f-]{36}$/.test(row.id),
+    ).toBe(true);
+    identity.id = row.id;
+    this.write("identity-creation-resolved");
+    await this.owned(identity);
   }
   async owned(identity = this.primary) {
     const value = await (
@@ -225,21 +256,31 @@ export class ProjectAcceptance {
       ...(withTaskPeer ? [this.peer] : []),
     ]) {
       identity.earliest = Date.now();
-      const response = await this.admin(`${realm}/users`, {
-        method: "POST",
-        body: JSON.stringify({
-          username: identity.username,
-          email: `${identity.username}@example.invalid`,
-          emailVerified: true,
-          firstName: identity === this.primary ? "Acceptance" : "Project",
-          lastName: identity === this.primary ? "Account" : "Manager",
-          enabled: true,
-          attributes: { taskspaceAcceptanceRun: [this.runId] },
-          credentials: [
-            { type: "password", value: identity.password, temporary: false },
-          ],
-        }),
-      });
+      let response: Response;
+      try {
+        response = await this.admin(`${realm}/users`, {
+          method: "POST",
+          body: JSON.stringify({
+            username: identity.username,
+            email: `${identity.username}@example.invalid`,
+            emailVerified: true,
+            firstName: identity === this.primary ? "Acceptance" : "Project",
+            lastName: identity === this.primary ? "Account" : "Manager",
+            enabled: true,
+            attributes: { taskspaceAcceptanceRun: [this.runId] },
+            credentials: [
+              { type: "password", value: identity.password, temporary: false },
+            ],
+          }),
+        });
+      } catch {
+        identity.latest = Date.now();
+        this.uncertainIdentity = identity;
+        this.write("identity-creation-uncertain");
+        throw new Error(
+          "Project fixture identity creation response did not complete",
+        );
+      }
       identity.latest = Date.now();
       identity.id = response.headers.get("location")?.split("/").pop() ?? "";
       expect(/^[0-9a-f-]{36}$/.test(identity.id)).toBe(true);
@@ -461,14 +502,26 @@ export class ProjectAcceptance {
       JSON.stringify({ stage: this.boundary, project }, null, 2),
     );
   }
-  async cleanup() {
-    let failure: unknown;
-    let removed = false;
-    let bootstrapPreserved = false;
-    let grantsRevoked = true;
-    let projectsCleaned = false;
+  cleanupFailure: unknown;
+  requiresSessionCleanup = false;
+  sessionCleanupVerified = false;
+  cleanupProof = {
+    domain: false,
+    peer: false,
+    accounts: false,
+    identities: false,
+    bootstrap: false,
+    grants: true,
+  };
+  cleanupTimings: Record<string, number> = {};
+  async cleanupPart(
+    part: "domain" | "peer" | "accounts" | "identities" | "operator",
+  ) {
+    const started = Date.now();
     try {
-      if (this.primary.id) {
+      if (part === "domain") {
+        await this.resolveUncertainIdentity();
+        expect(Boolean(this.primary.id)).toBe(true);
         await this.owned();
         if (this.secondary.id) await this.owned(this.secondary);
         if (this.peer.id) await this.owned(this.peer);
@@ -485,18 +538,24 @@ export class ProjectAcceptance {
             check.coordinationRecipients === 0 &&
             check.coordinationFollowUps === 0 &&
             check.ownerRows === 0 &&
-            check.taskRows === 0,
+            check.taskRows === 0 &&
+            check.scheduleRows === 0,
         ).toBe(true);
-        projectsCleaned = true;
+        this.cleanupProof.domain = true;
+      } else if (part === "peer") {
+        expect(this.cleanupProof.domain).toBe(true);
+        if (this.peer.id) {
+          expect(this.people("task_peer_cleanup", this.peer.id).cleaned).toBe(
+            true,
+          );
+          expect(this.people("task_peer_inspect", this.peer.id).absent).toBe(
+            true,
+          );
+        }
+        this.cleanupProof.peer = true;
+      } else if (part === "accounts") {
+        expect(this.cleanupProof.domain && this.cleanupProof.peer).toBe(true);
         if (!this.people("inspect").absent) {
-          if (this.peer.id) {
-            expect(this.people("task_peer_cleanup", this.peer.id).cleaned).toBe(
-              true,
-            );
-            expect(this.people("task_peer_inspect", this.peer.id).absent).toBe(
-              true,
-            );
-          }
           expect(this.people("project_other_cleanup").cleaned).toBe(true);
           expect(this.people("cleanup").cleaned).toBe(true);
         } else {
@@ -506,6 +565,14 @@ export class ProjectAcceptance {
               !this.peerAccountCreated,
           ).toBe(true);
         }
+        this.cleanupProof.accounts = true;
+      } else if (part === "identities") {
+        await this.resolveUncertainIdentity();
+        expect(
+          this.cleanupProof.domain &&
+            this.cleanupProof.peer &&
+            this.cleanupProof.accounts,
+        ).toBe(true);
         for (const identity of [this.peer, this.secondary, this.primary]) {
           if (!identity.id) continue;
           await this.owned(identity);
@@ -514,72 +581,171 @@ export class ProjectAcceptance {
           });
           const response = await fetch(
             `${providerOrigin}/admin/realms/${realm}/users/${identity.id}`,
-            { headers: { Authorization: `Bearer ${this.bearer}` } },
-          );
-          expect(response.status).toBe(404);
-        }
-        removed = true;
-      }
-      const admins = await (
-        await this.admin("master/users?username=portal-bootstrap&exact=true")
-      ).json();
-      bootstrapPreserved =
-        admins.length === 1 &&
-        admins[0].id === this.bootstrapId &&
-        admins[0].enabled;
-      expect(bootstrapPreserved).toBe(true);
-    } catch (error) {
-      failure = error;
-    } finally {
-      for (const token of this.grants) {
-        try {
-          const response = await fetch(
-            `${providerOrigin}/realms/master/protocol/openid-connect/logout`,
             {
-              method: "POST",
-              body: new URLSearchParams({
-                client_id: "admin-cli",
-                refresh_token: token,
-              }),
+              headers: { Authorization: `Bearer ${this.bearer}` },
               signal: AbortSignal.timeout(5000),
             },
           );
-          if (response.status !== 204)
-            throw new Error("Project operator grant cleanup failed");
-        } catch (error) {
-          grantsRevoked = false;
-          failure ??= error;
+          expect(response.status).toBe(404);
         }
+        if (this.uncertainIdentity) {
+          const remaining = await (
+            await this.admin(
+              `${realm}/users?username=${encodeURIComponent(this.uncertainIdentity.username)}&exact=true`,
+            )
+          ).json();
+          expect(remaining).toEqual([]);
+        }
+        this.cleanupProof.identities = true;
+      } else {
+        let failure: unknown;
+        try {
+          const admins = await (
+            await this.admin(
+              "master/users?username=portal-bootstrap&exact=true",
+            )
+          ).json();
+          this.cleanupProof.bootstrap =
+            admins.length === 1 &&
+            admins[0].id === this.bootstrapId &&
+            admins[0].enabled;
+          expect(this.cleanupProof.bootstrap).toBe(true);
+        } catch (error) {
+          failure = error;
+        } finally {
+          for (const token of this.grants) {
+            try {
+              const response = await fetch(
+                `${providerOrigin}/realms/master/protocol/openid-connect/logout`,
+                {
+                  method: "POST",
+                  body: new URLSearchParams({
+                    client_id: "admin-cli",
+                    refresh_token: token,
+                  }),
+                  signal: AbortSignal.timeout(5000),
+                },
+              );
+              if (response.status !== 204)
+                throw new Error("Project operator grant cleanup failed");
+            } catch (error) {
+              this.cleanupProof.grants = false;
+              failure ??= error;
+            }
+          }
+        }
+        if (failure) throw failure;
       }
-      this.write(
-        !failure &&
-          removed &&
-          projectsCleaned &&
-          bootstrapPreserved &&
-          grantsRevoked
-          ? "cleaned"
-          : "blocked",
-        {
-          identityRemoved: removed,
-          peerIdentityRemoved: this.peer.id ? removed : undefined,
-          peerAccountRemoved: this.peer.id
-            ? removed && projectsCleaned
-            : undefined,
-          accountRemoved: removed,
-          bootstrapPreserved,
-          grantsRevoked,
-          projectsCleanupVerified: projectsCleaned,
-          membershipCleanupVerified: projectsCleaned,
-          coordinationCleanupVerified: projectsCleaned,
-          ownerCleanupVerified: projectsCleaned,
-          taskCleanupVerified: projectsCleaned,
-          calendarCleanupVerified: projectsCleaned,
-          organizationCleanupVerified: true,
-        },
-      );
+    } catch (error) {
+      this.cleanupFailure ??= error;
+      throw error;
+    } finally {
+      this.cleanupTimings[part] = Date.now() - started;
     }
-    if (failure) throw failure;
   }
+  finishCleanup() {
+    const proof = this.cleanupProof;
+    const clean =
+      !this.cleanupFailure &&
+      Object.values(proof).every(Boolean) &&
+      (!this.requiresSessionCleanup || this.sessionCleanupVerified);
+    this.write(clean ? "cleaned" : "blocked", {
+      identityRemoved: proof.identities,
+      peerIdentityRemoved: this.peer.id ? proof.identities : undefined,
+      peerAccountRemoved: this.peer.id ? proof.peer : undefined,
+      accountRemoved: proof.accounts,
+      bootstrapPreserved: proof.bootstrap,
+      grantsRevoked: proof.grants,
+      projectsCleanupVerified: proof.domain,
+      membershipCleanupVerified: proof.domain,
+      coordinationCleanupVerified: proof.domain,
+      ownerCleanupVerified: proof.domain,
+      taskCleanupVerified: proof.domain,
+      scheduleCleanupVerified: proof.domain,
+      calendarCleanupVerified: proof.domain,
+      organizationCleanupVerified: true,
+      cleanupTimingsMs: this.cleanupTimings,
+      sessionCleanupVerified: this.requiresSessionCleanup
+        ? this.sessionCleanupVerified
+        : undefined,
+    });
+    if (this.cleanupFailure) throw this.cleanupFailure;
+    expect(clean).toBe(true);
+  }
+  async cleanup() {
+    for (const part of [
+      "domain",
+      "peer",
+      "accounts",
+      "identities",
+      "operator",
+    ] as const) {
+      try {
+        await this.cleanupPart(part);
+      } catch {
+        continue;
+      }
+    }
+    this.finishCleanup();
+  }
+}
+
+export function registerProjectCleanup(
+  run: ProjectAcceptance,
+  contexts: () => ReadonlyArray<
+    readonly [BrowserContext | undefined, ProjectAcceptance["primary"]]
+  >,
+) {
+  run.requiresSessionCleanup = true;
+  test.afterAll("remove owned browser sessions", async () => {
+    let index = 0;
+    for (const [context, identity] of contexts()) {
+      index++;
+      if (!context) continue;
+      run.boundary = `cleanup application session ${index}`;
+      run.checkpoint(test.info().project.name);
+      try {
+        await run.sessions(context, identity);
+      } catch (error) {
+        run.cleanupFailure ??= error;
+        run.diagnostic(error, test.info().project.name);
+      }
+      try {
+        await context.close();
+      } catch (error) {
+        run.cleanupFailure ??= error;
+        run.diagnostic(error, test.info().project.name);
+      }
+    }
+    run.sessionCleanupVerified = !run.cleanupFailure;
+  });
+  for (const part of [
+    "domain",
+    "peer",
+    "accounts",
+    "identities",
+    "operator",
+  ] as const) {
+    test.afterAll(`verify owned ${part} cleanup`, async () => {
+      run.boundary = `cleanup ${part}`;
+      run.checkpoint(test.info().project.name);
+      try {
+        await run.cleanupPart(part);
+      } catch (error) {
+        run.diagnostic(error, test.info().project.name);
+      }
+    });
+  }
+  test.afterAll("verify complete cleanup receipt", () => {
+    run.boundary = "cleanup receipt";
+    run.checkpoint(test.info().project.name);
+    try {
+      run.finishCleanup();
+    } catch (error) {
+      run.diagnostic(error, test.info().project.name);
+      throw error;
+    }
+  });
 }
 
 export function workingDate(config: {

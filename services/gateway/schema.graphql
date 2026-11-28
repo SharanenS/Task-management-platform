@@ -126,6 +126,13 @@ input ChangeTaskInput {
   confirm: Boolean!
 }
 
+input CommitTaskScheduleInput {
+  projectId: ID!
+  previewId: ID!
+  requestId: ID!
+  confirm: Boolean!
+}
+
 type CompanyCalendarPreview {
   tzdbVersion: String!
   previewId: ID!
@@ -265,6 +272,8 @@ type Mutation {
   recordReviewFallback(input: RecordReviewFallbackInput!): ReviewFallback!
   revokeReviewFallback(input: RevokeReviewFallbackInput!): ReviewFallback!
   changeTask(input: ChangeTaskInput!): TaskChangeReceipt!
+  previewTaskSchedule(input: PreviewTaskScheduleInput!): SchedulePreview!
+  commitTaskSchedule(input: CommitTaskScheduleInput!): ScheduleReceipt!
   createAccount(input: CreateAccountInput!): AccountCommandResult!
   changeAccount(input: ChangeAccountInput!): AccountCommandResult!
   recoverAccount(input: RecoverAccountInput!): AccountCommandResult!
@@ -376,6 +385,17 @@ input PreviewOwnerDeadlineInput {
   escalationId: ID!
   version: Int!
   deadlineDate: String!
+}
+
+input PreviewTaskScheduleInput {
+  projectId: ID!
+  taskId: ID!
+  projectVersion: Int!
+  version: Int!
+  requestedStart: String!
+  duration: Int!
+  prerequisites: [ID!]!
+  reason: String!
 }
 
 type ProjectCalendarReference {
@@ -503,6 +523,7 @@ type Query {
   reviewFallbacks(id: ID!, page: Int! = 0): ReviewFallbacks!
   projectTasks(id: ID!, page: Int! = 0): TaskWorkspace!
   taskCandidates(id: ID!, page: Int! = 0): TaskCandidates!
+  projectSchedule(id: ID!): ScheduleWorkspace!
   viewer: Viewer!
   adminWorkspace: AdminWorkspace!
   accountAdministration(page: Int! = 0): AccountAdministration!
@@ -569,6 +590,80 @@ input RevokeReviewFallbackInput {
   requestId: ID!
   reason: String!
   confirm: Boolean!
+}
+
+type ScheduleAnalysis {
+  state: String!
+  forecastAt: String
+  tasks: [SchedulePoint!]!
+  overlaps: [ScheduleOverlap!]!
+  capacityChecked: Boolean!
+}
+
+type ScheduleHistory {
+  id: ID!
+  actorName: String!
+  reason: String!
+  createdAt: String!
+  before: ScheduleAnalysis!
+  after: ScheduleAnalysis!
+}
+
+type ScheduleOverlap {
+  taskId: ID!
+  otherTaskId: ID!
+}
+
+type SchedulePoint {
+  id: ID!
+  requestedStart: String
+  duration: Int
+  prerequisites: [ID!]!
+  effectiveStart: String
+  startsAt: String
+  dueAt: String
+  nextHandoff: String
+  adjusted: Boolean!
+  readiness: String!
+  issue: String
+}
+
+type SchedulePreview {
+  previewId: ID!
+  validUntil: String!
+  before: ScheduleAnalysis!
+  after: ScheduleAnalysis!
+  calendarNumber: Int!
+  timezone: String!
+  approvedDeadline: String!
+  exceedsDeadline: Boolean!
+}
+
+type ScheduleReceipt {
+  projectVersion: Int!
+  scheduleVersion: Int!
+}
+
+type ScheduleTask {
+  title: String!
+  version: Int!
+  status: String!
+  assigneeName: String
+  plan: SchedulePoint!
+  original: SchedulePoint
+}
+
+type ScheduleWorkspace {
+  project: ProjectRecord!
+  canPlan: Boolean!
+  state: String
+  forecastAt: String
+  timezone: String!
+  calendarNumber: Int!
+  currentDeadline: String!
+  tasks: [ScheduleTask!]!
+  overlaps: [ScheduleOverlap!]!
+  history: [ScheduleHistory!]!
 }
 
 type TaskCandidate {

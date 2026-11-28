@@ -68,6 +68,13 @@ export type ChangeTaskInput = {
   version: number;
 };
 
+export type CommitTaskScheduleInput = {
+  confirm: boolean;
+  previewId: string | number;
+  projectId: string | number;
+  requestId: string | number;
+};
+
 export type CreateAccountInput = {
   displayName: string;
   email: string;
@@ -124,6 +131,17 @@ export type PreviewOwnerDeadlineInput = {
   deadlineDate: string;
   escalationId: string | number;
   projectId: string | number;
+  version: number;
+};
+
+export type PreviewTaskScheduleInput = {
+  duration: number;
+  prerequisites: Array<string | number>;
+  projectId: string | number;
+  projectVersion: number;
+  reason: string;
+  requestedStart: string;
+  taskId: string | number;
   version: number;
 };
 
@@ -968,6 +986,199 @@ export type ChangeTaskMutation = {
   changeTask: { taskId: string; version: number; projectVersion: number };
 };
 
+export type SchedulePointFieldsFragment = {
+  id: string;
+  requestedStart: string | null;
+  duration: number | null;
+  prerequisites: Array<string>;
+  effectiveStart: string | null;
+  startsAt: string | null;
+  dueAt: string | null;
+  nextHandoff: string | null;
+  adjusted: boolean;
+  readiness: string;
+  issue: string | null;
+};
+
+export type ScheduleAnalysisFieldsFragment = {
+  state: string;
+  forecastAt: string | null;
+  capacityChecked: boolean;
+  tasks: Array<{
+    id: string;
+    requestedStart: string | null;
+    duration: number | null;
+    prerequisites: Array<string>;
+    effectiveStart: string | null;
+    startsAt: string | null;
+    dueAt: string | null;
+    nextHandoff: string | null;
+    adjusted: boolean;
+    readiness: string;
+    issue: string | null;
+  }>;
+  overlaps: Array<{ taskId: string; otherTaskId: string }>;
+};
+
+export type ProjectScheduleQueryVariables = Exact<{
+  id: string | number;
+}>;
+
+export type ProjectScheduleQuery = {
+  projectSchedule: {
+    canPlan: boolean;
+    state: string | null;
+    forecastAt: string | null;
+    timezone: string;
+    calendarNumber: number;
+    currentDeadline: string;
+    project: {
+      id: string;
+      name: string;
+      version: number;
+      approvedDeadline: string;
+    };
+    tasks: Array<{
+      title: string;
+      version: number;
+      status: string;
+      assigneeName: string | null;
+      plan: {
+        id: string;
+        requestedStart: string | null;
+        duration: number | null;
+        prerequisites: Array<string>;
+        effectiveStart: string | null;
+        startsAt: string | null;
+        dueAt: string | null;
+        nextHandoff: string | null;
+        adjusted: boolean;
+        readiness: string;
+        issue: string | null;
+      };
+      original: {
+        id: string;
+        requestedStart: string | null;
+        duration: number | null;
+        prerequisites: Array<string>;
+        effectiveStart: string | null;
+        startsAt: string | null;
+        dueAt: string | null;
+        nextHandoff: string | null;
+        adjusted: boolean;
+        readiness: string;
+        issue: string | null;
+      } | null;
+    }>;
+    overlaps: Array<{ taskId: string; otherTaskId: string }>;
+    history: Array<{
+      id: string;
+      actorName: string;
+      reason: string;
+      createdAt: string;
+      before: {
+        state: string;
+        forecastAt: string | null;
+        capacityChecked: boolean;
+        tasks: Array<{
+          id: string;
+          requestedStart: string | null;
+          duration: number | null;
+          prerequisites: Array<string>;
+          effectiveStart: string | null;
+          startsAt: string | null;
+          dueAt: string | null;
+          nextHandoff: string | null;
+          adjusted: boolean;
+          readiness: string;
+          issue: string | null;
+        }>;
+        overlaps: Array<{ taskId: string; otherTaskId: string }>;
+      };
+      after: {
+        state: string;
+        forecastAt: string | null;
+        capacityChecked: boolean;
+        tasks: Array<{
+          id: string;
+          requestedStart: string | null;
+          duration: number | null;
+          prerequisites: Array<string>;
+          effectiveStart: string | null;
+          startsAt: string | null;
+          dueAt: string | null;
+          nextHandoff: string | null;
+          adjusted: boolean;
+          readiness: string;
+          issue: string | null;
+        }>;
+        overlaps: Array<{ taskId: string; otherTaskId: string }>;
+      };
+    }>;
+  };
+};
+
+export type PreviewTaskScheduleMutationVariables = Exact<{
+  input: PreviewTaskScheduleInput;
+}>;
+
+export type PreviewTaskScheduleMutation = {
+  previewTaskSchedule: {
+    previewId: string;
+    validUntil: string;
+    calendarNumber: number;
+    timezone: string;
+    approvedDeadline: string;
+    exceedsDeadline: boolean;
+    before: {
+      state: string;
+      forecastAt: string | null;
+      capacityChecked: boolean;
+      tasks: Array<{
+        id: string;
+        requestedStart: string | null;
+        duration: number | null;
+        prerequisites: Array<string>;
+        effectiveStart: string | null;
+        startsAt: string | null;
+        dueAt: string | null;
+        nextHandoff: string | null;
+        adjusted: boolean;
+        readiness: string;
+        issue: string | null;
+      }>;
+      overlaps: Array<{ taskId: string; otherTaskId: string }>;
+    };
+    after: {
+      state: string;
+      forecastAt: string | null;
+      capacityChecked: boolean;
+      tasks: Array<{
+        id: string;
+        requestedStart: string | null;
+        duration: number | null;
+        prerequisites: Array<string>;
+        effectiveStart: string | null;
+        startsAt: string | null;
+        dueAt: string | null;
+        nextHandoff: string | null;
+        adjusted: boolean;
+        readiness: string;
+        issue: string | null;
+      }>;
+      overlaps: Array<{ taskId: string; otherTaskId: string }>;
+    };
+  };
+};
+
+export type CommitTaskScheduleMutationVariables = Exact<{
+  input: CommitTaskScheduleInput;
+}>;
+
+export type CommitTaskScheduleMutation = {
+  commitTaskSchedule: { projectVersion: number; scheduleVersion: number };
+};
+
 export const CalendarConfigurationFieldsFragmentDoc = {
   kind: "Document",
   definitions: [
@@ -1127,6 +1338,104 @@ export const ProjectFieldsFragmentDoc = {
     },
   ],
 } as unknown as DocumentNode<ProjectFieldsFragment, unknown>;
+export const SchedulePointFieldsFragmentDoc = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "SchedulePointFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "SchedulePoint" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "id" } },
+          { kind: "Field", name: { kind: "Name", value: "requestedStart" } },
+          { kind: "Field", name: { kind: "Name", value: "duration" } },
+          { kind: "Field", name: { kind: "Name", value: "prerequisites" } },
+          { kind: "Field", name: { kind: "Name", value: "effectiveStart" } },
+          { kind: "Field", name: { kind: "Name", value: "startsAt" } },
+          { kind: "Field", name: { kind: "Name", value: "dueAt" } },
+          { kind: "Field", name: { kind: "Name", value: "nextHandoff" } },
+          { kind: "Field", name: { kind: "Name", value: "adjusted" } },
+          { kind: "Field", name: { kind: "Name", value: "readiness" } },
+          { kind: "Field", name: { kind: "Name", value: "issue" } },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<SchedulePointFieldsFragment, unknown>;
+export const ScheduleAnalysisFieldsFragmentDoc = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "ScheduleAnalysisFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "ScheduleAnalysis" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "state" } },
+          { kind: "Field", name: { kind: "Name", value: "forecastAt" } },
+          { kind: "Field", name: { kind: "Name", value: "capacityChecked" } },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "tasks" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "FragmentSpread",
+                  name: { kind: "Name", value: "SchedulePointFields" },
+                },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "overlaps" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "taskId" } },
+                { kind: "Field", name: { kind: "Name", value: "otherTaskId" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "SchedulePointFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "SchedulePoint" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "id" } },
+          { kind: "Field", name: { kind: "Name", value: "requestedStart" } },
+          { kind: "Field", name: { kind: "Name", value: "duration" } },
+          { kind: "Field", name: { kind: "Name", value: "prerequisites" } },
+          { kind: "Field", name: { kind: "Name", value: "effectiveStart" } },
+          { kind: "Field", name: { kind: "Name", value: "startsAt" } },
+          { kind: "Field", name: { kind: "Name", value: "dueAt" } },
+          { kind: "Field", name: { kind: "Name", value: "nextHandoff" } },
+          { kind: "Field", name: { kind: "Name", value: "adjusted" } },
+          { kind: "Field", name: { kind: "Name", value: "readiness" } },
+          { kind: "Field", name: { kind: "Name", value: "issue" } },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<ScheduleAnalysisFieldsFragment, unknown>;
 export const AccountAdministrationDocument = {
   kind: "Document",
   definitions: [
@@ -4230,3 +4539,489 @@ export const ChangeTaskDocument = {
     },
   ],
 } as unknown as DocumentNode<ChangeTaskMutation, ChangeTaskMutationVariables>;
+export const ProjectScheduleDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "ProjectSchedule" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "projectSchedule" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "project" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      { kind: "Field", name: { kind: "Name", value: "name" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "version" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "approvedDeadline" },
+                      },
+                    ],
+                  },
+                },
+                { kind: "Field", name: { kind: "Name", value: "canPlan" } },
+                { kind: "Field", name: { kind: "Name", value: "state" } },
+                { kind: "Field", name: { kind: "Name", value: "forecastAt" } },
+                { kind: "Field", name: { kind: "Name", value: "timezone" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "calendarNumber" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "currentDeadline" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "tasks" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "title" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "version" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "status" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "assigneeName" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "plan" },
+                        selectionSet: {
+                          kind: "SelectionSet",
+                          selections: [
+                            {
+                              kind: "FragmentSpread",
+                              name: {
+                                kind: "Name",
+                                value: "SchedulePointFields",
+                              },
+                            },
+                          ],
+                        },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "original" },
+                        selectionSet: {
+                          kind: "SelectionSet",
+                          selections: [
+                            {
+                              kind: "FragmentSpread",
+                              name: {
+                                kind: "Name",
+                                value: "SchedulePointFields",
+                              },
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "overlaps" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "taskId" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "otherTaskId" },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "history" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "id" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "actorName" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "reason" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "createdAt" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "before" },
+                        selectionSet: {
+                          kind: "SelectionSet",
+                          selections: [
+                            {
+                              kind: "FragmentSpread",
+                              name: {
+                                kind: "Name",
+                                value: "ScheduleAnalysisFields",
+                              },
+                            },
+                          ],
+                        },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "after" },
+                        selectionSet: {
+                          kind: "SelectionSet",
+                          selections: [
+                            {
+                              kind: "FragmentSpread",
+                              name: {
+                                kind: "Name",
+                                value: "ScheduleAnalysisFields",
+                              },
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "SchedulePointFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "SchedulePoint" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "id" } },
+          { kind: "Field", name: { kind: "Name", value: "requestedStart" } },
+          { kind: "Field", name: { kind: "Name", value: "duration" } },
+          { kind: "Field", name: { kind: "Name", value: "prerequisites" } },
+          { kind: "Field", name: { kind: "Name", value: "effectiveStart" } },
+          { kind: "Field", name: { kind: "Name", value: "startsAt" } },
+          { kind: "Field", name: { kind: "Name", value: "dueAt" } },
+          { kind: "Field", name: { kind: "Name", value: "nextHandoff" } },
+          { kind: "Field", name: { kind: "Name", value: "adjusted" } },
+          { kind: "Field", name: { kind: "Name", value: "readiness" } },
+          { kind: "Field", name: { kind: "Name", value: "issue" } },
+        ],
+      },
+    },
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "ScheduleAnalysisFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "ScheduleAnalysis" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "state" } },
+          { kind: "Field", name: { kind: "Name", value: "forecastAt" } },
+          { kind: "Field", name: { kind: "Name", value: "capacityChecked" } },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "tasks" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "FragmentSpread",
+                  name: { kind: "Name", value: "SchedulePointFields" },
+                },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "overlaps" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "taskId" } },
+                { kind: "Field", name: { kind: "Name", value: "otherTaskId" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  ProjectScheduleQuery,
+  ProjectScheduleQueryVariables
+>;
+export const PreviewTaskScheduleDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "PreviewTaskSchedule" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "PreviewTaskScheduleInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "previewTaskSchedule" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "previewId" } },
+                { kind: "Field", name: { kind: "Name", value: "validUntil" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "calendarNumber" },
+                },
+                { kind: "Field", name: { kind: "Name", value: "timezone" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "approvedDeadline" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "exceedsDeadline" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "before" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      {
+                        kind: "FragmentSpread",
+                        name: { kind: "Name", value: "ScheduleAnalysisFields" },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "after" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      {
+                        kind: "FragmentSpread",
+                        name: { kind: "Name", value: "ScheduleAnalysisFields" },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "SchedulePointFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "SchedulePoint" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "id" } },
+          { kind: "Field", name: { kind: "Name", value: "requestedStart" } },
+          { kind: "Field", name: { kind: "Name", value: "duration" } },
+          { kind: "Field", name: { kind: "Name", value: "prerequisites" } },
+          { kind: "Field", name: { kind: "Name", value: "effectiveStart" } },
+          { kind: "Field", name: { kind: "Name", value: "startsAt" } },
+          { kind: "Field", name: { kind: "Name", value: "dueAt" } },
+          { kind: "Field", name: { kind: "Name", value: "nextHandoff" } },
+          { kind: "Field", name: { kind: "Name", value: "adjusted" } },
+          { kind: "Field", name: { kind: "Name", value: "readiness" } },
+          { kind: "Field", name: { kind: "Name", value: "issue" } },
+        ],
+      },
+    },
+    {
+      kind: "FragmentDefinition",
+      name: { kind: "Name", value: "ScheduleAnalysisFields" },
+      typeCondition: {
+        kind: "NamedType",
+        name: { kind: "Name", value: "ScheduleAnalysis" },
+      },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          { kind: "Field", name: { kind: "Name", value: "state" } },
+          { kind: "Field", name: { kind: "Name", value: "forecastAt" } },
+          { kind: "Field", name: { kind: "Name", value: "capacityChecked" } },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "tasks" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "FragmentSpread",
+                  name: { kind: "Name", value: "SchedulePointFields" },
+                },
+              ],
+            },
+          },
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "overlaps" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "taskId" } },
+                { kind: "Field", name: { kind: "Name", value: "otherTaskId" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  PreviewTaskScheduleMutation,
+  PreviewTaskScheduleMutationVariables
+>;
+export const CommitTaskScheduleDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "mutation",
+      name: { kind: "Name", value: "CommitTaskSchedule" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "input" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "NamedType",
+              name: { kind: "Name", value: "CommitTaskScheduleInput" },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "commitTaskSchedule" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "input" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "input" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "projectVersion" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "scheduleVersion" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  CommitTaskScheduleMutation,
+  CommitTaskScheduleMutationVariables
+>;

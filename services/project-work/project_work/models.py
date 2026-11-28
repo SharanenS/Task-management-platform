@@ -432,3 +432,67 @@ class TaskChange(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
+
+
+class TaskSchedule(Base):
+    __tablename__ = "task_schedules"
+    __table_args__ = (
+        CheckConstraint("duration >= 1 AND duration <= 3660", name="ck_task_duration"),
+    )
+    task_id: Mapped[str] = mapped_column(
+        ForeignKey("work_tasks.id", ondelete="RESTRICT"), primary_key=True
+    )
+    requested_start: Mapped[str] = mapped_column(String(10))
+    duration: Mapped[int] = mapped_column(Integer)
+    calendar_version_id: Mapped[str] = mapped_column(
+        ForeignKey("calendar_versions.id", ondelete="RESTRICT")
+    )
+    original: Mapped[str] = mapped_column(Text)
+    current: Mapped[str] = mapped_column(Text)
+
+
+class TaskDependency(Base):
+    __tablename__ = "task_dependencies"
+    __table_args__ = (CheckConstraint("task_id <> prerequisite_id", name="ck_dependency_not_self"),)
+    task_id: Mapped[str] = mapped_column(
+        ForeignKey("work_tasks.id", ondelete="RESTRICT"), primary_key=True
+    )
+    prerequisite_id: Mapped[str] = mapped_column(
+        ForeignKey("work_tasks.id", ondelete="RESTRICT"), primary_key=True
+    )
+
+
+class SchedulePreview(Base):
+    __tablename__ = "task_schedule_previews"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), index=True
+    )
+    actor_id: Mapped[str] = mapped_column(String(36))
+    project_version: Mapped[int] = mapped_column(Integer)
+    source_hash: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[str] = mapped_column(Text)
+    result: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ScheduleChange(Base):
+    __tablename__ = "task_schedule_changes"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), index=True
+    )
+    preview_id: Mapped[str] = mapped_column(
+        ForeignKey("task_schedule_previews.id", ondelete="RESTRICT"), unique=True
+    )
+    request_id: Mapped[str] = mapped_column(String(36), unique=True)
+    request_hash: Mapped[str] = mapped_column(String(64))
+    actor_id: Mapped[str] = mapped_column(String(36))
+    actor_name: Mapped[str] = mapped_column(String(150))
+    reason: Mapped[str] = mapped_column(Text)
+    before: Mapped[str] = mapped_column(Text)
+    after: Mapped[str] = mapped_column(Text)
+    schedule_version: Mapped[int] = mapped_column(Integer)
+    project_version: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

@@ -62,6 +62,33 @@ class RepositoryStructureTests(unittest.TestCase):
             any("S1 independent" in e for e in structure.check_repository(self.fixture))
         )
 
+    def test_scheduling_acceptance_cannot_be_omitted(self) -> None:
+        runner = self.fixture / "scripts/run-s1-acceptance.py"
+        runner.write_text(
+            runner.read_text(encoding="utf-8").replace(
+                'specs.append("tests/e2e/task-scheduling.spec.ts")', "pass"
+            ),
+            encoding="utf-8",
+        )
+        self.assertTrue(
+            any("S12 scheduling browser" in e for e in structure.check_repository(self.fixture))
+        )
+
+    def test_scheduling_runtime_cannot_be_omitted(self) -> None:
+        ci = self.fixture / ".github/workflows/ci.yml"
+        ci.write_text(
+            ci.read_text(encoding="utf-8").replace(
+                "python scripts/scheduling-development.py up --apply-migration", "echo omitted"
+            ),
+            encoding="utf-8",
+        )
+        self.assertTrue(
+            any(
+                "S12 scheduling source/runtime" in e
+                for e in structure.check_repository(self.fixture)
+            )
+        )
+
     def test_task_acceptance_cannot_be_omitted(self) -> None:
         runner = self.fixture / "scripts/run-s1-acceptance.py"
         runner.write_text(

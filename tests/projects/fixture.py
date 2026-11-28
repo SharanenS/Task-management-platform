@@ -21,8 +21,12 @@ from project_work.models import (
     ProjectMembershipChange,
     ProjectPreview,
     ReviewFallback,
+    ScheduleChange,
+    SchedulePreview,
     TaskAssignment,
     TaskChange,
+    TaskDependency,
+    TaskSchedule,
     WorkTask,
 )
 from sqlalchemy import create_engine, delete, select
@@ -58,11 +62,69 @@ def task_rows(session, project_ids, actors):
     return {TaskChange: changes, TaskAssignment: assignments, WorkTask: tasks}
 
 
+def schedule_rows(session, project_ids, actors):
+    tasks = task_rows(session, project_ids, actors)[WorkTask]
+    ids = [row.id for row in tasks]
+    changes = session.scalars(
+        select(ScheduleChange).where(
+            ScheduleChange.project_id.in_(project_ids) | ScheduleChange.actor_id.in_(actors)
+        )
+    ).all()
+    previews = session.scalars(
+        select(SchedulePreview).where(
+            SchedulePreview.project_id.in_(project_ids) | SchedulePreview.actor_id.in_(actors)
+        )
+    ).all()
+    if any(
+        row.project_id not in project_ids or row.actor_id not in actors
+        for row in changes + previews
+    ):
+        raise ValueError("Schedule fixture ownership mismatch")
+    preview_ids = {row.id for row in previews}
+    if any(row.preview_id not in preview_ids for row in changes):
+        raise ValueError("Schedule preview ownership mismatch")
+    edges = session.scalars(
+        select(TaskDependency).where(
+            TaskDependency.task_id.in_(ids) | TaskDependency.prerequisite_id.in_(ids)
+        )
+    ).all()
+    if any(row.task_id not in ids or row.prerequisite_id not in ids for row in edges):
+        raise ValueError("Schedule dependency ownership mismatch")
+    plans = session.scalars(select(TaskSchedule).where(TaskSchedule.task_id.in_(ids))).all()
+    for row in plans:
+        task = next(task for task in tasks if task.id == row.task_id)
+        if row.calendar_version_id != session.get(Project, task.project_id).calendar_version_id:
+            raise ValueError("Schedule calendar ownership mismatch")
+    return {
+        ScheduleChange: changes,
+        SchedulePreview: previews,
+        TaskDependency: edges,
+        TaskSchedule: plans,
+    }
+
+
 def owner_rows(session, project_ids, actors, run):
     assessments = session.scalars(
         select(DeliveryAssessment).where(DeliveryAssessment.project_id.in_(project_ids))
     ).all()
-    if any(run not in row.summary for row in assessments):
+    scheduled = session.scalars(
+        select(ScheduleChange).where(
+            ScheduleChange.project_id.in_(project_ids), ScheduleChange.actor_id.in_(actors)
+        )
+    ).all()
+    if any(
+        run not in row.summary
+        and not (
+            row.summary == "Dependency schedule; capacity is not guaranteed."
+            and any(
+                c.project_id == row.project_id
+                and c.schedule_version == row.schedule_version
+                and c.project_version == row.project_version
+                for c in scheduled
+            )
+        )
+        for row in assessments
+    ):
         raise ValueError("Owner assessment fixture ownership mismatch")
     assessment_ids = [row.id for row in assessments]
     escalations = session.scalars(
@@ -239,8 +301,10 @@ def main():
         if any(r.record_id not in coordination_ids or r.actor_id not in actors for r in follow_ups):
             raise ValueError("Coordination follow-up ownership mismatch")
         task_data = task_rows(s, project_ids, actors)
+        schedule_data = schedule_rows(s, project_ids, actors)
         owner_data = owner_rows(s, project_ids, actors, run)
         result = {
+            "scheduleRows": sum(len(rows) for rows in schedule_data.values()),
             "taskRows": sum(len(rows) for rows in task_data.values()),
             "ownerRows": sum(len(rows) for rows in owner_data.values()),
             "coordinationRecords": len(coordination),
@@ -290,6 +354,34 @@ def main():
                 )
             ):
                 raise ValueError("Foreign calendar references fixture data")
+            if s.scalar(
+                select(TaskSchedule.task_id).where(
+                    TaskSchedule.calendar_version_id.in_(version_ids),
+                    TaskSchedule.task_id.not_in([r.id for r in task_data[WorkTask]]),
+                )
+            ):
+                raise ValueError("Foreign task schedule references fixture calendar")
+            for model, rows in schedule_data.items():
+                if model is TaskDependency:
+                    for row in rows:
+                        s.execute(
+                            delete(model).where(
+                                model.task_id == row.task_id,
+                                model.prerequisite_id == row.prerequisite_id,
+                            )
+                        )
+                else:
+                    key = model.task_id if model is TaskSchedule else model.id
+                    s.execute(
+                        delete(model).where(
+                            key.in_(
+                                [row.task_id if model is TaskSchedule else row.id for row in rows]
+                            )
+                        )
+                    )
+            s.flush()
+            if any(schedule_rows(s, project_ids, actors).values()):
+                raise ValueError("Schedule fixture cleanup incomplete")
             for model, rows in task_data.items():
                 s.execute(delete(model).where(model.id.in_([r.id for r in rows])))
             s.flush()

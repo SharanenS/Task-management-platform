@@ -20,6 +20,7 @@ from .calendar_schema import CalendarMutation, CalendarQuery
 from .organization_schema import OrganizationMutation, OrganizationQuery
 from .owner_schema import OwnerMutation, OwnerQuery
 from .project_schema import ProjectMutation, ProjectQuery
+from .schedule_schema import ScheduleMutation, ScheduleQuery
 from .task_schema import TaskMutation, TaskQuery
 
 
@@ -121,7 +122,7 @@ class ActorContext(BaseContext):
 
 
 @strawberry.type
-class Query(OrganizationQuery, CalendarQuery, ProjectQuery, OwnerQuery, TaskQuery):
+class Query(OrganizationQuery, CalendarQuery, ProjectQuery, OwnerQuery, TaskQuery, ScheduleQuery):
     @strawberry.field
     def viewer(self, info: Info[ActorContext, None]) -> Viewer:
         return info.context.viewer
@@ -155,7 +156,12 @@ class Query(OrganizationQuery, CalendarQuery, ProjectQuery, OwnerQuery, TaskQuer
 
 @strawberry.type
 class Mutation(
-    OrganizationMutation, CalendarMutation, ProjectMutation, OwnerMutation, TaskMutation
+    OrganizationMutation,
+    CalendarMutation,
+    ProjectMutation,
+    OwnerMutation,
+    TaskMutation,
+    ScheduleMutation,
 ):
     @strawberry.mutation
     async def create_account(
@@ -491,7 +497,21 @@ def create_app(settings=None, verifier=None, transport=None):
                     timeout=20, transport=transport, follow_redirects=False
                 ) as client:
                     headers = {"Authorization": authorization, "X-Service-Key": key}
-                    if command in {"tasks", "task-candidates"}:
+                    if command == "schedule":
+                        project_id = str(UUID(value["id"]))
+                        response = await client.get(
+                            origin.rstrip("/") + "/internal/project-schedule/" + project_id,
+                            headers=headers,
+                        )
+                    elif command in {"schedule-preview", "schedule-commit"}:
+                        response = await client.post(
+                            origin.rstrip("/")
+                            + "/internal/project-schedule/"
+                            + command.removeprefix("schedule-"),
+                            json=value,
+                            headers=headers,
+                        )
+                    elif command in {"tasks", "task-candidates"}:
                         try:
                             project_id = str(UUID(value["id"]))
                         except (ValueError, TypeError, AttributeError):
@@ -599,6 +619,19 @@ def create_app(settings=None, verifier=None, transport=None):
                     raise GraphQLError("Access denied", extensions={"code": "FORBIDDEN"})
                 if response.status_code in {400, 404, 409, 422}:
                     reasons = {
+                        "invalid_schedule",
+                        "invalid_dependencies",
+                        "dependency_cycle",
+                        "schedule_limit",
+                        "stale_schedule",
+                        "schedule_task_not_plannable",
+                        "schedule_affects_started_task",
+                        "schedule_calendar_unavailable",
+                        "schedule_request_conflict",
+                        "schedule_preview_unavailable",
+                        "invalid_duration",
+                        "unsupported_schedule_window",
+                        "ambiguous_or_nonexistent_time",
                         "invalid_task",
                         "stale_task",
                         "task_not_found",

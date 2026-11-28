@@ -4,11 +4,13 @@ Taskspace is being rebuilt as a portal-oriented corporate project and employee
 management platform using Next.js, React, TypeScript, Python, FastAPI, Strawberry
 GraphQL, PostgreSQL, Keycloak, Redis, RabbitMQ and Celery where required.
 
-S0 through S10 are merged. S11 adds contextual leader task planning,
-private instructions and acceptance criteria, and retained single-assignee
-reassignment history. The approved runtime is applied and responsive acceptance
-passed; owner website review and remote CI remain pending. See [S11 verification](docs/s11-verification.md) and the
-[task-planning contract](docs/s11-task-planning-contract.md).
+S0 through S11 are merged and their required CI passed. S12 source development
+adds working-day task schedules, dependencies, private timelines and retained
+schedule revisions. S12 desktop/tablet/mobile scheduling journeys passed locally;
+selected retained regressions also passed. Final environment-health, owner-review
+and remote-CI gates remain open. See
+[S12 verification](docs/s12-verification.md) and the
+[scheduling contract](docs/s12-scheduling-contract.md).
 Gmail remains configured as dailygotasks@gmail.com; owner decisions and coordination send no email.
 The calendar form detects local time automatically; see [calendar entry](docs/calendar-local-time.md).
 
@@ -248,3 +250,14 @@ Runtime updates require explicit approval. Focused tests use three receipt-owned
 identities (owner, leader and contributor), send no email and verify exact cleanup.
 No demonstration tasks or permanent test accounts are left in the portal. Task
 scheduling, progress and completion review remain in their later planned stages.
+
+
+## S12 task scheduling
+
+The current project leader opens Task schedule to set a pending task's requested
+start, whole-working-day duration and prerequisites. Preview shows dependent
+changes and workload warnings before confirmation. Owner/ADMIN have read-only
+oversight; employees see only their own private schedules. Incomplete inputs show
+an unassessed forecast instead of a guessed date. Original commitments are retained.
+The live S12 migration and scoped acceptance wrappers require separate approval;
+see the S12 verification record for actual results and remaining gates.

@@ -1,5 +1,9 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
-import { ProjectAcceptance } from "./project-acceptance-support";
+import {
+  appOrigin,
+  ProjectAcceptance,
+  registerProjectCleanup,
+} from "./project-acceptance-support";
 
 test.describe.configure({ mode: "serial" });
 const run = new ProjectAcceptance();
@@ -137,33 +141,10 @@ test.beforeAll(async ({ browser }) => {
 test.beforeEach(async () => {
   await page.goto("/auth/ready");
 });
-test.afterAll(async () => {
-  const failures: unknown[] = [];
-  for (const [context, identity] of [
-    [employee, run.secondary],
-    [owner, run.primary],
-  ] as const) {
-    if (!context) continue;
-    try {
-      await run.sessions(context, identity);
-    } catch (error) {
-      failures.push(error);
-      run.diagnostic(error, test.info().project.name);
-    }
-    try {
-      await context.close();
-    } catch (error) {
-      failures.push(error);
-    }
-  }
-  try {
-    await run.cleanup();
-  } catch (error) {
-    failures.push(error);
-    run.diagnostic(error, test.info().project.name);
-  }
-  if (failures.length) throw new Error("S10 scoped cleanup failed");
-});
+registerProjectCleanup(run, () => [
+  [employee, run.secondary],
+  [owner, run.primary],
+]);
 
 test("S10 honest empty oversight and current project authority", async () => {
   await check(
@@ -243,9 +224,22 @@ test("S10 explicit scoped absence and audited revocation", async () => {
       .getByLabel("Revocation reason", { exact: true })
       .fill(`Owned revocation ${run.runId}`);
     await revoke.getByLabel("I confirm this scoped absence change.").check();
+    const reloaded = page.waitForEvent("load");
+    const revocation = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.origin === appOrigin &&
+        url.pathname === "/projects/owner-command" &&
+        response.request().method() === "POST" &&
+        response.request().postDataJSON()?.command === "fallback-revoke"
+      );
+    });
     await revoke
       .getByRole("button", { name: "Revoke fallback", exact: true })
       .click();
+    const recorded = await revocation;
+    expect(recorded.status()).toBe(200);
+    await reloaded;
     await expect(
       page.getByRole("heading", { name: "Inactive fallback", exact: true }),
     ).toBeVisible();

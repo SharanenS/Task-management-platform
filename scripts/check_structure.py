@@ -17,6 +17,13 @@ LEGACY_JOBS = (
     "reliability-and-recovery",
 )
 REQUIRED_FILES = (
+    "scripts/scheduling-development.py",
+    "scripts/run-s12-source-checks.py",
+    "scripts/verify-scheduling-postgres.py",
+    "services/project-work/project_work/scheduling.py",
+    "services/project-work/project_work/schedule_graph.py",
+    "services/project-work/migrations/versions/0007_task_scheduling.py",
+    "apps/web/tests/e2e/task-scheduling.spec.ts",
     "scripts/task-breakdown-development.py",
     "scripts/run-s11-source-checks.py",
     "scripts/verify-tasks-postgres.py",
@@ -160,6 +167,15 @@ def check_repository(root: Path) -> list[str]:
     ):
         if required not in ci_source:
             errors.append("S11 task source/runtime acceptance is missing")
+    for required in (
+        "python scripts/run-s12-source-checks.py",
+        "python scripts/scheduling-development.py up --apply-migration",
+        "python scripts/verify-scheduling-postgres.py",
+    ):
+        if required not in ci_source:
+            errors.append("S12 scheduling source/runtime acceptance is missing")
+    if 'specs.append("tests/e2e/task-scheduling.spec.ts")' not in runner_source:
+        errors.append("S12 scheduling browser acceptance is missing from full lifecycle")
     if 'specs.append("tests/e2e/task-breakdown.spec.ts")' not in runner_source:
         errors.append("S11 task browser acceptance is missing from full lifecycle")
     if 'specs.append("tests/e2e/owner-decisions.spec.ts")' not in runner_source:

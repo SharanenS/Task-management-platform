@@ -17,6 +17,7 @@ from .memberships import MembershipService
 from .owner_decisions import OwnerDecisionService
 from .projects import ProjectActor, ProjectError, ProjectService
 from .review_fallbacks import ReviewFallbackService
+from .scheduling import SchedulingService
 from .service import CalendarService, identifier
 from .tasks import TaskService
 
@@ -71,6 +72,7 @@ def create_app(
     )
     coordination = CoordinationService(sessions)
     tasks = TaskService(sessions)
+    scheduling = SchedulingService(sessions)
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
     def authority(request, project_access=False):
@@ -401,6 +403,34 @@ def create_app(
         except Exception:
             raise HTTPException(503, "Service unavailable") from None
 
+    @app.get("/internal/project-schedule/{project_id}")
+    def schedule_workspace(project_id: str, request: Request):
+        try:
+            return scheduling.workspace(
+                authority(request, True), lambda ids: task_directory(request, ids), project_id
+            )
+        except (ProjectError, CalendarError) as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
+    @app.post("/internal/project-schedule/{operation}")
+    def schedule_command(operation: str, request: Request, value: dict):
+        if operation not in {"preview", "commit"}:
+            raise HTTPException(404, "Not found")
+        try:
+            return getattr(scheduling, operation)(
+                authority(request, True), lambda ids: task_directory(request, ids), value
+            )
+        except (ProjectError, CalendarError) as error:
+            raise HTTPException(error.status, error.code) from None
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Service unavailable") from None
+
     @app.get("/health/live")
     def live():
         return {"status": "up"}
@@ -415,6 +445,7 @@ def create_app(
                 s.execute(text("SELECT 1 FROM coordination_records LIMIT 1"))
                 s.execute(text("SELECT 1 FROM project_owner_decisions LIMIT 1"))
                 s.execute(text("SELECT 1 FROM work_tasks LIMIT 1"))
+                s.execute(text("SELECT 1 FROM task_schedules LIMIT 1"))
             return {"status": "up"}
         except Exception:
             raise HTTPException(503, "Service unavailable") from None

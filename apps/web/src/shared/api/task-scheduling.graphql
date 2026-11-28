@@ -1,0 +1,91 @@
+fragment SchedulePointFields on SchedulePoint {
+  id
+  requestedStart
+  duration
+  prerequisites
+  effectiveStart
+  startsAt
+  dueAt
+  nextHandoff
+  adjusted
+  readiness
+  issue
+}
+fragment ScheduleAnalysisFields on ScheduleAnalysis {
+  state
+  forecastAt
+  capacityChecked
+  tasks {
+    ...SchedulePointFields
+  }
+  overlaps {
+    taskId
+    otherTaskId
+  }
+}
+query ProjectSchedule($id: ID!) {
+  projectSchedule(id: $id) {
+    project {
+      id
+      name
+      version
+      approvedDeadline
+    }
+    canPlan
+    state
+    forecastAt
+    timezone
+    calendarNumber
+    currentDeadline
+    tasks {
+      title
+      version
+      status
+      assigneeName
+      plan {
+        ...SchedulePointFields
+      }
+      original {
+        ...SchedulePointFields
+      }
+    }
+    overlaps {
+      taskId
+      otherTaskId
+    }
+    history {
+      id
+      actorName
+      reason
+      createdAt
+      before {
+        ...ScheduleAnalysisFields
+      }
+      after {
+        ...ScheduleAnalysisFields
+      }
+    }
+  }
+}
+mutation PreviewTaskSchedule($input: PreviewTaskScheduleInput!) {
+  previewTaskSchedule(input: $input) {
+    previewId
+    validUntil
+    calendarNumber
+    timezone
+    approvedDeadline
+    exceedsDeadline
+    before {
+      ...ScheduleAnalysisFields
+    }
+    after {
+      ...ScheduleAnalysisFields
+    }
+  }
+}
+mutation CommitTaskSchedule($input: CommitTaskScheduleInput!) {
+  commitTaskSchedule(input: $input) {
+    projectVersion
+    scheduleVersion
+  }
+}

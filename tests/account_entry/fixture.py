@@ -124,6 +124,10 @@ def main():
     profile_id = str(uuid5(UUID(run_id), "employee-profile"))
     engine = create_engine(os.environ["PEOPLE_DATABASE_URL"], hide_parameters=True)
     with Session(engine) as session, session.begin():
+        if action in {"task_peer_cleanup", "task_peer_inspect"}:
+            result = task_peer_account(session, run_id, value["value"], action)
+            print(json.dumps(result))
+            return
         account = session.get(Account, run_id)
         if action == "create":
             if account or session.scalar(

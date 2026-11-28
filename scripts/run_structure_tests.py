@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-MINIMUM_TESTS = 29
+MINIMUM_TESTS = 31
 
 
 def main() -> int:
