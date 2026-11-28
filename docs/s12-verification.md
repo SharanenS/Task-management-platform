@@ -1,6 +1,11 @@
 # S12 task scheduling verification
 
-Status: **in progress — local functional acceptance passed; separate environment health, owner review and remote CI remain open**.
+Status at local handoff: **local functional acceptance passed; environment health, owner review and remote CI were open**.
+
+Post-merge update — 28 November 2026: the owner reported a successful merge.
+Main commit 3589a6380d2118e4f344019b7bf7cc13467b13cd passed
+[post-merge CI 46119194721](https://github.com/SharanenS/Task-management-platform/actions/runs/46119194721).
+The earlier local results and separate Kafka health exception below remain historical evidence; no Kafka fix is claimed.
 Dates: 27–28 November 2026. Branch: s12-task-scheduling. Baseline: 0763746.
 The initial worktree and index were clean. The original development plan is unchanged.
 

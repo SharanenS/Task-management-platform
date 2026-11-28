@@ -42,7 +42,7 @@ export class ProjectAcceptance {
   grants: string[] = [];
   bootstrapId = "";
   boundary = "initialization";
-  diagnosticScope: "s7" | "s8" | "s9" | "s10" | "s11" | "s12" = "s7";
+  diagnosticScope: "s7" | "s8" | "s9" | "s10" | "s11" | "s12" | "s13" = "s7";
   receiptPath = resolve(`../../.local/auth/runs/${this.runId}.json`);
   write(status: string, extra: Record<string, unknown> = {}) {
     mkdirSync(resolve("../../.local/auth/runs"), { recursive: true });
@@ -539,7 +539,8 @@ export class ProjectAcceptance {
             check.coordinationFollowUps === 0 &&
             check.ownerRows === 0 &&
             check.taskRows === 0 &&
-            check.scheduleRows === 0,
+            check.scheduleRows === 0 &&
+            check.reviewRows === 0,
         ).toBe(true);
         this.cleanupProof.domain = true;
       } else if (part === "peer") {
@@ -662,6 +663,7 @@ export class ProjectAcceptance {
       ownerCleanupVerified: proof.domain,
       taskCleanupVerified: proof.domain,
       scheduleCleanupVerified: proof.domain,
+      reviewCleanupVerified: proof.domain,
       calendarCleanupVerified: proof.domain,
       organizationCleanupVerified: true,
       cleanupTimingsMs: this.cleanupTimings,

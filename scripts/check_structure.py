@@ -17,6 +17,12 @@ LEGACY_JOBS = (
     "reliability-and-recovery",
 )
 REQUIRED_FILES = (
+    "scripts/review-development.py",
+    "scripts/run-s13-source-checks.py",
+    "scripts/verify-reviews-postgres.py",
+    "services/project-work/project_work/reviews.py",
+    "services/project-work/migrations/versions/0008_completion_reviews.py",
+    "apps/web/tests/e2e/completion-reviews.spec.ts",
     "scripts/scheduling-development.py",
     "scripts/run-s12-source-checks.py",
     "scripts/verify-scheduling-postgres.py",
@@ -167,6 +173,15 @@ def check_repository(root: Path) -> list[str]:
     ):
         if required not in ci_source:
             errors.append("S11 task source/runtime acceptance is missing")
+    for required in (
+        "python scripts/run-s13-source-checks.py",
+        "python scripts/review-development.py up --apply-migration",
+        "python scripts/verify-reviews-postgres.py",
+    ):
+        if required not in ci_source:
+            errors.append("S13 review source/runtime acceptance is missing")
+    if 'specs.append("tests/e2e/completion-reviews.spec.ts")' not in runner_source:
+        errors.append("S13 review browser acceptance is missing from full lifecycle")
     for required in (
         "python scripts/run-s12-source-checks.py",
         "python scripts/scheduling-development.py up --apply-migration",

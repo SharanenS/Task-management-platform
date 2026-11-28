@@ -62,6 +62,30 @@ class RepositoryStructureTests(unittest.TestCase):
             any("S1 independent" in e for e in structure.check_repository(self.fixture))
         )
 
+    def test_review_acceptance_cannot_be_omitted(self) -> None:
+        runner = self.fixture / "scripts/run-s1-acceptance.py"
+        runner.write_text(
+            runner.read_text(encoding="utf-8").replace(
+                'specs.append("tests/e2e/completion-reviews.spec.ts")', "pass"
+            ),
+            encoding="utf-8",
+        )
+        self.assertTrue(
+            any("S13 review browser" in e for e in structure.check_repository(self.fixture))
+        )
+
+    def test_review_runtime_cannot_be_omitted(self) -> None:
+        ci = self.fixture / ".github/workflows/ci.yml"
+        ci.write_text(
+            ci.read_text(encoding="utf-8").replace(
+                "python scripts/review-development.py up --apply-migration", "echo omitted"
+            ),
+            encoding="utf-8",
+        )
+        self.assertTrue(
+            any("S13 review source/runtime" in e for e in structure.check_repository(self.fixture))
+        )
+
     def test_scheduling_acceptance_cannot_be_omitted(self) -> None:
         runner = self.fixture / "scripts/run-s1-acceptance.py"
         runner.write_text(

@@ -17,6 +17,8 @@ const readiness: Record<string, string> = {
   UNASSESSED: "Readiness cannot be assessed",
 };
 const issues: Record<string, string> = {
+  LATE_COMPLETION_REASSESSMENT:
+    "Completion approval followed the planned finish; the delivery forecast needs reassessment",
   CANCELLED: "Cancelled task",
   MISSING_PLAN: "Start and duration are not set",
   ASSIGNEE_INELIGIBLE: "Assignee is no longer eligible",
